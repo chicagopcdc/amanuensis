@@ -1,27 +1,29 @@
-import bcrypt
 import collections
-from functools import wraps
-import logging
 import json
-from random import SystemRandom
+import logging
 import re
 import string
-import requests
-import boto3
-from urllib.parse import urlencode
-from urllib.parse import parse_qs, urlsplit, urlunsplit
+from os import environ
+from email.contentmanager import get_text_content
+from functools import wraps
+from random import SystemRandom
+from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
-from cdislogging import get_logger
+
+import bcrypt
+import boto3
 import flask
+import requests
+from cdislogging import get_logger
+import html2text
 from userportaldatamodel.driver import SQLAlchemyDriver
 from werkzeug.datastructures import ImmutableMultiDict
 
+from amanuensis.auth.auth import get_jwt_from_header
+from amanuensis.config import config
+from amanuensis.errors import NotFound, UserError
 # from amanuensis.models import Client, User, query_for_user
 from amanuensis.models import query_for_user
-from amanuensis.errors import NotFound, UserError
-from amanuensis.config import config
-from amanuensis.auth.auth import get_jwt_from_header
-
 
 rng = SystemRandom()
 alphanumeric = string.ascii_uppercase + string.ascii_lowercase + string.digits
@@ -372,23 +374,16 @@ def send_email(from_email, to_emails, subject, text, smtp_domain):
         data={"from": from_email, "to": to_emails, "subject": subject, "text": text},
     )
 
+
 def send_email_ses(body, to_emails, subject):
     """
     Send email to group of emails using AWS SES api.
 
     Args:
-        from_email(str): from email
+        body: html or text message
         to_emails(list): list of emails to receive the messages
-        text(str): the text message
+        subject(str): email subject
         smtp_domain(dict): smtp domain server
-
-            {
-                "smtp_hostname": "smtp.mailgun.org",
-                "default_login": "postmaster@mailgun.planx-pla.net",
-                "api_url": "https://api.mailgun.net/v3/mailgun.planx-pla.net",
-                "smtp_password": "password",
-                "api_key": "api key"
-            }
 
     Returns:
         Http response
@@ -397,27 +392,40 @@ def send_email_ses(body, to_emails, subject):
         KeyError
 
     """
+
+    # DON'T SEND EMAILS IN DEBUG MODE
+    if bool(environ.get('GEN3_DEBUG')):
+        response = {
+            'MessageId': 12345,
+        }
+        logger.info("send_email_ses:  Success!")
+        return response
+
+
     #TODO add import for boto
 
-    logging.warning( sender in config["AWS_SES"])
-    logging.warning( SENDER in config["AWS_SES"])
     if not config["AWS_SES"]:
         raise NotFound("AWS SES '{}' does not exist in configuration. Cannot send email.")
-    if sender not in config["AWS_SES"]:
+    if "SENDER" not in config["AWS_SES"]:
         raise NotFound("AWS SES sender does not exist in configuration. Cannot send email.")
-    if AWS_ACCESS_KEY not in config["AWS_SES"] or AWS_SECRET_KEY not in config["AWS_SES"]:
+    if "AWS_ACCESS_KEY" not in config["AWS_SES"] or "AWS_SECRET_KEY" not in config["AWS_SES"]:
         raise NotFound("AWS SES credentials are missing in configuration. Cannot send email.")
 
-    body = "try the text." #TODO retrieve body from template (pass as external param above)
+    #TODO retrieve body from template (pass as external param above)
     if not body:
         raise Exception('You must provide a text or html body.')
+    if not subject:
+        raise Exception('You must provide a text subject for the email.')
 
-    sender = config["AWS_SES"]["sender"]
+    sender = config["AWS_SES"]["SENDER"]
+    region = config["AWS_SES"]["AWS_REGION"] if config["AWS_SES"]["AWS_REGION"] is not None else "us-east-1"
     AWS_ACCESS_KEY = config["AWS_SES"]["AWS_ACCESS_KEY"]
     AWS_SECRET_KEY = config["AWS_SES"]["AWS_SECRET_KEY"]
-    region = config["AWS_SES"]["AWS_REGION"] if config["AWS_SES"]["AWS_REGION"] is not None else "us-east-1"
-    #TODO get a general team email for this
-    RECIPIENT = config["AWS_SES"]["RECIPIENT"] if config["AWS_SES"]["RECIPIENT"] is not None else "lgraglia@uchicago.edu"
+    
+    # if body is in html format, strip out html markup
+    # otherwise body and body_text could have the same values
+    body_text = html2text.html2text(body)
+    
         
         # if not self._html:
         #     self._format = 'text'
@@ -432,18 +440,22 @@ def send_email_ses(body, to_emails, subject):
     try:
         response = client.send_email(
             Destination={
-                'ToAddresses': [RECIPIENT],
+                'ToAddresses': to_emails,
             },
             Message={
                 'Body': {
                     'Text': {
                         'Charset': 'UTF-8',
-                        'Data': 'email body string',
+                        'Data': body_text,
+                    },
+                    'Html': {
+                        'Charset': 'UTF-8',
+                        'Data': body,
                     },
                 },
                 'Subject': {
                     'Charset': 'UTF-8',
-                    'Data': 'email subject string',
+                    'Data': subject,
                 },
             },
             Source=sender,
@@ -453,20 +465,8 @@ def send_email_ses(body, to_emails, subject):
     else:
         print("Email sent! Message ID:"),
         print(response['MessageId'])
-    logging.warning("LUCA EMAIL")
-    logging.warning(json.dumps(response))
+    logging.debug(json.dumps(response))
     return response
-
-def get_valid_expiration_from_request():
-    """
-    Return the expires_in param if it is in the request, None otherwise.
-    Throw an error if the requested expires_in is not a positive integer.
-    """
-    if "expires_in" in flask.request.args:
-        is_valid_expiration(flask.request.args["expires_in"])
-        return int(flask.request.args["expires_in"])
-    else:
-        return None
 
 
 def is_valid_expiration(expires_in):

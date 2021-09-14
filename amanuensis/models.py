@@ -7,47 +7,31 @@ The `migrate` function in this file is called every init and can be used for
 database migrations.
 """
 
-from enum import Enum
-
-from authlib.flask.oauth2.sqla import OAuth2AuthorizationCodeMixin, OAuth2ClientMixin
-import bcrypt
-import flask
-from sqlalchemy import (
-    Integer,
-    BigInteger,
-    DateTime,
-    String,
-    Column,
-    Boolean,
-    Text,
-    MetaData,
-    Table,
-    text,
-)
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import relationship, backref
-from sqlalchemy.sql import func
-from sqlalchemy import exc as sa_exc
-from sqlalchemy import func
-from sqlalchemy.schema import ForeignKey
-from userportaldatamodel import Base
-from userportaldatamodel.models import (
-    Search,
-    Project,
-    ConsortiumDataContributor,
-    Request,
-    Message,
-    Receiver,
-    InputType,
-    AttributeListValue,
-    AttributeList,
-    Attributes
-)
 # from userportaldatamodel.schema import (
 #     # MessageSchema,
 #     ReceiverSchema
 # )
 import warnings
+from enum import Enum
+
+import bcrypt
+import flask
+from authlib.flask.oauth2.sqla import (OAuth2AuthorizationCodeMixin,
+                                       OAuth2ClientMixin)
+from sqlalchemy import (BigInteger, Boolean, Column, DateTime, Integer,
+                        MetaData, String, Table, Text)
+from sqlalchemy import exc as sa_exc
+from sqlalchemy import func, text
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
+from sqlalchemy.orm import backref, relationship
+from sqlalchemy.schema import ForeignKey
+from sqlalchemy.sql import func
+from userdatamodel.user import User
+from userportaldatamodel import Base
+from userportaldatamodel.models import (AttributeList, AttributeListValue,
+                                        Attributes, ConsortiumDataContributor,
+                                        InputType, Message, Project, Receiver,
+                                        Request, Search)
 
 from amanuensis.config import config
 

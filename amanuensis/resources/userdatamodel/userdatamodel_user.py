@@ -3,10 +3,6 @@ from sqlalchemy import func
 from amanuensis.errors import NotFound, UserError
 from amanuensis.models import (
     Project,
-    StorageAccess,
-    CloudProvider,
-    ProjectToBucket,
-    Bucket,
     User,
     AccessPrivilege,
     Group,

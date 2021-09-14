@@ -23,7 +23,7 @@ from amanuensis.errors import NotFound, Unauthorized, UserError, InternalError, 
 from amanuensis.jwt.utils import get_jwt_header
 from amanuensis.models import query_for_user
 from amanuensis.auth.auth import register_arborist_user
-from amanuensis.crm import hubspot
+from hubspotclient.client.hubspot.client import HubspotClient
 
 
 logger = get_logger(__name__)
@@ -55,16 +55,24 @@ def update_user(current_session, additional_info):
     #TODO check if user is already in the system - you can get create_user_if_not_exist with new gen3authz version. 
     register_arborist_user(flask.g.user)
 
-    logger.error("IN UPDATE")
-    logger.error(flask.g.user.username)
-    logger.error(flask.g.user.additional_info)
-    #TODO - add this to HUBSPOT or update if already existing
+    logger.debug("IN UPDATE")
+    logger.debug(flask.g.user.username)
+    logger.debug(flask.g.user.additional_info)
+    
     if flask.current_app.hubspot_api_key:
-        hubspot_id = hubspot.update_user_info(flask.g.user.username, additional_info)
-        additional_info_tmp = {}    
-        additional_info_tmp["hubspot_id"] = hubspot_id
+        additional_info_tmp = {}  
+
+        # The hubspot oAuth implementation is on the way, but not supported yet.
+        hubspot = HubspotClient(flask.current_app.hubspot_api_key)
+
+        hubspot_contact = hubspot.get_contact_by_email(email=flask.g.user.username)
+        if hubspot_contact and hubspot_contact.get('total') == 1:
+            contact = hubspot_contact.get('results')
+            additional_info_tmp["hubspot_id"] = contact.get('id')
+            hubspot_update = hubspot.update_contact(additional_info_tmp["hubspot_id"], additional_info)
+
         # usr = get_user(current_session, current_session.merge(flask.g.user).username)
-        logger.error(additional_info_tmp)
+        logger.debug(additional_info_tmp)
         udm.update_user(current_session, flask.g.user.username, additional_info_tmp)
 
     return get_user_info(current_session, flask.g.user.username)
@@ -99,7 +107,16 @@ def get_user_info(current_session, username):
     # logger.error(type(user.additional_info))
     additional_info_merged = user.additional_info.copy()
     if flask.current_app.hubspot_api_key and user.additional_info and user.additional_info["hubspot_id"] is not None:
-        user_info = hubspot.get_user(user.username, user.additional_info["hubspot_id"])
+        hubspot = HubspotClient(flask.current_app.hubspot_api_key)
+        hubspot_contact = hubspot.get_contact_by_email(email=flask.g.user.username)
+        user_info = {}
+        if hubspot_contact and hubspot_contact['total'] == 1:
+            contact = hubspot_contact.get('results')
+            user_info = contact.get('properties')
+            user_info["id"] = contact.get('id')
+            user_info["email"] = flask.g.user.username
+
+        # deprecated: user_info = hubspot.get_user(user.username, user.additional_info["hubspot_id"])
         if user_info:
             additional_info_merged.update(user_info)
 

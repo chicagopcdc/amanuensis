@@ -17,7 +17,6 @@ from amanuensis.errors import NotFound, Unauthorized, UserError, InternalError, 
 # from amanuensis.jwt.utils import get_jwt_header
 # from amanuensis.models import query_for_user
 # from amanuensis.auth.auth import register_arborist_user
-# from amanuensis.crm import hubspot
 
 
 logger = get_logger(__name__)

@@ -5,17 +5,23 @@ import re
 
 from json import dumps
 from amanuensis.config import config
+from cdislogging import get_logger
+
+logger = get_logger(__name__)
 
 
 
 def request_hubspot(data={}, method="POST", path="/"):
-    url = "https://api.hubapi.com/crm/v3/objects" + path
-    headers = {
-        "accept": "application/json",
-        "content-type": "application/json"
-    }
-    querystring = {"hapikey": flask.current_app.hubspot_api_key}
-    return requests.request(method, url, data=dumps(data), headers=headers, params=querystring)
+    try:
+        url = "https://api.hubapi.com/crm/v3/objects" + path
+        headers = {
+            "accept": "application/json",
+            "content-type": "application/json"
+        }
+        querystring = {"hapikey": flask.current_app.hubspot_api_key}
+        return requests.request(method, url, data=dumps(data), headers=headers, params=querystring)
+    except Exception as e:
+        logger.error(e)
 
 
 #TODO is this used at all???
@@ -30,30 +36,63 @@ def is_domain(name):
     return pattern.match(name)
 
 
-def get_user(email, hubspot_id):
+def get_users(email, hubspot_id):
+    '''
+    get one or many users by email
+    '''
+    emails = []
+    filter_groups = []
+
+    if isinstance(email, basestring):
+        emails.append(email)
+    else:
+        # hey hey, it's an array
+        emails = email
+
+    for e in emails:
+        filter_groups.append({
+            "filters": [ 
+                {
+                    "value": e,
+                    "propertyName": "email",
+                    "operator": "EQ"
+                }
+            ]
+        })
+
     data = {
-        "filterGroups": [{
-            "filters": [{
-                "value": email,
-                "propertyName": "email",
-                "operator": "EQ"
-            }]
-        }],
-        "properties": ["firstname", "lastname", "institution"]
+        "filterGroups": filter_groups,
+        "properties": ["firstname", "lastname", "institution", "email"]
     }
-    print("GET HUB USER")
+
+    # print("GET HUB USER")
     r = request_hubspot(data=data, path="/contacts/search")
     # {"total": 0, "results": []}
     r = r.json()
     if len(r.get("results")) < 1:
     	return None
 
-    user_properties = r.get("results")[0].get("properties")
-    return {
-        "firstname": user_properties.get("firstname"),
-        "lastname": user_properties.get("lastname"),
-        "institution": user_properties.get("institution")
-    }
+    # user_properties = r.get("results")[0].get("properties")
+    results = r.get("results")
+    user_list = []
+    for u in results:
+        user_properties = u.get("properties")
+        user_list.append({
+            "id": u.get("id"),
+            "firstname": user_properties.get("firstname"),
+            "lastname": user_properties.get("lastname"),
+            "institution": user_properties.get("institution"),
+            "email": user_properties.get("email")
+        })
+
+    return user_list
+
+    # return {
+    #     "firstname": user_properties.get("firstname"),
+    #     "lastname": user_properties.get("lastname"),
+    #     "institution": user_properties.get("institution"),
+    #     "email": user_properties.get("email")
+    # }
     # return flask.jsonify({"user": {
     #     "firstname": user_properties.get("firstname"),
     #     "lastname": user_properties.get("lastname"),
@@ -75,6 +114,7 @@ def is_user(email, hubspot_id):
     registered = r.json().get("total", 0) > 0
     # return flask.jsonify({"registered": registered})
     return registered
+
 
 def update_user_info(email, user_info):
 	#TODO call hubspot API and return id

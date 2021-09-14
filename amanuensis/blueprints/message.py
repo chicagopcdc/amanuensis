@@ -1,14 +1,18 @@
 import flask
 from flask_sqlalchemy_session import current_session
 
+from os import environ
 from amanuensis.config import config
 from amanuensis.auth.auth import current_user
 from amanuensis.errors import AuthError
 from amanuensis.schema import MessageSchema
 from amanuensis.resources import message as m
+from cdislogging import get_logger
 
 
 blueprint = flask.Blueprint("message", __name__)
+
+logger = get_logger(__name__)
 
 
 @blueprint.route("/", methods=["GET"])
@@ -45,7 +49,13 @@ def send_message():
     Returns a json object
     """
     try:
-        logged_user_id = current_user.id
+        #DEBUG -- switch lines below for testing
+        if bool(environ.get('GEN3_DEBUG')):
+            logged_user_id = 1
+        else:
+            # very real legit code
+            logged_user_id = current_user.id
+        
     except AuthError:
         logger.warning(
             "Unable to load or find the user, check your token"
@@ -53,12 +63,16 @@ def send_message():
 
     request_id = flask.request.get_json().get("request_id", None)
     body = flask.request.get_json().get("body", None)
+    subject = flask.request.get_json().get("subject", None)
+
+    if not subject:
+        subject = "[PCDC GEN3] Project Activity"
 
     # if body is None or body == "":
     #     return 400
 
     message_schema = MessageSchema()
-    return flask.jsonify(message_schema.dump(m.send_message(logged_user_id, request_id, body)))
+    return flask.jsonify(message_schema.dump(m.send_message(logged_user_id, request_id, subject, body)))
 
 
 
