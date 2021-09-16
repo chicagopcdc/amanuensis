@@ -1,14 +1,14 @@
 # To run: docker run --rm -d -v /path/to/amanuensis-config.yaml:/var/www/amanuensis/amanuensis-config.yaml --name=amanuensis -p 80:80 amanuensis
 # To check running container: docker exec -it amanuensis /bin/bash
 
-FROM quay.io/cdis/python-nginx:pybase3-1.5.0
+FROM quay.io/cdis/python-nginx:pybase3-1.6.1
 
 ENV appname=amanuensis
 
 RUN pip install --upgrade pip
 RUN apk add --update \
     postgresql-libs postgresql-dev libffi-dev libressl-dev \
-    linux-headers musl-dev gcc g++ \
+    linux-headers musl-dev gcc g++ logrotate \
     curl bash git vim make lftp \
     openssh libmcrypt-dev
 
