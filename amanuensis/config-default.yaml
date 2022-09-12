@@ -216,7 +216,8 @@ AWS_SES:
   AWS_SECRET_KEY: ""
 
 HUBSPOT:
-  API_KEY: "DEV_KEY"
+  # Access token from Hubspot Private App.
+  ACCESS_TOKEN: "DEV_KEY"
   
 DB_MIGRATION_POSTGRES_LOCK_KEY: 100
 
