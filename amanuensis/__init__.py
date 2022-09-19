@@ -115,7 +115,6 @@ def app_config(
     # directly from the amanuensis config singleton in the code though.
     app.config.update(**config._configs)
 
-    _setup_hubspot_key(app)
     _setup_arborist_client(app)
     _setup_data_endpoint_and_boto(app)
     _setup_hubspot_client(app)
@@ -207,7 +206,7 @@ def _setup_hubspot_client(app):
             app.hubspot_client = hubspot.Client.create(access_token=app.hubspot_access_token)
         except KeyError as ex:
             logger.exception(ex)
-            raise KeyError("Hubspot ACCESS_TOKEN not found: {}".format(ex))
+            raise KeyError("Hubspot ACCESS_TOKEN not found")
     else:
         app.hubspot_client = None
 

@@ -1,9 +1,10 @@
 import flask
-import json
 from cdislogging import get_logger
-
-from amanuensis.auth.auth import current_user
+from amanuensis.errors import NotFound, UserError
 from amanuensis.resources import userdatamodel as udm
+from amanuensis.resources.userdatamodel.userdatamodel_project import get_project_by_id
+from amanuensis.resources.message import send_admin_message
+from datetime import datetime
 from amanuensis.config import config
 from amanuensis.schema import (
     StateSchema,
@@ -59,11 +60,57 @@ def update_project_state(project_id, state_id):
 
         request_schema = RequestSchema(many=True)
         consortium_statuses = config["CONSORTIUM_STATUS"]
-        requests = udm.update_project_state(
-            session, requests, state, consortium_statuses, project_id
-        )
+        consortiums = []
+        for request in requests:
+            consortium = request.consortium_data_contributor.code
+            format = "%Y-%m-%d %H:%M:%S.%f"  # Format that create_date is stored in db.
+            state_timestamp = list(
+                zip(
+                    request.state.code,
+                    [datetime.strptime(time, format) for time in request.create_date],
+                )
+            )
+            state_timestamp.sort(key=lambda x: x[1])  # sort by datetime object.
+            state_code = state_timestamp[-1][0]
+            if state_code == state.code:
+                logger.info(
+                    "Request {} is already in state {}. No need to change.".format(
+                        request.id, state.code
+                    )
+                )
+            elif state_code in consortium_statuses[consortium]["FINAL"]:
+                raise UserError(
+                    "Cannot change state of request {} from {} because it's a final state".format(
+                        request.id, state.code
+                    )
+                )
+            else:
+                request.states.append(state)
+                try:
+                    if state.code in consortium_statuses[consortium]["NOTIFY"]:
+                        consortiums.append(consortium)
+                except KeyError:
+                    logger.info(
+                        f"Consortium {consortium} doesn't have a NOTIFY status set."
+                    )
+
+        if consortiums:
+            notify_user_project_status_update(session, project_id, consortiums)
+
+        session.flush()
         request_schema.dump(requests)
         return requests
+
+
+def notify_user_project_status_update(current_session, project_id, consortiums):
+    """
+    Notify the users when project state changes.
+    """
+    project = get_project_by_id(current_session, project_id)
+    email_subject = f"Project {project.name}: Data Delivered"
+    email_body = f"The project f{project.name} data was delivered."
+
+    return send_admin_message(project, consortiums, email_subject, email_body)
 
 
 def create_consortium(name, code):

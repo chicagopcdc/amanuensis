@@ -65,12 +65,10 @@ def get_contacts_by_committee(committee, desired_properties=["email"]):
 
     payload = [result.properties for result in api_response.results]
 
-    return json.dumps(
-        [
+    return [
             {key: val for key, val in property.items() if key in desired_properties}
             for property in payload
         ]
-    )
 
 
 def get_messages(logged_user_id, request_id=None):
@@ -102,7 +100,7 @@ def send_message(logged_user_id, request_id, subject, body):
         usernames = []
         receivers = []
         if hubspot_response:
-            for member in hubspot_response["results"]:
+            for member in hubspot_response:
                 usernames.append(member["email"])
 
             # make one request for all users to be messaged
@@ -159,17 +157,21 @@ def send_admin_message(project, consortiums, subject, body):
             hubspot_response = get_contacts_by_committee(committee=committee)
             # logger.debug('Hubspot Response: ' + str(hubspot_response))
             if hubspot_response:
-                for member in hubspot_response["results"]:
+                for member in hubspot_response:
                     receivers.append(member["email"])
 
         receivers = list(set(receivers))
         requesters = list(set(requesters))
+        logger.info(f"Receivers: {receivers}")
+        print(f"Receivers {receivers}")
         logger.info("Sending email to {} and {}".format(receivers, requesters))
 
         if is_env_enabled("AWS_SES_DEBUG"):
             logger.debug(f"send_message emails (debug mode): {str(receivers)}")
             logger.debug(f"send_message emails (debug mode): {str(requesters)}")
-        elif receivers:
+            return
+        if receivers:
             # Send the Message via AWS SES
             flask.current_app.boto.send_email_ses(body, receivers, subject)
+        if requesters:
             flask.current_app.boto.send_email_ses(body, requesters, subject)
