@@ -25,13 +25,15 @@ from userportaldatamodel import Base
 from userportaldatamodel.models import (AttributeList, AttributeListValue,
                                         Attributes, ConsortiumDataContributor,
                                         InputType, Message, Project, Receiver,
-                                        Request, Search, FilterSourceType, State, AssociatedUser, ProjectAssociatedUser, ASSOCIATED_USER_ROLES, RequestState)
+                                        Request, Search, FilterSourceType, State, AssociatedUser, ProjectAssociatedUser, ASSOCIATED_USER_ROLES, RequestState, SearchIsShared)
+
 
 
 from amanuensis.config import config
 
 
 
+##### DEPRECATED ######
 to_timestamp = (
     "CREATE OR REPLACE FUNCTION pc_datetime_to_timestamp(datetoconvert timestamp) "
     "RETURNS BIGINT AS "
@@ -329,4 +331,4 @@ def add_not_null_constraint(table_name, column_name, driver, metadata):
             )
             session.commit()
 
-
+##### END DEPRECATED ######

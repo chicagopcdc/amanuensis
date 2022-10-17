@@ -22,6 +22,8 @@ from amanuensis.auth.auth import get_jwt_from_header
 from amanuensis.config import config
 from amanuensis.errors import NotFound, UserError
 
+from aws_client.boto import BotoManager
+
 
 rng = SystemRandom()
 alphanumeric = string.ascii_uppercase + string.ascii_lowercase + string.digits
@@ -298,7 +300,6 @@ def send_email_ses(body, to_emails, subject):
         # if not self._html:
         #     self._format = 'text'
         #     body = self._text
-    
 
     flask.current_app.boto.send_email(sender, to_emails, subject, body, body_text, 'UTF-8', config)
     # logging.debug(json.dumps(response))

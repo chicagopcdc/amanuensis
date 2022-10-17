@@ -5,7 +5,16 @@ import json
 from cdislogging import get_logger
 
 from amanuensis.resources import userdatamodel as udm
-from amanuensis.resources.userdatamodel import get_filter_sets, create_filter_set, delete_filter_set, update_filter_set, get_filter_sets_by_user_id
+from amanuensis.resources.userdatamodel import (
+    get_filter_sets,
+    create_filter_set,
+    delete_filter_set,
+    update_filter_set,
+    get_filter_sets_by_user_id, 
+    create_filter_set_snapshot, 
+    get_snapshot_by_token
+)
+
 from amanuensis.schema import SearchSchema
 
 from amanuensis.config import config
@@ -44,9 +53,9 @@ def create(logged_user_id, is_amanuensis_admin, explorer_id, name, description, 
         return create_filter_set(session, logged_user_id, is_amanuensis_admin, explorer_id, name, description, filter_object, ids_list, graphql_object)
 
 
-def update(logged_user_id, filter_set_id, explorer_id, name, description, filter_object):
+def update(logged_user_id, filter_set_id, explorer_id, name, description, filter_object, graphql_object):
     with flask.current_app.db.session as session:
-        return update_filter_set(session, logged_user_id, filter_set_id, explorer_id, name, description, filter_object)
+        return update_filter_set(session, logged_user_id, filter_set_id, explorer_id, name, description, filter_object, graphql_object)
 
 
 def delete(logged_user_id, filter_set_id, explorer_id):
@@ -54,3 +63,10 @@ def delete(logged_user_id, filter_set_id, explorer_id):
         return delete_filter_set(session, logged_user_id, filter_set_id, explorer_id)
 
 
+def create_snapshot(logged_user_id, filter_set_id, users_list):
+    with flask.current_app.db.session as session:
+        return create_filter_set_snapshot(session, logged_user_id, filter_set_id, users_list)
+
+def get_snapshot(logged_user_id, token):
+    with flask.current_app.db.session as session:
+        return get_snapshot_by_token(session, logged_user_id, token)

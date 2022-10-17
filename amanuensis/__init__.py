@@ -3,11 +3,16 @@ import os
 import flask
 from flask_cors import CORS
 from flask_sqlalchemy_session import flask_scoped_session, current_session
+
 from userportaldatamodel.driver import SQLAlchemyDriver
+from pcdcutils.signature import SignatureManager
+from pcdcutils.errors import KeyPathInvalidError, NoKeyError
+from aws_client.boto import BotoManager
+from cdislogging import get_logger
+from cdispyutils.config import get_value
+from gen3authz.client.arborist.client import ArboristClient
 from amanuensis.errors import UserError
 from amanuensis.models import migrate
-from amanuensis.resources.aws.boto_manager import BotoManager
-
 from amanuensis.error_handler import get_error_response
 from amanuensis.config import config
 from amanuensis.settings import CONFIG_SEARCH_FOLDERS
@@ -20,13 +25,6 @@ import amanuensis.blueprints.admin
 import amanuensis.blueprints.download_urls
 import hubspot
 
-from pcdcutils.signature import SignatureManager
-
-from cdislogging import get_logger
-
-from cdispyutils.config import get_value
-
-from gen3authz.client.arborist.client import ArboristClient
 
 # Can't read config yet. Just set to debug for now, else no handlers.
 # Later, in app_config(), will actually set level based on config
@@ -127,7 +125,15 @@ def app_config(
 
     # load private key for cross-service access
     key_path = config.get("PRIVATE_KEY_PATH", None)
-    config["RSA_PRIVATE_KEY"] = SignatureManager(key_path=key_path).get_key()
+
+    try:
+        config["RSA_PRIVATE_KEY"] = SignatureManager(key_path=key_path).get_key()
+    except NoKeyError:
+        logger.warn('AMANUENSIS_PUBLIC_KEY not found.')
+        pass
+    except KeyPathInvalidError:
+        logger.warn('AMANUENSIS_PUBLIC_KEY_PATH invalid.')
+        pass
 
     # _check_s3_buckets(app)
 

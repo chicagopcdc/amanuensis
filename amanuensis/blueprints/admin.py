@@ -24,6 +24,7 @@ from amanuensis.schema import (
     StateSchema,
     RequestSchema,
     ConsortiumDataContributorSchema,
+    AssociatedUserSchema,
 )
 
 logger = get_logger(__name__)
@@ -286,6 +287,24 @@ def update_associated_user_role():
         raise NotFound("The role {} is not in the allowed list, reach out to pcdc_help@lists.uchicago.edu".format(role))
 
     return jsonify(admin.update_role(project_id, associated_user_id, associated_user_email, role))
+
+
+@blueprint.route("/associated_user", methods=["POST"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+# @debug_log
+def add_associated_user():
+    """
+    Update a project attributes
+    users: [{project_id: "", id: "", email: ""},{}]
+
+    Returns a json object
+    """
+    users = request.get_json().get("users", None)
+    if not users:
+        raise UserError("The body should be in the following format: [{project_id: \"\", id: \"\", email: \"\"},...] ")
+
+    associated_user_schema = AssociatedUserSchema(many=True)
+    return jsonify(associated_user_schema.dump(admin.add_associated_users(users)))
 
 
 @blueprint.route("/projects/date", methods=["PATCH"])

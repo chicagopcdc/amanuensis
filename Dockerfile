@@ -2,19 +2,14 @@
 # To check running container: docker exec -it amanuensis /bin/bash
 
 FROM quay.io/cdis/python:python3.6-buster-pybase3-3.0.2
-# FROM quay.io/pcdc/python:3.6-buster
 
 ENV appname=amanuensis
 
 RUN pip install --upgrade pip
-# RUN apk add --update \
-#    postgresql-libs postgresql-dev libffi-dev libressl-dev \
-#    linux-headers musl-dev gcc g++ logrotate \
-#    curl bash git vim make lftp \
-#    openssh libmcrypt-dev
 RUN pip install --upgrade poetry
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl bash git \
+    && apt-get -y install vim \
     libmcrypt4 libmhash2 mcrypt \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/
@@ -34,8 +29,8 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     && ./aws/install \
     && /bin/rm -rf awscliv2.zip ./aws
 
-
 WORKDIR /$appname
+
 # copy ONLY poetry artifact and install
 # this will make sure than the dependencies is cached
 COPY poetry.lock pyproject.toml /$appname/
@@ -59,4 +54,4 @@ RUN poetry config virtualenvs.create false \
 
 WORKDIR /var/www/$appname
 
-CMD ["sh","-c","bash /dockerrun.sh"]
+CMD ["sh","-c", "bash /dockerrun.sh"]

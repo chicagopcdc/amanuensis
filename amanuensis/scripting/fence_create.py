@@ -40,3 +40,17 @@ def migrate_database():
     alembic_main(["--raiseerr", "upgrade", "head"])
     logger.info("Done.")
 
+
+
+def main():
+    # args = parse_arguments()
+    # # get database information
+    # sys.path.append(args.path)
+    # if args.action == "migrate":
+    #     migrate_database()
+    migrate_database()
+    
+
+
+if __name__ == "__main__":
+    main()
