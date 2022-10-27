@@ -213,9 +213,11 @@ def share_filter_set(
     while not token_generated:
         shareable_token = str(uuid.uuid4())
 
-        snapshot = current_session.query(SearchIsShared)
+        snapshot = (
+            current_session.query(SearchIsShared)
             .filter(SearchIsShared.shareable_token == shareable_token)
             .first()
+        )
 
         if not snapshot:
             token_generated = True

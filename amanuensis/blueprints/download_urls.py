@@ -5,7 +5,7 @@ from cdislogging import get_logger
 from amanuensis.auth.auth import current_user
 from amanuensis.errors import AuthError, UserError, NotFound, InternalError, Forbidden
 from amanuensis.resources.project import get_by_id
-from amanuensis.resources.aws.utils import get_s3_key_and_bucket
+from pcdc_aws_client.utils import get_s3_key_and_bucket
 
 from amanuensis.config import config
 
@@ -67,7 +67,8 @@ def download_data(project_id):
     if s3_info is None:
         raise NotFound("The S3 bucket and key information cannot be extracted from the URL {}".format(storage_url))
 
-    result = flask.current_app.boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
+    result = flask.current_
+    boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
     return flask.jsonify({"download_url": result})
 
 

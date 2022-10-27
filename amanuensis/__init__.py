@@ -7,7 +7,7 @@ from flask_sqlalchemy_session import flask_scoped_session, current_session
 from userportaldatamodel.driver import SQLAlchemyDriver
 from pcdcutils.signature import SignatureManager
 from pcdcutils.errors import KeyPathInvalidError, NoKeyError
-from aws_client.boto import BotoManager
+from pcdc_aws_client.boto import BotoManager
 from cdislogging import get_logger
 from cdispyutils.config import get_value
 from gen3authz.client.arborist.client import ArboristClient
