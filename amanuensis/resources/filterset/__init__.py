@@ -67,6 +67,7 @@ def create_snapshot(logged_user_id, filter_set_id, users_list):
     with flask.current_app.db.session as session:
         return create_filter_set_snapshot(session, logged_user_id, filter_set_id, users_list)
 
+
 def get_snapshot(logged_user_id, token):
     with flask.current_app.db.session as session:
         return get_snapshot_by_token(session, logged_user_id, token)

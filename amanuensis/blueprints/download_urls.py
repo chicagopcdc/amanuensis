@@ -5,7 +5,7 @@ from cdislogging import get_logger
 from amanuensis.auth.auth import current_user
 from amanuensis.errors import AuthError, UserError, NotFound, InternalError, Forbidden
 from amanuensis.resources.project import get_by_id
-from amanuensis.resources.aws.utils import get_s3_key_and_bucket
+from pcdc_aws_client.utils import get_s3_key_and_bucket
 
 from amanuensis.config import config
 
