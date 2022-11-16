@@ -134,6 +134,7 @@ def send_admin_message(project, consortiums, subject, body):
 
         receivers = []
         requesters = []
+        sender = config["AWS_SES"]["SENDER"]
 
         notify_users_id = []
         # project request owner
@@ -172,6 +173,6 @@ def send_admin_message(project, consortiums, subject, body):
             return
         if receivers:
             # Send the Message via AWS SES
-            flask.current_app.boto.send_email_ses(body, receivers, subject)
+            flask.current_app.boto.send_email(sender, receivers, subject, body)
         if requesters:
-            flask.current_app.boto.send_email_ses(body, requesters, subject)
+            flask.current_app.boto.send_email(sender, requesters, subject, body)

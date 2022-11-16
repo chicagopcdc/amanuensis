@@ -1,13 +1,12 @@
-from flask import current_app
-from sqlalchemy import func
 from cdislogging import get_logger
-from amanuensis.errors import NotFound, UserError
-from amanuensis.models import (
-    Message,
-)
-
+from flask import current_app
 # do this until AWS-related requests is handled by it's own project
 from pcdcutils.environment import is_env_enabled
+from sqlalchemy import func
+
+from amanuensis.config import config
+from amanuensis.errors import NotFound, UserError
+from amanuensis.models import Message
 
 logger = get_logger(__name__)
 
@@ -51,7 +50,7 @@ def send_message(
         logger.debug(f"send_message emails (debug mode): {str(emails)}")
     elif emails:
         # Send the Message via AWS SES
-        return current_app.boto.send_email_ses(body, emails, subject)
+        sender = config["AWS_SES"]["SENDER"]
+        return current_app.boto.send_email(sender,emails, subject, body, )
 
     return new_message
-
