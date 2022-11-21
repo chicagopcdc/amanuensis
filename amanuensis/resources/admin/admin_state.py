@@ -63,11 +63,10 @@ def update_project_state(project_id, state_id):
         consortiums = []
         for request in requests:
             consortium = request.consortium_data_contributor.code
-            format = "%Y-%m-%d %H:%M:%S.%f"  # Format that create_date is stored in db.
             state_timestamp = list(
                 zip(
-                    request.state.code,
-                    [datetime.strptime(time, format) for time in request.create_date],
+                    [states.state.code for states in request.request_has_state],
+                    [states.state.create_date for states in request.request_has_state],
                 )
             )
             state_timestamp.sort(key=lambda x: x[1])  # sort by datetime object.
@@ -79,9 +78,10 @@ def update_project_state(project_id, state_id):
                     )
                 )
             elif state_code in consortium_statuses[consortium]["FINAL"]:
+
                 raise UserError(
-                    "Cannot change state of request {} from {} because it's a final state".format(
-                        request.id, state.code
+                    "Cannot change state of request {} to {} because it's in final state of {}".format(
+                        request.id, state.code, state_code
                     )
                 )
             else:
