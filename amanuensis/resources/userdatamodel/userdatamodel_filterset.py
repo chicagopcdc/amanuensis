@@ -87,7 +87,9 @@ def create_filter_set(current_session, logged_user_id, is_amanuensis_admin, expl
     new_filter_set = Search(
         user_id=logged_user_id,
         filter_source_internal_id=explorer_id,
-        filter_source=FilterSourceType.manual if is_amanuensis_admin else FilterSourceType.explorer,
+        filter_source=FilterSourceType.manual
+        if is_amanuensis_admin
+        else FilterSourceType.explorer,
         user_source="fence",
         name=name,
         description=description,
@@ -232,7 +234,6 @@ def share_filter_set(
     # filter_set.snapshots.append(shared_search)
     current_session.add(shared_search)
     current_session.flush()
-
     return shareable_token
 
 

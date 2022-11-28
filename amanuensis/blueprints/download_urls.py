@@ -67,8 +67,7 @@ def download_data(project_id):
     if s3_info is None:
         raise NotFound("The S3 bucket and key information cannot be extracted from the URL {}".format(storage_url))
 
-    result = flask.current_
-    boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
+    result = flask.current_app.boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
     return flask.jsonify({"download_url": result})
 
 

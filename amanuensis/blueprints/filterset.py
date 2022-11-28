@@ -139,7 +139,7 @@ def delete_search(filter_set_id):
     return response
 
 
-@blueprint.route("/snapshot/", methods=["POST"])
+@blueprint.route("/snapshot", methods=["POST"])
 def create_snapshot_from_filter_set():
     """
     Create a snapshot of a filter set given its id.

@@ -1,7 +1,7 @@
 """Add search snapshot
 
 Revision ID: b1c926c2d318
-Revises: 03ceab80c865
+Revises: b506b97bbfce
 Create Date: 2022-08-12 19:25:41.315459
 
 """
@@ -12,7 +12,7 @@ from sqlalchemy.dialects.postgresql import ARRAY
 
 # revision identifiers, used by Alembic.
 revision = "b1c926c2d318"
-down_revision = "03ceab80c865"
+down_revision = "b506b97bbfce"
 branch_labels = None
 depends_on = None
 
@@ -35,5 +35,4 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     op.drop_table("search_is_shared")
-
 
