@@ -1,7 +1,6 @@
 from functools import wraps
 from flask import current_app, request
 from authutils.user import current_user
-from authutils.token.validate import current_token
 from cdislogging import get_logger
 
 from cdiserrors import AuthNError
@@ -10,13 +9,6 @@ from amanuensis.errors import Forbidden, Unauthorized
 
 logger = get_logger(__name__)
 
-try:
-    from authutils.token.validate import validate_request
-except ImportError:
-    logger.warning(
-        "Unable to import authutils validate_request. PcdcAnalysisTools will error if config AUTH_SUBMISSION_LIST is set to "
-        "True (note that it is True by default) "
-    )
 
 
 def get_current_user():

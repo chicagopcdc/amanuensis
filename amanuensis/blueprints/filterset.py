@@ -151,7 +151,7 @@ def create_snapshot_from_filter_set():
     except AuthError:
         logger.warning("Unable to load or find the user, check your token")
 
-    filter_set_id = flask.request.args.get("filter_set_id", default=None, type=int)
+    filter_set_id = flask.request.get_json().get("filter_set_id", None) #"filter_set_id", default=None, type=int
     users_list = flask.request.get_json().get("users_list", None)
     if not filter_set_id:
         raise UserError("Missing parameters.")
