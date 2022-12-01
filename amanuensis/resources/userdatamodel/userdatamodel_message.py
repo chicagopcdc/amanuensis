@@ -51,6 +51,6 @@ def send_message(
     elif emails:
         # Send the Message via AWS SES
         sender = config["AWS_SES"]["SENDER"]
-        return current_app.boto.send_email(sender,emails, subject, body, )
+        return current_app.boto.send_email(sender,emails, subject, body, config["AWS_SES"])
 
     return new_message

@@ -139,6 +139,10 @@ SUPPORT_EMAIL_FOR_ERRORS: null
 #   - Support `/data` endpoints
 # //////////////////////////////////////////////////////////////////////////////////////
 AWS_CREDENTIALS:
+  'AWS_SES':
+    aws_access_key_id: ""
+    aws_secret_access_key: ""
+    region_name: ""
   'DATA_DELIVERY_S3_BUCKET':
     aws_access_key_id: 'DATA_DELIVERY_S3_BUCKET_ACCESS_KEY'
     aws_secret_access_key: 'DATA_DELIVERY_S3_BUCKET_PRIVATE_KEY'
