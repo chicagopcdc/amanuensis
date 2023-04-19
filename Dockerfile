@@ -1,7 +1,7 @@
 # To run: docker run --rm -d -v /path/to/amanuensis-config.yaml:/var/www/amanuensis/amanuensis-config.yaml --name=amanuensis -p 80:80 amanuensis
 # To check running container: docker exec -it amanuensis /bin/bash
 
-FROM quay.io/cdis/python:python3.6-buster-pybase3-3.0.2
+FROM quay.io/cdis/python:python3.9-buster-2.0.0
 
 ENV appname=amanuensis
 
