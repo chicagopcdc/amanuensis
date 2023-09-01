@@ -1,5 +1,4 @@
 import flask
-from flask_sqlalchemy_session import current_session
 from wsgiref.util import request_uri
 
 from cdislogging import get_logger
@@ -23,49 +22,52 @@ blueprint = flask.Blueprint("projects", __name__)
 
 logger = get_logger(__name__)
 
+#given a set of states we can navigate up the tree
+#{"REJECT", "APPROVED", ""}
+def determine_status_code(project_requests_states):
+    try:  
+        states_flow_chart = {
+            "DRAFT": [],
+            "SUBMITTED": ["DRAFT"],
+            "IN_REVIEW": ["SUBMITTED", "REVISION"],
+            "REVISION": ["IN_REVIEW"],
+            "APPROVED_WITH_FEEDBACK": ["IN_REVIEW"],
+            "APPROVED": ["IN_REVIEW"],
+            "REQUEST_CRITERIA_FINALIZED": ["APPROVED_WITH_FEEDBACK", "APPROVED"],
+            "AGREEMENTS_NEGOTIATION": ["REQUEST_CRITERIA_FINALIZED"],
+            "AGREEMENTS_EXECUTED": ["AGREEMENTS_NEGOTIATION"],
+            "DATA_AVAILABLE": ["AGREEMENTS_EXECUTED"],
+            "DATA_DOWNLOADED": ["DATA_AVAILABLE"],
+            "REJECTED": ["IN_REVIEW"],
+            "WITHDRAWAL": ["REVISION", "IN_REVIEW", "SUBMITTED", "DRAFT"], 
+            #"PUBLISHED": ["DATA_DOWNLOADED"] is this a potentional state
+        }
+        seen = set()
+        project_state_graph = ["WITHDRAWAL", "REJECTED", "DATA_DOWNLOADED"]
+        this_project_state_heirarchy = []
+        while project_state_graph and project_requests_states:
+            current_state = project_state_graph.pop()
+            if current_state not in seen:
+                project_state_graph.extend(states_flow_chart[current_state])
+            seen.add(current_state)
 
-# cache = SimpleCache()
+            if current_state in project_requests_states:
+                project_requests_states.remove(current_state)
+                this_project_state_heirarchy.append(current_state)
 
+        if project_requests_states:
+            raise InternalError("{project_request_states} are not valid state(s)")
+        
+        if not this_project_state_heirarchy:
+            raise InternalError("no states were given")
 
-def determine_status_code(statuses_by_consortium):
-    """
-    Takes status codes from all the requests within a project and returns the project status based on their precedence.
-    Example: if all request status are "APPROVED", then the status code will be "APPROVED".
-    However, if one of the request status is "PENDING", and "PENDING" has higher precedence
-    then the status code will be "PENDING".
-    """
-    try:
-        overall_status = None
-        overall_consortium = None
-        overall_dist_to_end = None
-        for status in statuses_by_consortium:
-            config_version = status["consortium"] if status["consortium"] in config["CONSORTIUM_STATUS"] else "DEFAULT"
-            ordered_statuses_by_consortium = list(config["CONSORTIUM_STATUS"][config_version]["CODES"])
-            final_statuses = list(config["CONSORTIUM_STATUS"][config_version]["FINAL"])
-            
-            if status["status_code"] not in ordered_statuses_by_consortium:
-                raise InternalError("{} not found in the config".format(status["status_code"]))
+        return {"status": this_project_state_heirarchy[-1]}
 
-            approved_index = ordered_statuses_by_consortium.index("DATA_AVAILABLE")
-            index = ordered_statuses_by_consortium.index(status["status_code"])
-            dist_to_end = approved_index - index
-
-            # if status["status_code"] in final_statuses:
-            #     return {"status": status["status_code"], "completed_at": status["update_date"]} 
-
-            # TODO remove the hardcoding and refactor this entire logic
-            if not overall_status or dist_to_end > overall_dist_to_end or overall_status in ["WITHDRAWAL","REJECTED"]:
-                overall_dist_to_end = dist_to_end
-                overall_consortium = status["consortium"]
-                overall_status = status["status_code"]
-
-        return {"status": overall_status}
-
-    except KeyError:
-        logger.error(
-            "Unable to load or find the consortium status, check your config file"
-        )
-        raise InternalError("Unable to load or find the consortium status, check your config file")
+    except (KeyError, InternalError):
+         logger.error(
+            "Unable to load or find the consortium status"
+         )
+         raise InternalError("Unable to load or find the consortium status")       
 
 
 @blueprint.route("/", methods=["GET"])
@@ -97,12 +99,11 @@ def get_projetcs():
         submitted_at = None
         completed_at = None
         project_status = None
-        statuses_by_consortium = []
+        statuses_by_consortium = set()
         for request in project["requests"]:
             #TODO this should come from the get_all above and not make extra queries to the DB. 
-            request_state = get_request_state(request["id"], current_session)
-            statuses_by_consortium.append({"status_code": request_state.state.code, "consortium": request["consortium_data_contributor"]["code"], "update_date": request_state.create_date})
-
+            request_state = get_request_state(request["id"], flask.current_app.scoped_session())
+            statuses_by_consortium.add(request_state.state.code)
             if not submitted_at:
                 submitted_at = request["create_date"]
 
