@@ -39,9 +39,12 @@ def get_all_states():
         return udm.get_all_states(session)
 
 
-def get_by_code(code):
-    with flask.current_app.db.session as session:
+def get_by_code(code, session=None):
+    if session:
         return udm.get_state_by_code(session, code)
+    else:
+        with flask.current_app.db.session as session:
+            return udm.get_state_by_code(session, code)
 
 
 def update_project_state(project_id, state_id):
@@ -116,7 +119,7 @@ def notify_user_project_status_update(current_session, project_id, consortiums):
 def create_consortium(name, code):
     with flask.current_app.db.session as session:
         consortium_schema = ConsortiumDataContributorSchema()
-        consortium = udm.create_consortium(session, name, code)
+        consortium = udm.create_consortium(session, code, name)
         consortium_schema.dump(consortium)
         return consortium
 

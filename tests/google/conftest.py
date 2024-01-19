@@ -22,7 +22,7 @@ from fence.models import (
 
 from tests import utils
 
-from flask_sqlalchemy_session import current_session
+ 
 
 from userdatamodel.models import Project, Bucket, ProjectToBucket
 from fence.models import GoogleBucketAccessGroup

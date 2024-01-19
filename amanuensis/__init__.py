@@ -2,7 +2,7 @@ from collections import OrderedDict
 import os
 import flask
 from flask_cors import CORS
-from flask_sqlalchemy_session import flask_scoped_session, current_session
+from sqlalchemy.orm import scoped_session
 
 from userportaldatamodel.driver import SQLAlchemyDriver
 from pcdcutils.signature import SignatureManager
@@ -68,7 +68,8 @@ def app_sessions(app):
     SQLAlchemyDriver.setup_db = lambda _: None
     app.db = SQLAlchemyDriver(config["DB"])
 
-    session = flask_scoped_session(app.db.Session, app)  # noqa
+   
+    app.scoped_session = scoped_session(app.db.Session)
 
 
 def app_register_blueprints(app):
@@ -223,6 +224,14 @@ def handle_error(error):
     Register an error handler for general exceptions.
     """
     return get_error_response(error)
+
+@app.teardown_appcontext
+def remove_scoped_session(*args, **kwargs):
+    if hasattr(app, "scoped_session"):
+        try:
+            app.scoped_session.remove()
+        except Exception as exc:
+            logger.warning(f"could not remove app.scoped_session. Error: {exc}")
 
 
 

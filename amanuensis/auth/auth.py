@@ -68,7 +68,6 @@ def check_arborist_auth(resource, method, constraints=None):
 
     return decorator
 
-
 def has_arborist_access(resource, method):
     """
     Check with arborist to verify the authz for a request.

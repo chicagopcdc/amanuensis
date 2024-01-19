@@ -1,5 +1,4 @@
 import flask
-from flask_sqlalchemy_session import current_session
 
 from os import environ
 from amanuensis.config import config

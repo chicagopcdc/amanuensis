@@ -1,17 +1,20 @@
-from secrets import token_urlsafe
 import uuid
+import flask
 # from sqlalchemy import func
+from secrets import token_urlsafe
 
 from amanuensis.errors import NotFound
 from amanuensis.models import Search, FilterSourceType, SearchIsShared
 
 __all__ = [
     "get_filter_sets",
+    "get_filter_sets_by_ids",
+    # "get_filter_sets_by_name",
     "get_filter_sets_by_user_id",
     "create_filter_set",
-    "delete_filter_set",
+    "copy_filter_set_to_user",
     "update_filter_set",
-    # "get_filter_sets_by_name",
+    "delete_filter_set",
     "create_filter_set_snapshot",
     "get_snapshot_by_token",
 ]
@@ -41,6 +44,21 @@ def get_filter_sets(
         query = query.filter(Search.id.in_(filter_set_ids))
 
     return query.all()
+
+
+def get_filter_sets_by_ids(session, filter_set_ids):
+    if not filter_set_ids:
+        return []
+
+    if not isinstance(filter_set_ids, list):
+        filter_set_ids = [filter_set_ids]
+
+    query = session.query(Search).filter(
+        Search.active == True, 
+        Search.id.in_(filter_set_ids)
+    )  
+    return query.all()
+
 
 # def get_filter_sets_by_name(current_session, user_id, is_amanuensis_admin, names, explorer_id):
 #     '''
@@ -119,6 +137,30 @@ def create_filter_set(current_session, logged_user_id, is_amanuensis_admin, expl
             "filters": new_filter_set.filter_object
         }
 
+def copy_filter_set_to_user(filterset_id, src_user_id, dst_user_id):
+    with flask.current_app.db.session as current_session:
+        # TODO check user_ids exists, specially the destination
+        filter_set = (
+            current_session.query(Search).filter(Search.id == filterset_id, Search.user_id == int(src_user_id)).first()
+        )
+
+        if not filter_set:
+            raise NotFound("error, filter_set not found")
+
+        #Create a new search linked to the dst user
+        new_filterset = create_filter_set(
+            current_session,
+            dst_user_id,
+            True,
+            filter_set.filter_source_internal_id,
+            filter_set.name,
+            filter_set.description,
+            filter_set.filter_object,
+            filter_set.ids_list,
+            filter_set.graphql_object
+        )
+
+        return new_filterset
 
 def update_filter_set(current_session, logged_user_id, filter_set_id, explorer_id, name, description, filter_object, graphql_object):
     data = {}
@@ -295,4 +337,6 @@ def get_snapshot_by_token(session, logged_user_id, token):
             "description": snapshot.search.description,
             "filters": snapshot.search.filter_object
         }
+
+
 

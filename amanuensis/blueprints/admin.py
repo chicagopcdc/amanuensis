@@ -6,25 +6,25 @@ will maintain coherence between both systems.
 import functools
 
 from flask import request, jsonify, Blueprint, current_app
-from flask_sqlalchemy_session import current_session
 from datetime import datetime
 from cdislogging import get_logger
 
-from amanuensis.auth.auth import check_arborist_auth
+from amanuensis.auth.auth import check_arborist_auth, current_user
 from amanuensis.config import config
-from amanuensis.errors import UserError, NotFound
+from amanuensis.errors import UserError, NotFound, AuthError
 
 from amanuensis.resources import filterset
 from amanuensis.resources import project
 from amanuensis.resources import admin
 
-from amanuensis.models import ASSOCIATED_USER_ROLES
+from amanuensis.models import AssociatedUserRoles
 from amanuensis.schema import (
     ProjectSchema,
     StateSchema,
     RequestSchema,
     ConsortiumDataContributorSchema,
     AssociatedUserSchema,
+    SearchSchema,
 )
 
 logger = get_logger(__name__)
@@ -127,39 +127,6 @@ def create_search():
         )
     )
 
-   
-# @blueprint.route("/filter-sets", methods=["GET"])
-# @check_arborist_auth(resource="/services/amanuensis", method="*")
-# # @debug_log
-# def get_search():
-#     """
-#     Create a search on the userportaldatamodel database
-
-#     Returns a json object
-#     """
-#     user_id = request.get_json().get("user_id", None)
-#     if not user_id:
-#         raise UserError("Missing user_id in the payload")
-
-#     admin = True
-#     name = request.get_json().get("name", None)
-#     search_id = request.get_json().get("search_id", None)
-#     explorer_id = request.get_json().get('explorer_id', None)
-
-
-#     if explorer_id:
-#         if search_id:
-#             filter_sets = [{"name": s.name, "id": s.id, "description": s.description, "filters": s.filter_object, "ids": s.ids_list} for s in filterset.get_by_id(user_id, search_id, explorer_id)]
-#         elif name:
-#             filter_sets = [{"name": s.name, "id": s.id, "description": s.description, "filters": s.filter_object, "ids": s.ids_list} for s in filterset.get_by_name(user_id, name, explorer_id)]
-#     else:
-#         if search_id:
-#             filter_sets = [{"name": s.name, "id": s.id, "description": s.description, "filters": s.filter_object, "ids": s.ids_list} for s in filterset.get_by_id(user_id, search_id, explorer_id)]
-#         elif name:
-#             filter_sets = [{"name": s.name, "id": s.id, "description": s.description, "filters": s.filter_object, "ids": s.ids_list} for s in filterset.get_by_name(user_id, name, explorer_id)]
-
-#     return jsonify({"filter_sets": filter_sets})
-
     
 @blueprint.route("/filter-sets/user", methods=["GET"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
@@ -198,8 +165,8 @@ def create_project():
         )
 
     associated_users_emails = request.get_json().get("associated_users_emails", None)
-    if not associated_users_emails:
-        raise UserError("You can't create a Project without specifying the associated_users that will access the data")
+    # if not associated_users_emails:
+    #     raise UserError("You can't create a Project without specifying the associated_users that will access the data")
 
     name = request.get_json().get("name", None)
     description = request.get_json().get("description", None)
@@ -265,9 +232,12 @@ def update_project_state():
     requests = request_schema.dump(admin.update_project_state(project_id, state_id)) 
     return jsonify(requests)
 
+@blueprint.route("/all_associated_user_roles", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_all_associated_user_roles():
+    return jsonify(admin.get_codes_for_roles())
 
-
-@blueprint.route("/associated_user_role", methods=["PUT"])
+@blueprint.route("/associated_user_role", methods=["PUT", "DELETE"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 # @debug_log
 def update_associated_user_role():
@@ -282,10 +252,13 @@ def update_associated_user_role():
         raise UserError("A user_id and or an associated_user_email is required for this endpoint.")
 
     project_id = request.get_json().get("project_id", None)
-    role = "DATA_ACCESS"
-    if role not in ASSOCIATED_USER_ROLES:
-        raise NotFound("The role {} is not in the allowed list, reach out to pcdc_help@lists.uchicago.edu".format(role))
-
+    role = request.get_json().get("role", None)
+    if request.method == "PUT":     
+        if not role:
+            raise UserError("A role is required for this endpoint")
+        if role not in admin.get_codes_for_roles():
+            raise NotFound("The role {} is not in the allowed list, reach out to pcdc_help@lists.uchicago.edu".format(role))
+    
     return jsonify(admin.update_role(project_id, associated_user_id, associated_user_email, role))
 
 
@@ -300,11 +273,12 @@ def add_associated_user():
     Returns a json object
     """
     users = request.get_json().get("users", None)
+    role = request.get_json().get("role", None)
     if not users:
         raise UserError("The body should be in the following format: [{project_id: \"\", id: \"\", email: \"\"},...] ")
 
     associated_user_schema = AssociatedUserSchema(many=True)
-    return jsonify(associated_user_schema.dump(admin.add_associated_users(users)))
+    return jsonify(associated_user_schema.dump(admin.add_associated_users(users, role)))
 
 
 @blueprint.route("/projects/date", methods=["PATCH"])
@@ -336,3 +310,51 @@ def get_projetcs_by_user_id(user_id, user_email):
     project_schema = ProjectSchema(many=True)
     projects = project_schema.dump(project.get_all(user_id, user_email, None))
     return jsonify(projects)
+
+
+
+@blueprint.route("/copy-search-to-user", methods=["POST"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def copy_search_to_user():
+    """
+    Given a search id from the searches saved by the admin and 
+    a user_id picked among the list of all users, copy the search to the user domain.
+
+    Returns a json object
+    """
+    try:
+        logged_user_id = current_user.id
+    except AuthError:
+        logger.warning("Unable to load or find the user, check your token")
+
+
+    filterset_id = request.get_json().get("filtersetId", None)
+    user_id = request.get_json().get("userId", None)
+
+
+    search_schema = SearchSchema()
+    # return flask.jsonify(search_schema.dump(filterset.copy_filter_set_to_user(filterset_id, logged_user_id, user_id)))
+    return jsonify(filterset.copy_filter_set_to_user(filterset_id, logged_user_id, user_id))
+
+@blueprint.route("/copy-search-to-project", methods=["POST"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def copy_search_to_project():
+    """
+    Given a search id from the searches saved by the admin and a project_id 
+    assign this search to the related project
+
+    Returns a json object
+    """
+    try:
+        logged_user_id = current_user.id
+    except AuthError:
+        logger.warning("Unable to load or find the user, check your token")
+
+
+    filterset_id = request.get_json().get("filtersetId", None)
+    project_id = request.get_json().get("projectId", None)
+
+
+    project_schema = ProjectSchema()
+    return jsonify(project_schema.dump(project.update_project_searches(logged_user_id, project_id, filterset_id)))
+    # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))

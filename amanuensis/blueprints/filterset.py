@@ -1,5 +1,4 @@
 import flask
-from flask_sqlalchemy_session import current_session
 
 # from amanuensis.auth import login_required, current_token
 from amanuensis.resources.filterset import (
@@ -172,3 +171,10 @@ def get_filter_set_snapshot(token):
 
     response = flask.jsonify(get_snapshot(logged_user_id, token))
     return response
+
+
+
+
+
+
+

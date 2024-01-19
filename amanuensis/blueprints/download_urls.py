@@ -4,7 +4,7 @@ from cdislogging import get_logger
 
 from amanuensis.auth.auth import current_user
 from amanuensis.errors import AuthError, UserError, NotFound, InternalError, Forbidden
-from amanuensis.resources.project import get_by_id
+from amanuensis.resources.project import get_by_id, update_project_request_states
 from pcdc_aws_client.utils import get_s3_key_and_bucket
 
 from amanuensis.config import config
@@ -43,9 +43,9 @@ def download_data(project_id):
     associated_users_ids = []
     associated_users_emails = []
     for associated_user_role in project.associated_users_roles:
-        if associated_user_role.associated_user.user_id and associated_user_role.role == "DATA_ACCESS":
+        if associated_user_role.associated_user.user_id and associated_user_role.role.code == "DATA_ACCESS":
             associated_users_ids.append(associated_user_role.associated_user.user_id)
-        if associated_user_role.associated_user.email and associated_user_role.role == "DATA_ACCESS":
+        if associated_user_role.associated_user.email and associated_user_role.role.code == "DATA_ACCESS":
             associated_users_emails.append(associated_user_role.associated_user.email)
 
     if logged_user_id not in associated_users_ids and logged_user_email not in associated_users_emails:
@@ -68,6 +68,7 @@ def download_data(project_id):
         raise NotFound("The S3 bucket and key information cannot be extracted from the URL {}".format(storage_url))
 
     result = flask.current_app.boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
+    update_project_request_states(project.requests, "DATA_DOWNLOADED")
     return flask.jsonify({"download_url": result})
 
 

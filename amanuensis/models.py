@@ -11,8 +11,8 @@ from enum import Enum
 
 import bcrypt
 import flask
-from authlib.flask.oauth2.sqla import (OAuth2AuthorizationCodeMixin,
-                                       OAuth2ClientMixin)
+# from authlib.flask.oauth2.sqla import (OAuth2AuthorizationCodeMixin,
+#                                        OAuth2ClientMixin)
 from sqlalchemy import (BigInteger, Boolean, Column, DateTime, Integer,
                         MetaData, String, Table, Text)
 from sqlalchemy import exc as sa_exc
@@ -25,7 +25,7 @@ from userportaldatamodel import Base
 from userportaldatamodel.models import (AttributeList, AttributeListValue,
                                         Attributes, ConsortiumDataContributor,
                                         InputType, Message, Project, Receiver,
-                                        Request, Search, FilterSourceType, State, AssociatedUser, ProjectAssociatedUser, ASSOCIATED_USER_ROLES, RequestState, SearchIsShared)
+                                        Request, Search, FilterSourceType, State, AssociatedUser, ProjectAssociatedUser, AssociatedUserRoles, RequestState, SearchIsShared)
 
 
 

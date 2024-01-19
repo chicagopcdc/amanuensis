@@ -19,6 +19,7 @@ def create_consortium(current_session, code, name):
     new_consortium = ConsortiumDataContributor(code=code, name=name)
 
     current_session.add(new_consortium)
+    # current_session.flush()
     current_session.commit()
     
     return new_consortium

@@ -1,5 +1,4 @@
 import flask
-from flask_sqlalchemy_session import current_session
 
 # from amanuensis.auth import login_required, current_token
 # from amanuensis.errors import Unauthorized, UserError, NotFound

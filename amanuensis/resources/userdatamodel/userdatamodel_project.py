@@ -1,33 +1,43 @@
-from sqlalchemy import func, or_
+from sqlalchemy import func, or_, and_
 import amanuensis
 
 from sqlalchemy.orm import aliased
 
-
+from cdislogging import get_logger
 from amanuensis.errors import NotFound, UserError
 from amanuensis.models import (
     Project,
+    Request,
     Search,
     AssociatedUser,
     ProjectAssociatedUser,
-    ASSOCIATED_USER_ROLES,
+    AssociatedUserRoles,
     RequestState,
 )
 from amanuensis.resources.userdatamodel.userdatamodel_request import (
     get_requests_by_project_id,
 )
 
+logger = get_logger(__name__)
+
 __all__ = [
-    "create_project",
-    "update_project",
+    "get_all_projects",
     "get_project_by_consortium",
     "get_project_by_user",
     "get_project_by_id",
-    "get_associated_users",
-    "add_associated_user",
+    "create_project",
+    "update_project",
     "update_associated_users",
     "update_project_date",
+    "get_associated_user_roles",
 ]
+
+
+def get_all_projects(current_session):
+    return (
+        current_session.query(Project)
+        .all()
+    )
 
 
 def get_project_by_consortium(current_session, consortium, logged_user_id):
@@ -67,12 +77,14 @@ def get_project_by_id(current_session, project_id):
     #     ).join(Project.associated_users).join(ProjectAssociatedUser, Project.associated_users_roles).join(assoc_users, assoc_users.id == ProjectAssociatedUser.associated_user_id).first()
 
     return current_session.query(Project).filter(
-            Project.id == project_id
+         and_(
+                Project.id == project_id,
+                Project.active == True,
+            )
         ).join(
-            ProjectAssociatedUser, Project.associated_users_roles
+            ProjectAssociatedUser, Project.associated_users_roles, isouter=True
         ).join(
-            AssociatedUser, ProjectAssociatedUser.associated_user).first()
-
+            AssociatedUser, ProjectAssociatedUser.associated_user, isouter=True).first()
 
 
 def create_project(current_session, user_id, description, name, institution, searches, requests, associated_users):
@@ -91,8 +103,12 @@ def create_project(current_session, user_id, description, name, institution, sea
     current_session.flush()
     new_project.searches.extend(searches)
     new_project.requests.extend(requests)
-    new_project.associated_users.extend(associated_users)
-
+    role_id = current_session.query(AssociatedUserRoles.id).filter(AssociatedUserRoles.code == "METADATA_ACCESS").first()
+    if role_id:
+        for associated_user in associated_users:
+            new_project.project_has_associated_user.append(ProjectAssociatedUser(associated_user=associated_user, role_id=role_id[0]))
+    else:
+        logger.error("no roles present for associated users, no assoicated users will be added to project")
     # current_session.flush()
     # current_session.add(new_project)
     # current_session.merge(new_project)
@@ -130,32 +146,9 @@ def update_project(current_session, project_id, approved_url=None, searches=None
         }
 
 
-def get_associated_users(current_session, emails):
-    if not emails:
-        return []
-    return current_session.query(AssociatedUser).filter(AssociatedUser.email.in_(emails)).all()
+def get_associated_user_roles(current_session):
+    return current_session.query(AssociatedUserRoles).all()
 
-def add_associated_user(current_session, project_id, email, user_id):
-    if not user_id and not email: 
-        raise UserError("Missing email and id.")
-
-    new_user = AssociatedUser(
-        user_id=user_id if user_id else None,
-        user_source="fence",
-        email=email if email else None,
-    )
-
-    current_session.add(new_user)
-    current_session.flush()
-
-    new_project_user = ProjectAssociatedUser(
-        project_id = project_id,
-        associated_user_id = new_user.id
-    )
-
-    current_session.add(new_project_user)
-    current_session.commit()
-    return new_user
 
 def update_associated_users(current_session, project_id, id, email, role):
     user_by_id = None
@@ -177,14 +170,25 @@ def update_associated_users(current_session, project_id, id, email, role):
     # print(user_by_email)
     # print(email)
     # print(id)
+    
+    new_role = current_session.query(AssociatedUserRoles).filter(AssociatedUserRoles.code == role).first()
+
     if user_by_id:
-        user_by_id.role = role
+        if role:
+            user_by_id.role = new_role
+            user_by_id.active = True
+        else:
+            user_by_id.active = False
     elif user_by_email:
-        user_by_email.role = role
+        if role:
+            user_by_email.role = new_role
+            user_by_email.acive = True
+        else:
+            user_by_email.active = False
     else:
         raise NotFound("No user associated with project {} found.".format(project_id))
 
-    # current_session.commit()
+    #current_session.commit()
     current_session.flush()
     return "200"
 
@@ -212,6 +216,9 @@ def update_project_date(session, project_id, new_update_date):
         else:
             raise UserError("The new update_date must be later than the create date.")
     return requests
+
+
+
 
 
 # def delete_project(current_session, project_name):

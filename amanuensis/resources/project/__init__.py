@@ -7,13 +7,20 @@ from gen3authz.client.arborist.errors import ArboristError
 
 from amanuensis.resources.userdatamodel import (
     create_project,
+    get_all_projects,
     get_project_by_consortium,
     get_project_by_user,
     get_project_by_id,
     update_project,
-    get_associated_users
+    associate_user,
+    update_request_state,
+    get_state_by_code
 )
 from amanuensis.resources import filterset, consortium_data_contributor, admin
+from amanuensis.resources.request import get_request_state
+from amanuensis.resources.userdatamodel.userdatamodel_request import (
+    get_requests_by_project_id,
+)
 
 from amanuensis.config import config
 from amanuensis.errors import NotFound, Unauthorized, UserError, InternalError, Forbidden
@@ -33,25 +40,30 @@ from amanuensis.schema import ProjectSchema
 logger = get_logger(__name__)
 
 
-def get_all(logged_user_id, logged_user_email, approver):
+def get_all(logged_user_id, logged_user_email, special_user):
     project_schema = ProjectSchema(many=True)
     with flask.current_app.db.session as session:
-        if approver:
-            #TODO check if the user is part of a EC commettee, if so get the one submitted to the consortium
-            #Get consortium
-            isEcMember = True
-            consortium = "INRG"
-            if isEcMember and consortium:
-                projects = get_project_by_consortium(session, consortium, logged_user_id)
+        if special_user:
+            if special_user == "admin":
+                projects = get_all_projects(session)
                 project_schema.dump(projects)
                 return projects
-            else:
-                raise NotFound(
-                    "User role and consortium not matching or user {} is not assigned to the Executive Commettee in the system. Consortium: {}".format(
-                            logged_user_id,
-                            consortium
-                        )
-                    )
+
+            # #TODO check if the user is part of a EC commettee, if so get the one submitted to the consortium
+            # #Get consortium
+            # isEcMember = True
+            # consortium = "INRG"
+            # if isEcMember and consortium:
+            #     projects = get_project_by_consortium(session, consortium, logged_user_id)
+            #     project_schema.dump(projects)
+            #     return projects
+            # else:
+            #     raise NotFound(
+            #         "User role and consortium not matching or user {} is not assigned to the Executive Commettee in the system. Consortium: {}".format(
+            #                 logged_user_id,
+            #                 consortium
+            #             )
+            #         )
 
         projects = get_project_by_user(session, logged_user_id, logged_user_email)
         project_schema.dump(projects)
@@ -67,7 +79,7 @@ def get_by_id(logged_user_id, project_id):
 
 def get_all_associated_users(emails):
     with flask.current_app.db.session as session:
-        associated_users = get_associated_users(session, emails)
+        associated_users = associate_user.get_associated_users(session, emails)
         return associated_users
 
 
@@ -153,4 +165,98 @@ def update(project_id, approved_url, filter_set_ids):
 
     with flask.current_app.db.session as session:
         return update_project(session, project_id, approved_url)
+
+
+def update_project_request_states(requests, state_code):
+    with flask.current_app.db.session as session:
+        state = get_state_by_code(session, state_code)
+        for request in requests:
+            update_request_state(session, request, state)
+
+
+
+def update_project_searches(logged_user_id, project_id, filter_sets_id):
+    project_schema = ProjectSchema()
+    with flask.current_app.db.session as session:
+        # Retrieve the project
+        project = get_project_by_id(session, logged_user_id, project_id)
+        if not project:
+            raise NotFound("The project with id {} has not been found".format(project_id))
+
+        # Retrieve all the filter_sets
+        filter_sets = filterset.get_filter_sets_by_ids_f(filter_sets_id) 
+
+        # TODO make this a config variable in amanuensis-config.yaml
+        path = 'http://pcdcanalysistools-service/tools/stats/consortiums'
+        new_consortiums = []
+        for s in filter_sets:
+            # s.filter_object - you can use getattr to get the value or implement __getitem__ - https://stackoverflow.com/questions/11469025/how-to-implement-a-subscriptable-class-in-python-subscriptable-class-not-subsc
+            new_consortiums.extend(get_consortium_list(path, s.graphql_object, s.ids_list))    
+        new_consortiums = list(set(new_consortiums))
+        new_consortiums = [consortium.upper() for consortium in new_consortiums]
+            
+        # Get all the consortium involved in the existing requests
+        requests = project.requests
+        requests_with_state = [{"request": request, "state": get_request_state(request.id, session).state} for request in requests]
+        # TODO make this configurable
+        old_consortiums = [request["request"].consortium_data_contributor.code for request in requests_with_state if request["state"].code not in ["WITHDRAWAL"]]
+
+        # Check if the consortium list is changed after changing the associated search
+        add_consortiums = list(set(new_consortiums) - set(old_consortiums))
+        remove_consortiums = list(set(old_consortiums) - set(new_consortiums))
+
+        if add_consortiums and len(add_consortiums) > 0:
+            # Defaulst state is SUBMITTED
+            default_state = admin.get_by_code("IN_REVIEW")
+            if not default_state:
+                raise NotFound("The state with id {} has not been found".format(default_state))
+
+            existing_consortiums_ids = [r.consortium_data_contributor_id for r in project.requests]
+            existing_consortiums_ids = list(set(existing_consortiums_ids))
+
+            for add_consortium in add_consortiums:
+                consortium = consortium_data_contributor.get(code=add_consortium, session=session)
+                if consortium is None:
+                    raise NotFound(
+                        "Consortium with code {} not found.".format(
+                            add_consortium
+                        )
+                    )
+
+                if consortium.id in existing_consortiums_ids:
+                    # Update existing request record
+                    for r in project.requests:
+                        if r.consortium_data_contributor_id == consortium.id:
+                            update_request_state(session, r, default_state)
+                else:
+                    # create a new request record for this consortium
+                    req = Request()
+                    req.consortium_data_contributor = consortium
+                    req.states.append(default_state)
+                    project.requests.append(req)
+
+
+        if remove_consortiums and len(remove_consortiums) > 0:
+            default_state = admin.get_by_code("WITHDRAWAL", session)
+            if not default_state:
+                raise NotFound("The state with id {} has not been found".format(default_state))
+
+            for remove_consortium in remove_consortiums:
+                requests_by_project = get_requests_by_project_id(session, project_id)
+                for request_by_project in requests_by_project:
+                    if request_by_project.consortium_data_contributor.code == remove_consortium:
+                        update_request_state(session, request_by_project, default_state)
+
+
+        # Update he filterset
+        # session.query().filter(Institution.uid == uid).update({Institution.display_name: display_name})
+        # userdatamodel project -> update_project
+        project.searches = filter_sets
+
+        session.commit()
+        project_schema.dump(project)
+        return project
+
+    
+
 

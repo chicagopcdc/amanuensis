@@ -31,3 +31,12 @@ The Docker.dev file installs inotify-tools to allow the watch-files.sh script to
 To use bash instead of the default, sh, run ```exec /bin/bash``` in the container or if starting from the host terminal run: 
 
     docker exec -it amanuensis-service /bin/bash
+
+
+python -m venv env
+
+source env/bin/activate
+
+poetry install
+
+alembic revision -m "add_save"
