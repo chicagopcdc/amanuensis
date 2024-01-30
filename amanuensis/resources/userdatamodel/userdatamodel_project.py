@@ -66,7 +66,7 @@ def get_project_by_user(current_session, logged_user_id, logged_user_email):
     )
 
 
-def get_project_by_id(current_session, logged_user_id, project_id):
+def get_project_by_id(current_session, project_id):
     # assoc_users = aliased(AssociatedUser, name='associated_user_2')
 
           # .join(dict_code_type, dict_code_type.codeValue == Device.deviceType) \
