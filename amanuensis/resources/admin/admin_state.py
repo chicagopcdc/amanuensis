@@ -22,7 +22,6 @@ __all__ = [
     "update_project_state",
     "create_consortium",
     "get_by_code",
-    "override_project_date",
 ]
 
 
@@ -47,16 +46,19 @@ def get_by_code(code, session=None):
             return udm.get_state_by_code(session, code)
 
 
-def update_project_state(project_id, state_id):
+def update_project_state(project_id, state_id, consortium_list=None):
     with flask.current_app.db.session as session:
-        requests = udm.get_requests_by_project_id(session, project_id)
+        if consortium_list:
+            requests = udm.get_requests_by_project_id_consortium(session, project_id, consortium_list)
+        else:
+            requests = udm.get_requests_by_project_id(session, project_id)
         if not requests:
             raise NotFound(
                 "There are no requests associated to this project or there is no project. id: {}".format(
                     project_id
                 )
             )
-
+        
         state = udm.get_state_by_id(session, state_id)
         if not state:
             raise NotFound("The state with id {} has not been found".format(state_id))
@@ -101,6 +103,11 @@ def update_project_state(project_id, state_id):
             notify_user_project_status_update(session, project_id, consortiums)
 
         session.flush()
+        
+        requests = udm.update_project_state(
+            session, requests, state, project_id 
+        )
+
         request_schema.dump(requests)
         return requests
 
@@ -122,11 +129,3 @@ def create_consortium(name, code):
         consortium = udm.create_consortium(session, code, name)
         consortium_schema.dump(consortium)
         return consortium
-
-
-def override_project_date(project_id, new_date):
-    with flask.current_app.db.session as session:
-        request_schema = RequestSchema(many=True)
-        requests = udm.update_project_date(session, project_id, new_date)
-        request_schema.dump(requests)
-        return requests

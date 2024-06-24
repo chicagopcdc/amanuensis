@@ -17,20 +17,20 @@ from amanuensis.resources.userdatamodel import (
     get_state_by_code
 )
 from amanuensis.resources import filterset, consortium_data_contributor, admin
-from amanuensis.resources.request import get_request_state
 from amanuensis.resources.userdatamodel.userdatamodel_request import (
     get_requests_by_project_id,
 )
-
+from amanuensis.resources.userdatamodel.userdatamodel_state import get_latest_request_state_by_id
+from amanuensis.resources.consortium_data_contributor import get_consortiums_from_fitersets
 from amanuensis.config import config
 from amanuensis.errors import NotFound, Unauthorized, UserError, InternalError, Forbidden
-from amanuensis.utils import get_consortium_list
 from amanuensis.resources.fence import fence_get_users
 
 from amanuensis.models import (
     Request,
     ConsortiumDataContributor,
-    AssociatedUser
+    AssociatedUser,
+    RequestState
 )
 
 from amanuensis.schema import ProjectSchema
@@ -85,73 +85,35 @@ def get_all_associated_users(emails):
 
 def create(logged_user_id, is_amanuensis_admin, name, description, filter_set_ids, explorer_id, institution, associated_users_emails):
     # retrieve all the filter_sets associated with this project
-    filter_sets = filterset.get_by_ids(logged_user_id, is_amanuensis_admin, filter_set_ids, explorer_id)
+    if is_amanuensis_admin:
+        filter_sets = filterset.get_filter_sets_by_ids_f(filter_set_ids) 
+    else:
+        filter_sets = filterset.get_by_ids(logged_user_id, is_amanuensis_admin, filter_set_ids, explorer_id)
+    
     # example filter_sets - [{"id": 4, "user_id": 1, "name": "INRG_1", "description": "", "filter_object": {"race": {"selectedValues": ["Black or African American"]}, "consortium": {"selectedValues": ["INRG"]}, "data_contributor_id": {"selectedValues": ["COG"]}}}]
 
-    path = 'http://pcdcanalysistools-service/tools/stats/consortiums'
-    consortiums = []
-    for s in filter_sets:
-        # Get a list of consortiums the cohort of data is from
-        # example or retuned values - consoritums = ['INRG']
-        # s.filter_object - you can use getattr to get the value or implement __getitem__ - https://stackoverflow.com/questions/11469025/how-to-implement-a-subscriptable-class-in-python-subscriptable-class-not-subsc
-        consortiums.extend(get_consortium_list(path, s.graphql_object, s.ids_list))    
-    consortiums = list(set(consortiums))
+    consortiums = get_consortiums_from_fitersets(filter_sets)
 
     # Defaulst state is SUBMITTED
     default_state = admin.get_by_code("IN_REVIEW")
 
-    #TODO make sure to populate the consortium table
-    # insert into consortium_data_contributor ("code", "name") values ('INRG','INRG'), ('INSTRUCT', 'INSTRuCT');
+
     requests = []
-    for consortia in consortiums:
-        # get consortium's ID
-        consortium = consortium_data_contributor.get(code=consortia.upper())
-        if consortium is None:
-            raise NotFound(
-                "Consortium with code {} not found.".format(
-                    consortia
-                )
-            )
+    for consortia in consortiums.values():
         req = Request()
-        req.consortium_data_contributor = consortium
+        req.consortium_data_contributor = consortia
         req.states.append(default_state)
         requests.append(req)
-
-    # Check if associated_users exists in amanuensis
-    # 1. get associated_users from amanuensis
-    amanuensis_associated_users = get_all_associated_users(associated_users_emails) 
-
-    # # 1. check if associated_users are already in amanuensis
-    # for associated_user in amanuensis_associated_users:
-    #     if associated_user.ema
-    # registered_stat = 
-    # missing_users_email = 
-
-    # # 2. Check if associated_user exists in fence. If so assign user_id, otherwise use the submitted email.
-    # fence_users = fence_get_users(config=config, usernames=associated_user_emails)
-    # fence_users = fence_users['users'] if 'users' in fence_users else []
-    
-    # 2. Check if any associated_user is not in the DB yet
-    missing_users_email = []
-    if len(associated_users_emails) != len(amanuensis_associated_users):
-        users_email = [user.email for user in amanuensis_associated_users]
-        missing_users_email = [email for email in associated_users_emails if email not in users_email]
-
-    # 3. link the existing statician to the project
-    associated_users = []
-    for user in amanuensis_associated_users:
-        associated_user = user
-        associated_users.append(associated_user)
-
-    # 4 or create them if they have not been previously
-    for user_email in missing_users_email:
-        associated_user = AssociatedUser(email=user_email)
-        associated_users.append(associated_user)
 
 
     with flask.current_app.db.session as session:
         project_schema = ProjectSchema()
-        project = create_project(session, logged_user_id, description, name, institution, filter_sets, requests, associated_users)
+        project = create_project(session, logged_user_id, description, name, institution, filter_sets, requests)
+        associated_users = []
+        for email in associated_users_emails:
+            associated_users.append({"project_id": project.id, "email": email})
+        associated_users.append({"project_id": project.id, "id": logged_user_id})
+        admin.add_associated_users(associated_users)
         project_schema.dump(project)
         return project
 
@@ -167,11 +129,19 @@ def update(project_id, approved_url, filter_set_ids):
         return update_project(session, project_id, approved_url)
 
 
-def update_project_request_states(requests, state_code):
-    with flask.current_app.db.session as session:
-        state = get_state_by_code(session, state_code)
-        for request in requests:
-            update_request_state(session, request, state)
+def upload_file(bucket, key, project_id, expires=None):
+    try:
+        presigned_url = flask.current_app.boto.presigned_url(bucket, key, expires, {}, method="put_object")
+
+    except Exception as e:
+        logger.error(f"Failed to generate presigned url: {e}")
+        raise InternalError("Failed to generate presigned url")
+    
+    update(project_id, f"https://{bucket}.s3.amazonaws.com/{key}", None)
+
+    return presigned_url
+
+
 
 
 
@@ -184,68 +154,52 @@ def update_project_searches(logged_user_id, project_id, filter_sets_id):
             raise NotFound("The project with id {} has not been found".format(project_id))
 
         # Retrieve all the filter_sets
-        filter_sets = filterset.get_filter_sets_by_ids_f(filter_sets_id) 
+        filter_sets_id = [filter_sets_id] if not isinstance(filter_sets_id, list) else filter_sets_id
+        filter_sets = filterset.get_filter_sets_by_ids_f(filter_sets_id)
+        not_found_filter_set_ids = set(filter_sets_id) - set(filter_set.id for filter_set in filter_sets)
+        if not_found_filter_set_ids:
+            raise NotFound(f"filter-set-id(s), {not_found_filter_set_ids} do not exist")
+        
 
-        # TODO make this a config variable in amanuensis-config.yaml
-        path = 'http://pcdcanalysistools-service/tools/stats/consortiums'
-        new_consortiums = []
-        for s in filter_sets:
-            # s.filter_object - you can use getattr to get the value or implement __getitem__ - https://stackoverflow.com/questions/11469025/how-to-implement-a-subscriptable-class-in-python-subscriptable-class-not-subsc
-            new_consortiums.extend(get_consortium_list(path, s.graphql_object, s.ids_list))    
-        new_consortiums = list(set(new_consortiums))
-        new_consortiums = [consortium.upper() for consortium in new_consortiums]
-            
+        #remove any filter-sets currently part of proejects
+        current_filter_sets = {search.id for search in project.searches}
+        filter_sets = [search for search in filter_sets if search.id not in current_filter_sets]
+        if not filter_sets:
+            logger.info("You must choose a filter-set that is not already part of the project")
+            project_schema.dump(project)
+            return project
+
+        new_consortiums = get_consortiums_from_fitersets(filter_sets)
         # Get all the consortium involved in the existing requests
-        requests = project.requests
-        requests_with_state = [{"request": request, "state": get_request_state(request.id, session).state} for request in requests]
-        # TODO make this configurable
-        old_consortiums = [request["request"].consortium_data_contributor.code for request in requests_with_state if request["state"].code not in ["WITHDRAWAL"]]
-
+        old_consortiums = {request.consortium_data_contributor.code: request for request in project.requests}
         # Check if the consortium list is changed after changing the associated search
-        add_consortiums = list(set(new_consortiums) - set(old_consortiums))
-        remove_consortiums = list(set(old_consortiums) - set(new_consortiums))
-
-        if add_consortiums and len(add_consortiums) > 0:
-            # Defaulst state is SUBMITTED
-            default_state = admin.get_by_code("IN_REVIEW")
-            if not default_state:
-                raise NotFound("The state with id {} has not been found".format(default_state))
-
-            existing_consortiums_ids = [r.consortium_data_contributor_id for r in project.requests]
-            existing_consortiums_ids = list(set(existing_consortiums_ids))
-
-            for add_consortium in add_consortiums:
-                consortium = consortium_data_contributor.get(code=add_consortium, session=session)
-                if consortium is None:
-                    raise NotFound(
-                        "Consortium with code {} not found.".format(
-                            add_consortium
-                        )
-                    )
-
-                if consortium.id in existing_consortiums_ids:
-                    # Update existing request record
-                    for r in project.requests:
-                        if r.consortium_data_contributor_id == consortium.id:
-                            update_request_state(session, r, default_state)
+        remove_consortiums = old_consortiums.keys() - new_consortiums.keys()
+        # Defaulst state is SUBMITTED 
+        if new_consortiums:
+            IN_REVIEW = admin.get_by_code("IN_REVIEW", session)
+            if not IN_REVIEW:
+                raise NotFound("The state with code IN_REVIEW has not been found")
+            
+            for new_consortium_code in new_consortiums:
+                if new_consortium_code in old_consortiums:
+                    req = old_consortiums[new_consortium_code]
+                    req_state = get_latest_request_state_by_id(session, request_ids=req.id)
+                    if req_state and req_state[0].state.code == "IN_REVIEW":
+                        continue
                 else:
-                    # create a new request record for this consortium
                     req = Request()
-                    req.consortium_data_contributor = consortium
-                    req.states.append(default_state)
+                    req.consortium_data_contributor = new_consortiums[new_consortium_code]
                     project.requests.append(req)
+                update_request_state(session, request=req, state=IN_REVIEW)
+        if remove_consortiums:
+            DEPRECATED = admin.get_by_code("DEPRECATED", session)
+            if not DEPRECATED:
+                raise NotFound("The state with code DEPRECATED has not been found")
 
-
-        if remove_consortiums and len(remove_consortiums) > 0:
-            default_state = admin.get_by_code("WITHDRAWAL", session)
-            if not default_state:
-                raise NotFound("The state with id {} has not been found".format(default_state))
-
-            for remove_consortium in remove_consortiums:
-                requests_by_project = get_requests_by_project_id(session, project_id)
-                for request_by_project in requests_by_project:
-                    if request_by_project.consortium_data_contributor.code == remove_consortium:
-                        update_request_state(session, request_by_project, default_state)
+            for remove_consortium_code in remove_consortiums:
+                req = old_consortiums[remove_consortium_code]
+                if get_latest_request_state_by_id(session, request_ids=req.id):
+                    update_request_state(session, request=req, state=DEPRECATED)
 
 
         # Update he filterset

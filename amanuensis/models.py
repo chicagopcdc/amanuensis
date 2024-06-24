@@ -25,7 +25,7 @@ from userportaldatamodel import Base
 from userportaldatamodel.models import (AttributeList, AttributeListValue,
                                         Attributes, ConsortiumDataContributor,
                                         InputType, Message, Project, Receiver,
-                                        Request, Search, FilterSourceType, State, AssociatedUser, ProjectAssociatedUser, AssociatedUserRoles, RequestState, SearchIsShared)
+                                        Request, Search, FilterSourceType, State, AssociatedUser, ProjectAssociatedUser, AssociatedUserRoles, RequestState, SearchIsShared, Transition)
 
 
 

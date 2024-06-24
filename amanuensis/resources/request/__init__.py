@@ -23,7 +23,10 @@ from amanuensis.resources.userdatamodel.userdatamodel_request import (
     get_request_by_id,
     get_requests,
 )
-from amanuensis.schema import RequestSchema
+from amanuensis.resources.userdatamodel.userdatamodel_state import (
+    get_latest_request_state_by_id
+)
+from amanuensis.schema import RequestSchema, RequestStateSchema
 
 # from pcdcutils.environment import is_env_enabled
 
@@ -67,23 +70,10 @@ def get_by_id(logged_user_id, request_id):
         return get_request_by_id(session, logged_user_id, request_id)
 
 
-def get_request_state(request_id, session=None):
-    if session:
-        return (
-            session.query(RequestState)
-            .filter(RequestState.request_id == request_id)
-            .order_by(RequestState.create_date.desc())
-            .first()
-            # .state
-        )
-    else:
-        with flask.current_app.db.session as session:
-            return (
-                session.query(RequestState)
-                .filter(RequestState.request_id == request_id)
-                .order_by(RequestState.create_date.desc())
-                .first()
-                # .state
-            )
+def get_latest_request_state(requests=None, request_ids=None):
+    with flask.current_app.db.session as session:
+        request_state_schema = RequestStateSchema(many=True)
+        latest_states = get_latest_request_state_by_id(session, requests=requests, request_ids=request_ids)
+        return request_state_schema.dump(latest_states)
 
         

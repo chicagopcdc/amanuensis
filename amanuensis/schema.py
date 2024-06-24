@@ -10,6 +10,7 @@ from userportaldatamodel.schemas.schemas import (
     AttributeListSchema,
     AttributeListValueSchema,
     InputTypeSchema,
-    AssociatedUserSchema
+    AssociatedUserSchema,
+    RequestStateSchema
 )
 

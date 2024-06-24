@@ -164,15 +164,17 @@ def getGQLFilterIdsList(ids_list):
 
     return { "AND": [{"IN":{"subject_submitter_id":ids_list}}]} 
 
-def get_consortium_list(path, src_filter, ids_list):
+def get_consortium_list(src_filter, ids_list, path=None):
     if src_filter is None and ids_list is None:
         raise NotFound("There is no filter specified and associated with the project you are trying to create")
+
+    if not path:
+        path = config["GET_CONSORTIUMS_URL"]
 
     isFilter = True if src_filter else False
     transformed_filter = src_filter if isFilter else getGQLFilterIdsList(ids_list)
     target_filter = {}
     target_filter["filter"] = transformed_filter
-
     try:
         url = path
         headers = {'Content-Type': 'application/json'}
