@@ -33,7 +33,6 @@ logger = get_logger(__name__)
 
 
 def get_contacts_by_committee(committee, desired_properties=["email"]):
-
     """Return desired_properties from contacts as JSON.
     :param committee: str - the name of the committee to search.
     :param desired_properties: list[str] - a list contained the properties that should be returned.
@@ -66,9 +65,9 @@ def get_contacts_by_committee(committee, desired_properties=["email"]):
     payload = [result.properties for result in api_response.results]
 
     return [
-            {key: val for key, val in property.items() if key in desired_properties}
-            for property in payload
-        ]
+        {key: val for key, val in property.items() if key in desired_properties}
+        for property in payload
+    ]
 
 
 def get_messages(logged_user_id, request_id=None):
@@ -171,8 +170,18 @@ def send_admin_message(project, consortiums, subject, body):
             logger.debug(f"send_message emails (debug mode): {str(receivers)}")
             logger.debug(f"send_message emails (debug mode): {str(requesters)}")
             return
+
+        ses_config = {
+            "aws_access_key_id": config["AWS_SES"]["AWS_ACCESS_KEY"],
+            "aws_secret_access_key": config["AWS_SES"]["AWS_SECRET_KEY"],
+            "region_name": config["AWS_SES"]["AWS_REGION"],
+        }
         if receivers:
             # Send the Message via AWS SES
-            flask.current_app.boto.send_email(sender, receivers, subject, body)
+            flask.current_app.boto.send_email(
+                sender, receivers, subject, body, config=ses_config
+            )
         if requesters:
-            flask.current_app.boto.send_email(sender, requesters, subject, body)
+            flask.current_app.boto.send_email(
+                sender, requesters, subject, body, config=ses_config
+            )
