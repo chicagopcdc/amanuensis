@@ -13,10 +13,10 @@ from amanuensis.models import (
     Request,
     RequestState
 )
-
 __all__ = [
     "create_state",
     "get_all_states",
+    "create_consortium",
     "update_project_state",
     "get_state_by_id",
     "get_state_by_code",
@@ -50,6 +50,7 @@ def get_state_by_code(current_session, code):
 
 def get_all_states(current_session):
     return current_session.query(State).filter(State.code != 'DEPRECATED').all()
+
 
 
 # TODO move these 2 functions in the resources, there is logic here, the userdatamodel folder should contain mostly DB operation

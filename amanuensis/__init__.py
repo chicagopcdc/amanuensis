@@ -23,6 +23,7 @@ import amanuensis.blueprints.request
 # import amanuensis.blueprints.message
 import amanuensis.blueprints.admin
 import amanuensis.blueprints.download_urls
+import hubspot
 
 
 # Can't read config yet. Just set to debug for now, else no handlers.
@@ -113,9 +114,9 @@ def app_config(
     # directly from the amanuensis config singleton in the code though.
     app.config.update(**config._configs)
 
-    _setup_hubspot_key(app)
     _setup_arborist_client(app)
     _setup_data_endpoint_and_boto(app)
+    _setup_hubspot_client(app)
 
     # app.storage_manager = StorageManager(config["STORAGE_CREDENTIALS"], logger=logger)
 
@@ -205,12 +206,17 @@ def _setup_arborist_client(app):
     if app.config.get("ARBORIST"):
         app.arborist = ArboristClient(arborist_base_url=config["ARBORIST"])
 
-def _setup_hubspot_key(app):
+def _setup_hubspot_client(app):
     if app.config.get("HUBSPOT"):
-        if "API_KEY" in config["HUBSPOT"]:
-            app.hubspot_api_key = config["HUBSPOT"]["API_KEY"]
-        # else:
-            #TODO throw error
+        try:
+            app.hubspot_access_token = config["HUBSPOT"]["ACCESS_TOKEN"]
+            app.hubspot_client = hubspot.Client.create(access_token=app.hubspot_access_token)
+        except KeyError as ex:
+            logger.exception(ex)
+            raise KeyError("Hubspot ACCESS_TOKEN not found")
+    else:
+        app.hubspot_client = None
+
 
 @app.errorhandler(Exception)
 def handle_error(error):
