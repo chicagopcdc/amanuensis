@@ -5,6 +5,7 @@ will maintain coherence between both systems.
 """
 import functools
 
+from cdiserrors import APIError
 from flask import request, jsonify, Blueprint, current_app
 from datetime import datetime
 from cdislogging import get_logger
@@ -12,7 +13,7 @@ from cdislogging import get_logger
 from amanuensis.auth.auth import check_arborist_auth, current_user
 from amanuensis.config import config
 from amanuensis.errors import UserError, NotFound, AuthError
-
+from amanuensis.resources.institution import api_request
 from amanuensis.resources import filterset
 from amanuensis.resources import project
 from amanuensis.resources import admin
@@ -172,6 +173,31 @@ def get_search_by_user_id():
 
     return jsonify({"filter_sets": filter_sets})
 
+@blueprint.route("/screen-institution", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method = "*")
+def screen_institution():
+    name = request.args.get('name', default = "")
+    if(name == ""):
+        raise UserError("Name of institution is needed in the name argument in the url")
+    res = api_request(name)
+    total = -1
+    try:
+        total = int(res["total"])
+    except:
+        raise APIError("Possible change to or error with CSL api, see https://developer.trade.gov/api-details#api=consolidated-screening-list")
+    if(total <= 0):
+        raise APIError("Institution not found in the API, double-check spelling")
+    if(total >= 10):
+        print("The API only returns 10 results at a time, but more results match the search. If searching for one particular institution you may need to be more specific about the name")
+    try:
+        first_result_dict = res["results"][0]
+        first_id = first_result_dict["id"]
+        first_name = first_result_dict["name"]
+    except:
+        raise APIError("Possible change to or error with CSL api, unable to access required fields. See https://developer.trade.gov/api-details#api=consolidated-screening-list")
+
+
+    return jsonify(res)
 
 @blueprint.route("/projects", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
