@@ -52,17 +52,6 @@ def get_all_states(current_session):
 
 
 
-# TODO move these 2 functions in the resources, there is logic here, the userdatamodel folder should contain mostly DB operation
-def notify_user_project_status_update(current_session, project_id, consortiums):
-    """
-    Notify the users when project state changes.
-    """
-    project = get_project_by_id(current_session, 1, project_id)
-    email_subject = f"Project {project.name}: Data Delivered"
-    email_body = f"The project f{project.name} data was delivered."
-
-    return send_admin_message(project, consortiums, email_subject, email_body)
-
 
 def get_latest_request_state_by_id(current_session, requests=None, request_ids=[]):
     #filter out any request whos state is depreicated
