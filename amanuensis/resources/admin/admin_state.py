@@ -64,50 +64,18 @@ def update_project_state(project_id, state_id, consortium_list=None):
             raise NotFound("The state with id {} has not been found".format(state_id))
 
         request_schema = RequestSchema(many=True)
-        consortium_statuses = config["CONSORTIUM_STATUS"]
-        consortiums = []
-        for request in requests:
-            consortium = request.consortium_data_contributor.code
-            state_timestamp = list(
-                zip(
-                    [states.state.code for states in request.request_has_state],
-                    [states.state.create_date for states in request.request_has_state],
-                )
-            )
-            state_timestamp.sort(key=lambda x: x[1])  # sort by datetime object.
-            state_code = state_timestamp[-1][0]
-            if state_code == state.code:
-                logger.info(
-                    "Request {} is already in state {}. No need to change.".format(
-                        request.id, state.code
-                    )
-                )
-            elif state_code in consortium_statuses[consortium]["FINAL"]:
-
-                raise UserError(
-                    "Cannot change state of request {} to {} because it's in final state of {}".format(
-                        request.id, state.code, state_code
-                    )
-                )
-            else:
-                request.states.append(state)
-                try:
-                    if state.code in consortium_statuses[consortium]["NOTIFY"]:
-                        consortiums.append(consortium)
-                except KeyError:
-                    logger.info(
-                        f"Consortium {consortium} doesn't have a NOTIFY status set."
-                    )
-
-        if consortiums:
-            notify_user_project_status_update(session, project_id, consortiums)
-
-        session.flush()
         
         requests = udm.update_project_state(
             session, requests, state, project_id 
         )
 
+        if state.code in config["NOTIFY_STATE"] and requests:
+            notify_user_project_status_update(
+                session,
+                project_id,
+                [updated_request.consortium_data_contributor.code for updated_request in requests]
+            )
+        
         request_schema.dump(requests)
         return requests
 

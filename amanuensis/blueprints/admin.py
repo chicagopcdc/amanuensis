@@ -329,31 +329,6 @@ def add_associated_user():
     associated_user_schema = AssociatedUserSchema(many=True)
     return jsonify(associated_user_schema.dump(admin.add_associated_users(users, role)))
 
-
-@blueprint.route("/projects/date", methods=["PATCH"])
-@check_arborist_auth(resource="/services/amanuensis", method="*")
-# @debug_log
-def override_project_date():
-    """
-    Updates the update_date of a project.
-    """
-
-    project_id = request.get_json().get("project_id", None)
-    year = request.get_json().get("year", 0)
-    month = request.get_json().get("month", 0)
-    day = request.get_json().get("day", 0)
-
-    new_date = datetime(year, month, day, hour, minute, second, microsecond)
-
-    if not project_id or not new_date:
-        return UserError("There are missing params.")
-
-    request_schema = RequestSchema(many=True)
-    requests = request_schema.dump(admin.override_project_date(project_id, new_date))
-    return jsonify(requests)
-
-
-
 @blueprint.route("/projects_by_users/<user_id>/<user_email>", methods=["GET"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def get_projetcs_by_user_id(user_id, user_email):

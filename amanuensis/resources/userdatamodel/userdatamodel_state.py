@@ -16,7 +16,6 @@ from amanuensis.models import (
 __all__ = [
     "create_state",
     "get_all_states",
-    "create_consortium",
     "update_project_state",
     "get_state_by_id",
     "get_state_by_code",
@@ -171,13 +170,6 @@ def update_project_state(
         else:
             update_request_state(current_session, request_state.request, state)
             updated_requests.append(request_state.request)
-
-    if state.code in config["NOTIFY_STATE"] and updated_requests:
-        notify_user_project_status_update(
-            current_session,
-            project_id,
-            [updated_request.consortium_data_contributor.code for updated_request in updated_requests]
-        )
 
     current_session.flush()
     return updated_requests
