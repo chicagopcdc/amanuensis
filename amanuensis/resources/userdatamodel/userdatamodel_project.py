@@ -17,7 +17,7 @@ from amanuensis.resources.userdatamodel.userdatamodel_request import (
     get_requests_by_project_id,
 )
 from amanuensis.resources.userdatamodel.userdatamodel_associated_user_roles import (
-    get_associated_user_role_by_code
+    get_associated_user_role_by_code,
 )
 
 logger = get_logger(__name__)
@@ -33,10 +33,7 @@ __all__ = [
 
 
 def get_all_projects(current_session):
-    return (
-        current_session.query(Project)
-        .all()
-    )
+    return current_session.query(Project).all()
 
 
 def get_project_by_consortium(current_session, consortium, logged_user_id):
@@ -67,28 +64,25 @@ def get_project_by_user(current_session, logged_user_id, logged_user_email):
     )
 
 
-def get_project_by_id(current_session, project_id):
-    # assoc_users = aliased(AssociatedUser, name='associated_user_2')
+def get_project_by_id(current_session, logged_user_id, project_id):
 
-          # .join(dict_code_type, dict_code_type.codeValue == Device.deviceType) \
-
-    # return current_session.query(Project).filter(
-    #         # Project.user_id == logged_user_id,
-    #         Project.id == project_id
-    #     ).join(Project.associated_users).join(ProjectAssociatedUser, Project.associated_users_roles).join(assoc_users, assoc_users.id == ProjectAssociatedUser.associated_user_id).first()
-
-    return current_session.query(Project).filter(
-         and_(
+    return (
+        current_session.query(Project)
+        .filter(
+            and_(
                 Project.id == project_id,
                 Project.active == True,
             )
-        ).join(
-            ProjectAssociatedUser, Project.associated_users_roles, isouter=True
-        ).join(
-            AssociatedUser, ProjectAssociatedUser.associated_user, isouter=True).first()
+        )
+        .join(ProjectAssociatedUser, Project.associated_users_roles, isouter=True)
+        .join(AssociatedUser, ProjectAssociatedUser.associated_user, isouter=True)
+        .first()
+    )
 
 
-def create_project(current_session, user_id, description, name, institution, searches, requests):
+def create_project(
+    current_session, user_id, description, name, institution, searches, requests
+):
     """
     Creates a project with an associated auth_id and storage access
     """
@@ -136,11 +130,9 @@ def update_project(current_session, project_id, approved_url=None, searches=None
         return {"code": 200, "updated": int(project_id)}
     else:
         return {
-            "code": 500, 
+            "code": 500,
             "error": "Nothing has been updated, check the logs to see what happened during the transaction.",
         }
-
-
 
 
 # def delete_project(current_session, project_name):

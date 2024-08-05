@@ -4,7 +4,6 @@ from amanuensis.errors import NotFound, UserError
 from amanuensis.resources import userdatamodel as udm
 from amanuensis.resources.userdatamodel.userdatamodel_project import get_project_by_id
 from amanuensis.resources.message import send_admin_message
-from datetime import datetime
 from amanuensis.config import config
 from amanuensis.schema import (
     StateSchema,
@@ -84,7 +83,8 @@ def notify_user_project_status_update(current_session, project_id, consortiums):
     """
     Notify the users when project state changes.
     """
-    project = get_project_by_id(current_session, project_id)
+    from amanuensis.auth.auth import current_user
+    project = get_project_by_id(current_session, current_user, project_id)
     email_subject = f"Project {project.name}: Data Delivered"
     email_body = f"The project f{project.name} data was delivered."
 
