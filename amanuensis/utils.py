@@ -272,11 +272,11 @@ def send_email_ses(body, to_emails, subject):
 
     #TODO add import for boto
 
-    if not config["AWS_SES"]:
+    if not config["AWS_CREDENTIALS"]["SES"]:
         raise NotFound("AWS SES '{}' does not exist in configuration. Cannot send email.")
-    if "SENDER" not in config["AWS_SES"]:
+    if "SENDER" not in config["AWS_CREDENTIALS"]:
         raise NotFound("AWS SES sender does not exist in configuration. Cannot send email.")
-    if "AWS_ACCESS_KEY" not in config["AWS_SES"] or "AWS_SECRET_KEY" not in config["AWS_SES"]:
+    if "AWS_ACCESS_KEY" not in config["AWS_CREDENTIALS"]["SES"] or "AWS_SECRET_KEY" not in config["AWS_CREDENTIALS"]["SES"]:
         raise NotFound("AWS SES credentials are missing in configuration. Cannot send email.")
 
     #TODO retrieve body from template (pass as external param above)
@@ -285,10 +285,10 @@ def send_email_ses(body, to_emails, subject):
     if not subject:
         raise Exception('You must provide a text subject for the email.')
 
-    sender = config["AWS_SES"]["SENDER"]
-    region = config["AWS_SES"]["AWS_REGION"] if config["AWS_SES"]["AWS_REGION"] is not None else "us-east-1"
-    AWS_ACCESS_KEY = config["AWS_SES"]["AWS_ACCESS_KEY"]
-    AWS_SECRET_KEY = config["AWS_SES"]["AWS_SECRET_KEY"]
+    sender = config["AWS_CREDENTIALS"]["SENDER"]
+    region = config["AWS_CREDENTIALS"]["SES"]["AWS_REGION"] if config["AWS_CREDENTIALS"]["SES"]["AWS_REGION"] is not None else "us-east-1"
+    AWS_ACCESS_KEY = config["AWS_CREDENTIALS"]["SES"]["AWS_ACCESS_KEY"]
+    AWS_SECRET_KEY = config["AWS_CREDENTIALS"]["SES"]["AWS_SECRET_KEY"]
 
     config = {'aws_access_key_id': AWS_ACCESS_KEY,
               'aws_secret_access_key': AWS_SECRET_KEY,
@@ -303,7 +303,7 @@ def send_email_ses(body, to_emails, subject):
         #     self._format = 'text'
         #     body = self._text
 
-    flask.current_app.boto.send_email(sender, to_emails, subject, body, body_text, 'UTF-8', config["AWS_SES"])
+    flask.current_app.boto.send_email(sender, to_emails, subject, body, body_text, 'UTF-8', config["AWS_CREDENTIALS"]["SES"])
     # logging.debug(json.dumps(response))
     # return response
 

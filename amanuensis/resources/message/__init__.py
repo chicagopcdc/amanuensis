@@ -133,7 +133,7 @@ def send_admin_message(project, consortiums, subject, body):
 
         receivers = []
         requesters = []
-        sender = config["AWS_SES"]["SENDER"]
+        sender = config["AWS_CREDENTIALS"]["SENDER"]
 
         notify_users_id = []
         # project request owner
@@ -172,9 +172,9 @@ def send_admin_message(project, consortiums, subject, body):
             return
 
         ses_config = {
-            "aws_access_key_id": config["AWS_SES"]["AWS_ACCESS_KEY"],
-            "aws_secret_access_key": config["AWS_SES"]["AWS_SECRET_KEY"],
-            "region_name": config["AWS_SES"]["AWS_REGION"],
+            "aws_access_key_id": config["AWS_CREDENTIALS"]["AWS_ACCESS_KEY"],
+            "aws_secret_access_key": config["AWS_CREDENTIALS"]["AWS_SECRET_KEY"],
+            "region_name": config["AWS_CREDENTIALS"]["AWS_REGION"],
         }
         if receivers:
             # Send the Message via AWS SES

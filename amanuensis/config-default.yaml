@@ -150,13 +150,15 @@ SUPPORT_EMAIL_FOR_ERRORS: null
 #   - Support `/data` endpoints
 # //////////////////////////////////////////////////////////////////////////////////////
 AWS_CREDENTIALS:
-  'AWS_SES':
+  "SES":
     aws_access_key_id: ""
     aws_secret_access_key: ""
-    region_name: ""
-  'DATA_DELIVERY_S3_BUCKET':
-    aws_access_key_id: 'DATA_DELIVERY_S3_BUCKET_ACCESS_KEY'
-    aws_secret_access_key: 'DATA_DELIVERY_S3_BUCKET_PRIVATE_KEY'
+    region_name: "us-east-2"
+  "DATA_DELIVERY_S3_BUCKET":
+    aws_access_key_id: ""
+    aws_secret_access_key: ""
+  "SENDER": ""
+  "RECIPIENT": ""
 # NOTE: Remove the {} and supply creds if needed. Example in comments below
 #   'CRED1':
 #     aws_access_key_id: ''
@@ -223,16 +225,35 @@ FENCE: 'http://fence-service'
 # //////////////////////////////////////////////////////////////////////////////////////
 # Simple Email Service (for sending emails from fence)
 #
-# NOTE: Example in comments below
-AWS_SES:
-  SENDER: ""
-  RECIPIENT: ""
-  AWS_REGION: "us-east-1"
-  AWS_ACCESS_KEY: ""
-  AWS_SECRET_KEY: ""
 
 HUBSPOT:
   # Access token from Hubspot Private App.
   ACCESS_TOKEN: "DEV_KEY"
   
 DB_MIGRATION_POSTGRES_LOCK_KEY: 100
+
+CONSORTIUM_STATUS:
+  INSTRUCT:
+  # In order of precedence.
+    CODES:
+      - "IN_REVIEW"
+      - "REJECTED"
+      - "APPROVED"
+      - "DATA_DELIVERED"
+    FINAL:
+      - "REJECTED"
+      - "DATA_DELIVERED"
+    NOTIFY:
+      - "DATA_DELIVERED"
+  INRG:
+  # In order of precedence.
+    CODES:
+      - "IN_REVIEW"
+      - "REJECTED"
+      - "APPROVED"
+      - "DATA_DELIVERED"
+    FINAL:
+      - "REJECTED"
+      - "DATA_DELIVERED"
+    NOTIFY:
+      - "DATA_DELIVERED"

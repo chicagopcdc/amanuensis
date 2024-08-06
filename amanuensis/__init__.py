@@ -1,30 +1,28 @@
-from collections import OrderedDict
 import os
-import flask
-from flask_cors import CORS
-from sqlalchemy.orm import scoped_session
 
-from userportaldatamodel.driver import SQLAlchemyDriver
-from pcdcutils.signature import SignatureManager
-from pcdcutils.errors import KeyPathInvalidError, NoKeyError
-from pcdc_aws_client.boto import BotoManager
+import flask
+import hubspot
 from cdislogging import get_logger
-from cdispyutils.config import get_value
+from flask_cors import CORS
 from gen3authz.client.arborist.client import ArboristClient
-from amanuensis.errors import UserError
-from amanuensis.models import migrate
-from amanuensis.error_handler import get_error_response
-from amanuensis.config import config
-from amanuensis.settings import CONFIG_SEARCH_FOLDERS
-import amanuensis.blueprints.misc
-import amanuensis.blueprints.filterset
-import amanuensis.blueprints.project
-import amanuensis.blueprints.request
+from pcdc_aws_client.boto import BotoManager
+from pcdcutils.errors import KeyPathInvalidError, NoKeyError
+from pcdcutils.signature import SignatureManager
+from sqlalchemy.orm import scoped_session
+from userportaldatamodel.driver import SQLAlchemyDriver
+
 # import amanuensis.blueprints.message
 import amanuensis.blueprints.admin
 import amanuensis.blueprints.download_urls
-import hubspot
-
+import amanuensis.blueprints.filterset
+import amanuensis.blueprints.misc
+import amanuensis.blueprints.project
+import amanuensis.blueprints.request
+from amanuensis.config import config
+from amanuensis.error_handler import get_error_response
+from amanuensis.errors import UserError
+from amanuensis.models import migrate
+from amanuensis.settings import CONFIG_SEARCH_FOLDERS
 
 # Can't read config yet. Just set to debug for now, else no handlers.
 # Later, in app_config(), will actually set level based on config
@@ -63,25 +61,32 @@ def app_init(
 
 
 def app_sessions(app):
-    ''' Override userdatamodel's `setup_db` since Alembic handles the migrations now. '''
+    """Override userdatamodel's `setup_db` since Alembic handles the migrations now."""
     app.url_map.strict_slashes = False
     SQLAlchemyDriver.setup_db = lambda _: None
     app.db = SQLAlchemyDriver(config["DB"])
 
-   
     app.scoped_session = scoped_session(app.db.Session)
 
 
 def app_register_blueprints(app):
     app.register_blueprint(amanuensis.blueprints.admin.blueprint, url_prefix="/admin")
-    app.register_blueprint(amanuensis.blueprints.download_urls.blueprint, url_prefix="/download-urls")
-    app.register_blueprint(amanuensis.blueprints.filterset.blueprint, url_prefix="/filter-sets")
-    app.register_blueprint(amanuensis.blueprints.project.blueprint, url_prefix="/projects")
-    app.register_blueprint(amanuensis.blueprints.request.blueprint, url_prefix="/requests")
+    app.register_blueprint(
+        amanuensis.blueprints.download_urls.blueprint, url_prefix="/download-urls"
+    )
+    app.register_blueprint(
+        amanuensis.blueprints.filterset.blueprint, url_prefix="/filter-sets"
+    )
+    app.register_blueprint(
+        amanuensis.blueprints.project.blueprint, url_prefix="/projects"
+    )
+    app.register_blueprint(
+        amanuensis.blueprints.request.blueprint, url_prefix="/requests"
+    )
 
     # Disable for now since they are not used yet
     # app.register_blueprint(amanuensis.blueprints.message.blueprint, url_prefix="/message")
-    
+
     amanuensis.blueprints.misc.register_misc(app)
 
 
@@ -130,10 +135,10 @@ def app_config(
     try:
         config["RSA_PRIVATE_KEY"] = SignatureManager(key_path=key_path).get_key()
     except NoKeyError:
-        logger.warn('AMANUENSIS_PUBLIC_KEY not found.')
+        logger.warn("AMANUENSIS_PUBLIC_KEY not found.")
         pass
     except KeyPathInvalidError:
-        logger.warn('AMANUENSIS_PUBLIC_KEY_PATH invalid.')
+        logger.warn("AMANUENSIS_PUBLIC_KEY_PATH invalid.")
         pass
 
     # _check_s3_buckets(app)
@@ -193,28 +198,33 @@ def app_config(
 #             region = app.boto.get_bucket_region(bucket_name, credential)
 #             config["S3_BUCKETS"][bucket_name]["region"] = region
 
+
 def _setup_data_endpoint_and_boto(app):
     if "AWS_CREDENTIALS" in config and len(config["AWS_CREDENTIALS"]) > 0:
-        #TODO why does it need to be the first one? (use the key value in the object instead of making it a list)
+        # TODO why does it need to be the first one? (use the key value in the object instead of making it a list)
         value = list(config["AWS_CREDENTIALS"].values())[0]
         app.boto = BotoManager(value, logger=logger)
         logger.info("BotoManager initialized")
     else:
-        logger.warning("Missing credentials for BotoManager, delivery of data will fail.")
+        logger.warning(
+            "Missing credentials for BotoManager, delivery of data will fail."
+        )
+
 
 def _setup_arborist_client(app):
     if app.config.get("ARBORIST"):
         app.arborist = ArboristClient(arborist_base_url=config["ARBORIST"])
 
+
 def _setup_hubspot_client(app):
-    if app.config.get("HUBSPOT"):
-        try:
-            app.hubspot_access_token = config["HUBSPOT"]["ACCESS_TOKEN"]
-            app.hubspot_client = hubspot.Client.create(access_token=app.hubspot_access_token)
-        except KeyError as ex:
-            logger.exception(ex)
-            raise KeyError("Hubspot ACCESS_TOKEN not found")
-    else:
+    try:
+        app.hubspot_access_token = config["HUBSPOT"]["ACCESS_TOKEN"]
+        app.hubspot_client = hubspot.Client.create(
+            access_token=app.hubspot_access_token
+        )
+
+    except Exception as e:
+        logger.error(f"Could not initialize Hubspot. Error: {e}")
         app.hubspot_client = None
 
 
@@ -225,6 +235,7 @@ def handle_error(error):
     """
     return get_error_response(error)
 
+
 @app.teardown_appcontext
 def remove_scoped_session(*args, **kwargs):
     if hasattr(app, "scoped_session"):
@@ -232,6 +243,3 @@ def remove_scoped_session(*args, **kwargs):
             app.scoped_session.remove()
         except Exception as exc:
             logger.warning(f"could not remove app.scoped_session. Error: {exc}")
-
-
-
