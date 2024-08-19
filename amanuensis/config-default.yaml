@@ -232,31 +232,6 @@ HUBSPOT:
   
 DB_MIGRATION_POSTGRES_LOCK_KEY: 100
 
-CONSORTIUM_STATUS:
-  INSTRUCT:
-  # In order of precedence.
-    CODES:
-      - "IN_REVIEW"
-      - "REJECTED"
-      - "APPROVED"
-      - "DATA_DELIVERED"
-    FINAL:
-      - "REJECTED"
-      - "DATA_DELIVERED"
-    NOTIFY:
-      - "DATA_DELIVERED"
-  INRG:
-  # In order of precedence.
-    CODES:
-      - "IN_REVIEW"
-      - "REJECTED"
-      - "APPROVED"
-      - "DATA_DELIVERED"
-    FINAL:
-      - "REJECTED"
-      - "DATA_DELIVERED"
-    NOTIFY:
-      - "DATA_DELIVERED"
 # //////////////////////////////////////////////////////////////////////////////////////
 # Link to call to the Consolidated Screening List API
 # //////////////////////////////////////////////////////////////////////////////////////
