@@ -135,7 +135,7 @@ def get_final_states(current_session):
     
 
 def update_project_state(
-    current_session, requests, state, project_id
+    current_session, requests, state, project_id, force=False
 ):
     """
     Updates the state for a project, including all requests in the project. Notifies users when the state changes to DATA_DELIVERED.
@@ -144,21 +144,22 @@ def update_project_state(
     current_request_states = get_latest_request_state_by_id(current_session, requests)
     updated_requests = []
     for request_state in current_request_states:
-        if request_state.state.code == state.code:
-            logger.info(
-                "Request {} is already in state {}. No need to change.".format(
-                    request_state.request.id, state.code
+        if not force:
+            if request_state.state.code == state.code:
+                raise UserError(
+                    "Request {} is already in state {}. No need to change.".format(
+                        request_state.request.id, state.code
+                    )
                 )
-            )
-        elif request_state.state.code in final_states:
-            raise UserError(
-                "Cannot change state of request {} from {} because it's a final state".format(
-                    request_state.request.id, state.code
+            
+            if request_state.state.code in final_states:
+                raise UserError(
+                    "Cannot change state of request {} from {} because it's a final state".format(
+                        request_state.request.id, state.code
+                    )
                 )
-            )
-        else:
-            update_request_state(current_session, request_state.request, state)
-            updated_requests.append(request_state.request)
+        update_request_state(current_session, request_state.request, state)
+        updated_requests.append(request_state.request)
 
     current_session.flush()
     return updated_requests

@@ -257,3 +257,9 @@ CONSORTIUM_STATUS:
       - "DATA_DELIVERED"
     NOTIFY:
       - "DATA_DELIVERED"
+# //////////////////////////////////////////////////////////////////////////////////////
+# Link to call to the Consolidated Screening List API
+# //////////////////////////////////////////////////////////////////////////////////////
+CSL_API: "https://data.trade.gov/consolidated_screening_list/v1/search?name="
+#Fill in this field with an API key in order to use the Consolidated Screening List API
+CSL_KEY: ""

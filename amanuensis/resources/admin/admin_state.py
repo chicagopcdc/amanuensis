@@ -45,7 +45,7 @@ def get_by_code(code, session=None):
             return udm.get_state_by_code(session, code)
 
 
-def update_project_state(project_id, state_id, consortium_list=None):
+def update_project_state(project_id, state_id, consortium_list=None, force=False):
     with flask.current_app.db.session as session:
         if consortium_list:
             requests = udm.get_requests_by_project_id_consortium(session, project_id, consortium_list)
@@ -65,7 +65,7 @@ def update_project_state(project_id, state_id, consortium_list=None):
         request_schema = RequestSchema(many=True)
         
         requests = udm.update_project_state(
-            session, requests, state, project_id 
+            session, requests, state, project_id, force=force
         )
 
         if state.code in config["NOTIFY_STATE"] and requests:

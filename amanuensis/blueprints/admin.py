@@ -5,6 +5,7 @@ will maintain coherence between both systems.
 """
 import functools
 
+from cdiserrors import APIError
 from flask import request, jsonify, Blueprint, current_app
 from datetime import datetime
 from cdislogging import get_logger
@@ -12,7 +13,7 @@ from cdislogging import get_logger
 from amanuensis.auth.auth import check_arborist_auth, current_user
 from amanuensis.config import config
 from amanuensis.errors import UserError, NotFound, AuthError
-
+from amanuensis.resources.institution import get_background
 from amanuensis.resources import filterset
 from amanuensis.resources import project
 from amanuensis.resources import admin
@@ -48,6 +49,26 @@ def debug_log(function):
 
     return write_log
 
+@blueprint.route("/project/force-state-change", methods=["POST"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def force_state_change():
+    """
+    used to undo errors, hide from UI
+    """
+    project_id = request.get_json().get("project_id", None)
+    state_id = request.get_json().get("state_id", None)
+    consortiums = request.get_json().get("consortiums", None)
+
+    if consortiums and not isinstance(consortiums, list):
+        consortiums = [consortiums]
+
+    if not state_id or not project_id:
+        return UserError("There are missing params.")
+
+    request_schema = RequestSchema(many=True)
+    return jsonify(
+        request_schema.dump(admin.update_project_state(project_id, state_id, consortiums, force=True))
+    )
 
 @blueprint.route("/upload-file", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
@@ -172,6 +193,31 @@ def get_search_by_user_id():
 
     return jsonify({"filter_sets": filter_sets})
 
+@blueprint.route("/screen-institution", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method = "*")
+def screen_institution():
+    name = request.args.get('name', default = None)
+    if(name == None):
+        raise UserError("Name of institution is needed in the name argument in the url")
+    res = get_background(name)
+    total = -1
+    try:
+        total = int(res["total"])
+    except:
+        raise APIError("Possible change to or error with CSL api, see https://developer.trade.gov/api-details#api=consolidated-screening-list")
+    if(total <= 0):
+        raise APIError("Institution not found in the API, double-check spelling")
+    if(total >= 10):
+        print("The API only returns 10 results at a time, but more results match the search. If searching for one particular institution you may need to be more specific about the name")
+    try:
+        first_result_dict = res["results"][0]
+        first_id = first_result_dict["id"]
+        first_name = first_result_dict["name"]
+    except:
+        raise APIError("Possible change to or error with CSL api, unable to access required fields. See https://developer.trade.gov/api-details#api=consolidated-screening-list")
+
+
+    return jsonify(res)
 
 @blueprint.route("/projects", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")

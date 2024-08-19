@@ -470,8 +470,7 @@ def test_2_create_project_with_one_request(app_instance, session, client, fence_
             """
             error test
             """
-            #assert client.post("/admin/projects/state", json={}).status_code == 400
-        #time.sleep(3)
+            assert client.post("/admin/projects/state", json=update_project_state_data_available_json, headers={"Authorization": 'bearer 200'}).status_code == 400
         """
         check good user gets data
         """
