@@ -250,17 +250,17 @@ class BotoManager(object):
 
         # TODO add import for boto
 
-        if not amanuensis_config["AWS_SES"]:
+        if not amanuensis_config["AWS_CREDENTIALS"]["SES"]:
             raise NotFound(
                 "AWS SES '{}' does not exist in configuration. Cannot send email."
             )
-        if "SENDER" not in amanuensis_config["AWS_SES"]:
+        if "SENDER" not in amanuensis_config["AWS_CREDENTIALS"]:
             raise NotFound(
                 "AWS SES sender does not exist in configuration. Cannot send email."
             )
         if (
-            "AWS_ACCESS_KEY" not in amanuensis_config["AWS_SES"]
-            or "AWS_SECRET_KEY" not in amanuensis_config["AWS_SES"]
+            "AWS_ACCESS_KEY" not in amanuensis_config["AWS_CREDENTIALS"]["SES"]
+            or "AWS_SECRET_KEY" not in amanuensis_config["AWS_CREDENTIALS"]["SES"]
         ):
             raise NotFound(
                 "AWS SES credentials are missing in configuration. Cannot send email."
@@ -272,14 +272,14 @@ class BotoManager(object):
         if not subject:
             raise Exception("You must provide a text subject for the email.")
 
-        sender = amanuensis_config["AWS_SES"]["SENDER"]
+        sender = amanuensis_config["AWS_CREDENTIALS"]["SENDER"]
         region = (
-            amanuensis_config["AWS_SES"]["AWS_REGION"]
-            if amanuensis_config["AWS_SES"]["AWS_REGION"] is not None
+            amanuensis_config["AWS_CREDENTIALS"]["SES"]["AWS_REGION"]
+            if amanuensis_config["AWS_CREDENTIALS"]["SES"]["AWS_REGION"] is not None
             else "us-east-1"
         )
-        AWS_ACCESS_KEY = amanuensis_config["AWS_SES"]["AWS_ACCESS_KEY"]
-        AWS_SECRET_KEY = amanuensis_config["AWS_SES"]["AWS_SECRET_KEY"]
+        AWS_ACCESS_KEY = amanuensis_config["AWS_CREDENTIALS"]["SES"]["AWS_ACCESS_KEY"]
+        AWS_SECRET_KEY = amanuensis_config["AWS_CREDENTIALS"]["SES"]["AWS_SECRET_KEY"]
 
         # if body is in html format, strip out html markup
         # otherwise body and body_text could have the same values

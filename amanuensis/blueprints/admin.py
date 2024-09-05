@@ -305,6 +305,7 @@ def update_project_state():
         return UserError("There are missing params.")
 
     request_schema = RequestSchema(many=True)
+
     return jsonify(
         request_schema.dump(admin.update_project_state(project_id, state_id, consortiums))
     )
@@ -374,13 +375,13 @@ def add_associated_user():
     associated_user_schema = AssociatedUserSchema(many=True)
     return jsonify(associated_user_schema.dump(admin.add_associated_users(users, role)))
 
-
 @blueprint.route("/projects_by_users/<user_id>/<user_email>", methods=["GET"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def get_projetcs_by_user_id(user_id, user_email):
     project_schema = ProjectSchema(many=True)
     projects = project_schema.dump(project.get_all(user_id, user_email, None))
     return jsonify(projects)
+
 
 
 @blueprint.route("/copy-search-to-user", methods=["POST"])
@@ -429,8 +430,3 @@ def copy_search_to_project():
     project_schema = ProjectSchema()
     return jsonify(project_schema.dump(project.update_project_searches(logged_user_id, project_id, filterset_id)))
     # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))
-
-
-
-
-
