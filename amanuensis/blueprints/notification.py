@@ -2,7 +2,7 @@ import flask
 
 from os import environ
 from amanuensis.config import config
-from amanuensis.auth.auth import current_user
+from amanuensis.auth.auth import check_arborist_auth, current_user
 from amanuensis.errors import AuthError
 from amanuensis.schema import NotificationSchema
 from amanuensis.resources import notification
@@ -10,11 +10,12 @@ from cdislogging import get_logger
 from pcdcutils.environment import is_env_enabled
 
 
-blueprint = flask.Blueprint("retriveNotification", __name__)
+blueprint = flask.Blueprint("notification", __name__)
 
 logger = get_logger(__name__)
 
 @blueprint.route("/", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method = "*")
 def retrieve_unseen():
     try:
         logged_user_id = current_user.id

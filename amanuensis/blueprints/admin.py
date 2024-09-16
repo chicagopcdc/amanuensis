@@ -17,6 +17,7 @@ from amanuensis.resources.institution import get_background
 from amanuensis.resources import filterset
 from amanuensis.resources import project
 from amanuensis.resources import admin
+from amanuensis.resources import notification
 
 from amanuensis.models import AssociatedUserRoles
 from amanuensis.schema import (
@@ -26,6 +27,8 @@ from amanuensis.schema import (
     ConsortiumDataContributorSchema,
     AssociatedUserSchema,
     SearchSchema,
+    NotificationSchema,
+    NotificationLogSchema,
 )
 
 logger = get_logger(__name__)
@@ -431,6 +434,12 @@ def copy_search_to_project():
     # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))
 
 
-
+@blueprint.route("/", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_notifications():
+    user_notifications = notification.get_notifications()
+    notification_schema = NotificationSchema(many=True)
+    
+    return jsonify(notification_schema.dump(user_notifications))
 
 
