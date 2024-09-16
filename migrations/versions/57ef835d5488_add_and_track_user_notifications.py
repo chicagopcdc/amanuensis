@@ -7,7 +7,7 @@ Create Date: 2024-07-17 21:42:48.531346
 """
 from alembic import op
 import sqlalchemy as sa
-
+from userportaldatamodel.models import Notification, NotificationLog
 
 # revision identifiers, used by Alembic.
 revision = '57ef835d5488'
