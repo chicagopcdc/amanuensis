@@ -11,11 +11,10 @@ from pcdcutils.environment import is_env_enabled
 
 logger = get_logger(__name__)
 
-#########updateeeeee
 __all__ = [
-    "get_all_notification",
-    "get_log_associated",
-    "get_notification_by_log",
+    "get_all_notifications",
+    "get_all_logs",
+    "get_log_unseen",
     "get_user_unseen",
     "change_seen_status",
     "create_new_notification",

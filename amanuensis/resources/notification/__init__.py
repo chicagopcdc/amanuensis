@@ -68,7 +68,7 @@ def inject_user(user):
         return notifications 
 
 
-# Instead check if all logs are seen to delete a log
+# Check if all logs are seen to delete a log
 def update_notifications(log_id):
     with flask.current_app.db.session as session:
         unseen_logs = get_log_unseen(session, log_id)
