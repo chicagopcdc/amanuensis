@@ -7,16 +7,13 @@ from amanuensis.errors import NotFound, Unauthorized, UserError, InternalError, 
 
 from amanuensis.resources.userdatamodel import userdatamodel_notifcation
 from userdatamodel_notifcation import (
-    get_all_notifications, 
-    get_all_logs,
-    get_log_unseen,
-    get_user_unseen,
+    delete_notification_log,
     change_seen_status,
-    delete_object, 
+    get_all_notification_by_user,
+    get_all_notifications,
     create_new_notification, 
 )
 
-from amanuensis.auth.auth import current_user
 from amanuensis.models import (
     Notification, 
     NotifcationLog
@@ -26,68 +23,72 @@ from amanuensis.schema import NotificationSchema, NotificationLogSchema
 
 logger = get_logger(__name__)
 
-# Get all notifications in the db
-def get_notifications():
-    with flask.current_app.db.session as session:
-        notifications = get_all_notifications(session)
-        return notifications
-
-
-# If log id is given give log info else give user associated info
-def get_notification_info(user_id = None, log_id = None):
-    with flask.current_app.db.session as session:
-        if log_id is not None:
-            notifications = get_log_unseen(session, log_id)
-            return notifications
-
-        if user_id is not None:
-            notifications = get_user_unseen(session, user_id)
-            return notifications
-
 
 # Create a notification log and notifications to go with a user
 def create_notification(message):
-    notification_log_schema = NotificationLogSchema(many = True)
-
     with flask.current_app.db.session as session:
-        new_log = create_new_notification(message)
-        notification_log_schema.dump(new_log)
+        notification_schema = NotificationLogSchema()
+        new_message = create_new_notification(session, message)
+        notification_schema.dump(new_message)
+        return new_message
 
-        return new_log
-    
 
-def inject_user(user):
+# Get all notifications in the db
+def get_notifications():
     with flask.current_app.db.session as session:
-        logs = get_all_logs(session)
-        notifications = []
-
-        for log in logs:
-            new_notification = Notification(notification_id = log.id, user_id = user, seen = False)
-            notifications.append(new_notification)
-
-        return notifications 
-
-
-# Check if all logs are seen to delete a log
-def update_notifications(log_id):
-    with flask.current_app.db.session as session:
-        unseen_logs = get_log_unseen(session, log_id)
-
-        if unseen_logs is None:
-            delete_object(session, log = log_id)         
+        notification_schema = NotificationLogSchema(many=True)
+        notifications = get_all_notifications(session)
+        notification_schema.dump(notifications)
+        return notifications
 
 
 # Get the notifications that are not seen
-def get_unseen_notifications(user):
+def get_unseen_notifications(user_id):
     unseen = []
-    with flask.current_app.db.session as session:
-        notifications = get_user_unseen(session, user)
-        updated_seen = []
-        
-        for notification in notifications:
-            updated = change_seen_status(notification)
-            delete_object(notification)
-            updated_seen.append(updated)
+    # Get all notifications
+    all_notifications = get_notifications()
 
-        return updated_seen
+    with flask.current_app.db.session as session:
+        notification_schema = NotificationLogSchema(many=True)
+        # Get seen notificaitons
+        seen = get_all_notification_by_user(session, user_id)
+        seen_notification_ids = [obj.notification_id for obj in seen]
+
+        # All minus seen
+        unseen = [notification for notification in all_notifications if notification.id not in seen_notification_ids]
+        
+
+        # TODO set the unseen in the DB as seen CHANGE
+        # This should be a new API endpoint that the FE calls after actually displaying the messages and potentially changing the status after the user clicks on them
+        new_seen = []
+        for notification in unseen:
+            new_seen.append(Notification(notification_id=notification.id, 
+                                            user_id=user_id))
+        change_seen_status(session, new_seen)
+        # END TODO CHANGE
+
+        notification_schema.dump(unseen)
+        return unseen
+
+def get_seen_notifications_by(user_id=None, notification_id=None):
+    if user_id:
+        with flask.current_app.db.session as session:
+            return get_all_notification_by_user(session, user_id)
+    if notification_id:
+        return get_user_by_notification(notification_id)
+
+
+def get_user_by_notification(notification_id):
+    with flask.current_app.db.session as session:
+
+def delete_notification(notification_id):
+    with flask.current_app.db.session as session:
+        delete_notification_log(session, notification_id)
+        return
+
+
+     
+
+
+
 

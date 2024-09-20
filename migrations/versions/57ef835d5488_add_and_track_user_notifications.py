@@ -18,10 +18,10 @@ depends_on = None
 
 def upgrade() -> None:
     op.create_table('notification', 
-                    sa.Column('notification_id', sa.Integer(), sa.ForeignKey("notification_log.id"), nullable = False), 
-                              sa.Column('user_id', sa.Integer(), sa.ForeignKey("associated_user.user_id"), nullable = False), 
-                              sa.Column("seen", sa.Boolean(), nullable=False, server_default='false'), 
-                              sa.PrimaryKeyConstraint('user_id', 'notification_id'))
+                        sa.Column('notification_id', sa.Integer(), sa.ForeignKey("notification_log.id"), nullable = False), 
+                        sa.Column('user_id', sa.Integer(), nullable = False), 
+                        sa.Column("seen", sa.Boolean(), nullable=True, default=False), 
+                        sa.PrimaryKeyConstraint('user_id', 'notification_id'))
     
     op.create_table('notification_log', 
                     sa.Column('id', sa.Integer(), nullable = False, autoincrement=True), 

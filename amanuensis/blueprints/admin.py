@@ -10,7 +10,7 @@ from flask import request, jsonify, Blueprint, current_app
 from datetime import datetime
 from cdislogging import get_logger
 
-from amanuensis.auth.auth import check_arborist_auth, current_user
+from amanuensis.auth.auth import check_arborist_auth, current_user, has_arborist_access
 from amanuensis.config import config
 from amanuensis.errors import UserError, NotFound, AuthError
 from amanuensis.resources.institution import get_background
@@ -434,12 +434,87 @@ def copy_search_to_project():
     # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))
 
 
-@blueprint.route("/", methods=["GET"])
+
+
+
+
+
+
+
+@blueprint.route("/notification/add", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
-def get_notifications():
-    user_notifications = notification.get_notifications()
-    notification_schema = NotificationSchema(many=True)
+def add_new_notification():
+    try:
+        logged_user_id = current_user.id
+    except AuthError:
+        logger.warning(
+            "Unable to load or find the user, check your token"
+        )
     
-    return jsonify(notification_schema.dump(user_notifications))
+    message = request.get_json().get("message", None)
+    if message is None or message == "":
+        return UserError("There are missing params.")
+
+    notification_schema = NotificationLogSchema()
+    new_notification = notification.create_notification(message)
+    return flask.jsonify(notification_schema.dump(new_notification))
+
+
+@blueprint.route("/notification/all", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_all_notifications():
+    try:
+        logged_user_id = current_user.id
+    except AuthError:
+        logger.warning(
+            "Unable to load or find the user, check your token"
+        )
+
+    notifications = notification.get_notifications()
+    notification_schema = NotificationLogSchema(many=True)
+    return jsonify(notification_schema.dump(notifications))
+
+
+@blueprint.route("/notification/by", methods=["GET"])
+def get_notifications_by():
+    try:
+        logged_user_id = current_user.id
+    except AuthError:
+        logger.warning(
+            "Unable to load or find the user, check your token"
+        )
+    user_id = flask.request.args.get("user_id", None)
+    notification_id = flask.request.args.get("notification_id", None)
+    xor = bool(user_id) ^ bool(notification_id)
+
+    notification_schema = NotificationLogSchema(many=True)
+    if not xor:
+        raise UserError("You are supposed to submit one and only one variable between user_id and notification_id")
+
+    if not has_arborist_access(resource="/services/amanuensis", method="*"):
+        raise AuthError(
+                "The user is trying to use an admin functionality but it is not an admin."
+            )
+        
+    unseen = notification.get_seen_notifications_by(user_id, notification_id)
+    return flask.jsonify(notification_schema.dump(unseen))
+
+
+@blueprint.route("/notification_log/<path:notification_id>", methods=["DELETE"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def delete_notification(notification_id):
+    try:
+        logged_user_id = current_user.id
+    except AuthError:
+        logger.warning(
+            "Unable to load or find the user, check your token"
+        )
+
+    notifications = notification.get_notifications()
+    notification_schema = NotificationLogSchema(many=True)
+    return jsonify(notification_schema.dump(notifications))
+
+
+
 
 
