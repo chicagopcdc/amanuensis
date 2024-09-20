@@ -8,7 +8,7 @@ from cdislogging import get_logger
 
 logger = get_logger(__name__)
 
-blueprint = flask.Blueprint("notification", __name__)
+blueprint = flask.Blueprint("notifications", __name__)
 
 
 
