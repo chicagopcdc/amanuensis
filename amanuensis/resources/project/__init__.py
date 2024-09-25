@@ -144,7 +144,10 @@ def update(project_id, approved_url, filter_set_ids):
         return update_project(session, project_id, approved_url)
 
 
-def upload_file(bucket, key, project_id, expires=None):
+def upload_file(key, project_id, expires=None):
+
+    bucket = config["S3_BUCKETS"]["PROJECT_DATA_BUCKET"]
+
     try:
         presigned_url = flask.current_app.boto.presigned_url(bucket, key, expires, {}, method="put_object")
 
