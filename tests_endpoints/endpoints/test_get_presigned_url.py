@@ -106,7 +106,8 @@ def test_get_presigned_url(s3, set_up_project, app_instance, client):
 
     get_presigned_url_response = client.post("/admin/upload-file", json={"key": "data_1", "project_id": f"{project_id}"}, headers={"Authorization": 'bearer 200'})
     
-    
+    assert get_presigned_url_response.status_code == 200
+
     url = get_presigned_url_response.json
 
     with open("tests_endpoints/endpoints/data/file.txt", "rb") as f:
