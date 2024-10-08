@@ -146,10 +146,10 @@ def update(project_id, approved_url, filter_set_ids):
 
 def upload_file(key, project_id, expires=None):
 
-    bucket = config["S3_BUCKETS"]["DATA_DELIVERY_S3_BUCKET"]
+    bucket = list(config['AWS_CREDENTIALS'].keys())[0]
 
     try:
-        presigned_url = flask.current_app.boto.presigned_url(bucket, key, expires, config["AWS_CREDENTIALS"]['DATA_DELIVERY_S3_BUCKET'] , method="put_object")
+        presigned_url = flask.current_app.boto.presigned_url(bucket, key, expires, bucket, method="put_object")
 
     except Exception as e:
         logger.error(f"Failed to generate presigned url: {e}")
