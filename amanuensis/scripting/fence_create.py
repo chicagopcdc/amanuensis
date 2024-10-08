@@ -1,22 +1,5 @@
-import os
-import os.path
-import time
-from yaml import safe_load
-import json
-import pprint
-
 from alembic.config import main as alembic_main
 from cdislogging import get_logger
-from sqlalchemy import func
-
-from userportaldatamodel.driver import SQLAlchemyDriver
-
-from amanuensis.models import (
-    migrate,
-)
-
-from amanuensis.config import config
-
 
 logger = get_logger(__name__)
 

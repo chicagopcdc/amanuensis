@@ -12,3 +12,12 @@ from .userdatamodel_request import *
 from .userdatamodel_consortium_data_contributor import *
 from . import userdatamodel_associated_user as associate_user
 from .userdatamodel_associated_user_roles import *
+
+
+#NEW
+from .associated_user_roles import *
+from .associated_users import *
+from .project_has_associated_user import *
+from .project import *
+from .request import *
+from .project_has_associated_user import *

@@ -1,19 +1,8 @@
 import flask
-
-# from amanuensis.auth import login_required, current_token
-from amanuensis.resources.filterset import (
-    get_all,
-    get_by_id,
-    create,
-    delete,
-    update,
-    create_snapshot,
-    get_snapshot,
-)
-from amanuensis.config import config
+from amanuensis.resources.userdatamodel.search import get_filter_sets, create_filter_set, update_filter_set
+from amanuensis.resources.userdatamodel.search_is_shared import get_shared_filter_sets, create_filter_set_snapshot
 from amanuensis.auth.auth import current_user
 from amanuensis.errors import AuthError, UserError
-from amanuensis.schema import SearchSchema
 from cdislogging import get_logger
 
 
@@ -22,9 +11,8 @@ logger = get_logger(__name__)
 blueprint = flask.Blueprint("filter-sets", __name__)
 
 
-@blueprint.route("/", methods=["GET"])
-# @login_required({"user"})
-def get_filter_sets():
+@blueprint.route("/<filter_set_id>", methods=["GET"], defaults={"filter_set_id": None})
+def get_search(filter_set_id):
     try:
         logged_user_id = current_user.id
     except AuthError:
@@ -33,40 +21,18 @@ def get_filter_sets():
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
 
-    filter_sets = [
-        {
-            "name": s.name,
-            "id": s.id,
-            "description": s.description,
-            "filters": s.filter_object,
-            "ids": s.ids_list,
-        }
-        for s in get_all(logged_user_id, explorer_id)
-    ]
-    return flask.jsonify({"filter_sets": filter_sets})
-
-
-@blueprint.route("/<filter_set_id>", methods=["GET"])
-def get_filter_set(filter_set_id):
-    try:
-        logged_user_id = current_user.id
-    except AuthError:
-        logger.warning("Unable to load or find the user, check your token")
-
-    # get the explorer_id from the querystring
-    explorer_id = flask.request.args.get("explorerId", default=1, type=int)
-
-    filter_sets = [
-        {
-            "name": s.name,
-            "id": s.id,
-            "description": s.description,
-            "filters": s.filter_object,
-            "ids": s.ids_list,
-        }
-        for s in get_by_id(logged_user_id, filter_set_id, explorer_id)
-    ]
-    return flask.jsonify({"filter_sets": filter_sets})
+    with flask.current_app.db.session as session:
+        filter_sets = [
+            {
+                "name": s.name,
+                "id": s.id,
+                "description": s.description,
+                "filters": s.filter_object,
+                "ids": s.ids_list,
+            }
+            for s in get_filter_sets(session, explorer_id=explorer_id, id=filter_set_id, user_id=logged_user_id)
+        ]
+        return flask.jsonify({"filter_sets": filter_sets})
 
 
 @blueprint.route("/", methods=["POST"])
@@ -83,23 +49,32 @@ def create_search():
 
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
-
     name = flask.request.get_json().get("name", None)
     filter_object = flask.request.get_json().get("filters", {})
     graphql_object = flask.request.get_json().get("gqlFilter", {})
     description = flask.request.get_json().get("description", None)
     ids_list = flask.request.get_json().get("ids_list", None)
 
-    # search_schema = SearchSchema()
-    # return flask.jsonify(search_schema.dump(create(logged_user_id, explorer_id, name, description, filter_object)))
+    with flask.current_app.db.session as session:
+        new_filter_set = create_filter_set(
+            session,
+            logged_user_id=logged_user_id,
+            is_amanuensis_admin=False, 
+            explorer_id=explorer_id, 
+            name=name, 
+            description=description, 
+            filter_object=filter_object, 
+            ids_list=ids_list, 
+            graphql_object=graphql_object
+        )
 
-    return flask.jsonify(create(logged_user_id, False, explorer_id, name, description, filter_object, ids_list, graphql_object))
+    return flask.jsonify(new_filter_set)
 
 
-@blueprint.route("/<filter_set_id>", methods=["PUT"])
+@blueprint.route("/<filter_set_id>", methods=["PUT", "DELETE"])
 def update_search(filter_set_id):
     """
-    Create a user on the userdatamodel database
+    Update a search on the userportaldatamodel database
 
     Returns a json object
     """
@@ -110,32 +85,31 @@ def update_search(filter_set_id):
 
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
-
     name = flask.request.get_json().get("name", None)
     description = flask.request.get_json().get("description", None)
     filter_object = flask.request.get_json().get("filters", None)
     graphql_object = flask.request.get_json().get("gqlFilter", {})
-    return flask.jsonify(update(logged_user_id, filter_set_id, explorer_id, name, description, filter_object, graphql_object))
 
+    if flask.request.method == "DELETE":
+        delete = True
+    else:
+        delete = False
 
-@blueprint.route("/<filter_set_id>", methods=["DELETE"])
-def delete_search(filter_set_id):
-    """
-    Remove the user from the userdatamodel database and all associated storage
-    solutions.
-
-    Returns json object
-    """
-    try:
-        logged_user_id = current_user.id
-    except AuthError:
-        logger.warning("Unable to load or find the user, check your token")
-
-    # get the explorer_id from the querystring
-    explorer_id = flask.request.args.get("explorerId", default=1, type=int)
-
-    response = flask.jsonify(delete(logged_user_id, filter_set_id, explorer_id))
-    return response
+    with flask.current_app.db.session as session:
+        
+        updated_filter_set = update_filter_set(
+                                    session, 
+                                    logged_user_id, 
+                                    filter_set_id, 
+                                    explorer_id, 
+                                    name=name, 
+                                    description=description, 
+                                    filter_object=filter_object, 
+                                    graphql_object=graphql_object,
+                                    delete=delete
+                                )
+    
+    return flask.jsonify(updated_filter_set)
 
 
 @blueprint.route("/snapshot", methods=["POST"])
@@ -154,9 +128,11 @@ def create_snapshot_from_filter_set():
     users_list = flask.request.get_json().get("users_list", None)
     if not filter_set_id:
         raise UserError("Missing parameters.")
+    
+    with flask.current_app.db.session as session:
+        snapshot = create_filter_set_snapshot(session, logged_user_id, filter_set_id, users_list)
 
-    response = flask.jsonify(create_snapshot(logged_user_id, filter_set_id, users_list))
-    return response
+    return flask.jsonify(snapshot)
 
 
 @blueprint.route("/snapshot/<token>", methods=["GET"])
@@ -168,9 +144,11 @@ def get_filter_set_snapshot(token):
         logged_user_id = current_user.id
     except AuthError:
         logger.warning("Unable to load or find the user, check your token")
+    
+    with flask.current_app.db.session as session:
+        snapshot = get_shared_filter_sets(session, logged_user_id, token)
 
-    response = flask.jsonify(get_snapshot(logged_user_id, token))
-    return response
+    return flask.jsonify(snapshot)
 
 
 
