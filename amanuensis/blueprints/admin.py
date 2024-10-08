@@ -89,18 +89,16 @@ def upload_file():
     update approved_url with url generated from the uploaded file
     """
 
-    #required
-    bucket = request.get_json().get("bucket", None)
     key = request.get_json().get("key", None)
     project_id = request.get_json().get("project_id", None)
     
     #optional 
     expires = request.get_json().get("expires", None)
     
-    if any(param is None for param in [bucket, key, project_id]):
+    if any(param is None for param in [key, project_id]):
             raise UserError("One or more required parameters are missing")
 
-    return jsonify(project.upload_file(bucket, key, project_id, expires))
+    return jsonify(project.upload_file(key, project_id, expires))
 
 
 @blueprint.route("/states", methods=["POST"])

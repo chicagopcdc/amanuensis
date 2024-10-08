@@ -144,9 +144,12 @@ def update(project_id, approved_url, filter_set_ids):
         return update_project(session, project_id, approved_url)
 
 
-def upload_file(bucket, key, project_id, expires=None):
+def upload_file(key, project_id, expires=None):
+
+    bucket = list(config['AWS_CREDENTIALS'].keys())[0]
+
     try:
-        presigned_url = flask.current_app.boto.presigned_url(bucket, key, expires, {}, method="put_object")
+        presigned_url = flask.current_app.boto.presigned_url(bucket, key, expires, bucket, method="put_object")
 
     except Exception as e:
         logger.error(f"Failed to generate presigned url: {e}")
