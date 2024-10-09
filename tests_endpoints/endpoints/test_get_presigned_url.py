@@ -102,9 +102,12 @@ def test_get_presigned_url(s3, set_up_project, app_instance, client):
     
     project_id = set_up_project
 
-    get_presigned_url_response = client.post("/admin/upload-file", json={"bucket": "amanuensis-upload-file-test-bucket", "key": "data_1", "project_id": f"{project_id}"}, headers={"Authorization": 'bearer 200'})
+    #add bucket ["S3_BUCKETS"][""PROJECT_DATA_BUCKET""] = amanuensis-upload-file-test-bucket in config
+
+    get_presigned_url_response = client.post("/admin/upload-file", json={"key": "data_1", "project_id": f"{project_id}"}, headers={"Authorization": 'bearer 200'})
     
-    
+    assert get_presigned_url_response.status_code == 200
+
     url = get_presigned_url_response.json
 
     with open("tests_endpoints/endpoints/data/file.txt", "rb") as f:
@@ -114,3 +117,4 @@ def test_get_presigned_url(s3, set_up_project, app_instance, client):
     uploaded_file_response = s3.get_object(Bucket="amanuensis-upload-file-test-bucket", Key="data_1")
 
     assert upload_file_response.status_code == 200
+    assert uploaded_file_response['ResponseMetadata']['HTTPStatusCode'] == 200
