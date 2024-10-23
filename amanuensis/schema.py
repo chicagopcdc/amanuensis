@@ -11,6 +11,8 @@ from userportaldatamodel.schemas.schemas import (
     AttributeListValueSchema,
     InputTypeSchema,
     AssociatedUserSchema,
-    RequestStateSchema
+    RequestStateSchema, 
+    NotificationSchema,
+    NotificationLogSchema
 )
 
