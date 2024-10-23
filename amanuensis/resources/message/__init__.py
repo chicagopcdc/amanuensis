@@ -1,22 +1,13 @@
 import flask
-import jwt
-import smtplib
-import json
 from cdislogging import get_logger
-from gen3authz.client.arborist.errors import ArboristError
 from pcdcutils.environment import is_env_enabled
 
 from amanuensis.config import config
-from amanuensis.errors import NotFound, Unauthorized, UserError, InternalError, Forbidden
 from amanuensis.resources import userdatamodel as udm
 # from amanuensis.resources.userdatamodel import get_all_messages, get_messages_by_request, send_message
 from amanuensis.resources.fence import fence_get_users
-from amanuensis.auth.auth import current_user
 from amanuensis.models import (
-    ConsortiumDataContributor,
-    Message,
     Receiver
-    # Request
 )
 from amanuensis.resources.userdatamodel.project import get_projects
 

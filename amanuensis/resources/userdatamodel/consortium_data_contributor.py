@@ -42,7 +42,7 @@ def get_consortiums(current_session,
         if len(consortiums) > 1:
             raise UserError(f"More than one consortium found check inputs")
         else:
-            consortiums = consortiums[0] if consortiums else consortiums
+            consortiums = consortiums[0] if consortiums else None
     
     return consortiums
 

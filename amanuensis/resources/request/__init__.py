@@ -1,11 +1,11 @@
-from amanuensis.schema import RequestSchema, ProjectSchema
+from amanuensis.schema import ProjectSchema
 
 from amanuensis.resources.userdatamodel.project import get_projects
 from amanuensis.resources.userdatamodel.search import get_filter_sets
 from amanuensis.resources.userdatamodel.state import get_states
 from amanuensis.resources.consortium_data_contributor import get_consortiums_from_fitersets
 from amanuensis.resources.userdatamodel.request_has_state import create_request_state, get_request_states
-from amanuensis.resources.userdatamodel.request import create_request, get_requests
+from amanuensis.resources.userdatamodel.request import create_request
 from amanuensis.resources.userdatamodel.transition import get_transition_graph
 from amanuensis.resources.message import notify_user_project_status_update
 

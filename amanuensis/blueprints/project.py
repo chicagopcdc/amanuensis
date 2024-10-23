@@ -101,7 +101,7 @@ def get_projetcs():
             tmp_project["researcher"]["first_name"] = fence_users[0]["first_name"]
             tmp_project["researcher"]["last_name"] = fence_users[0]["last_name"]
             tmp_project["researcher"]["institution"] = fence_users[0]["institution"]
-
+            #TODO in data-portal look to change the button criteria from "DATA AVAILABLE" to "DATA_AVAILABLE" this will remove this call below
             tmp_project["status"] = get_states(session, code=project_status["status"], many=False, filter_out_depricated=True).name if project_status["status"] else "ERROR"
             tmp_project["submitted_at"] = submitted_at
             tmp_project["completed_at"] = project_status["completed_at"] if "completed_at" in project_status else None

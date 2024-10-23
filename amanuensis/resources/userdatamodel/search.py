@@ -43,6 +43,8 @@ def get_filter_sets(
         filter_sets = filter_sets.filter(Search.id.in_(id))
         if throw_not_equal:
             must_match = len(id)
+    elif throw_not_equal:
+        raise UserError("You must pass a filter_set_id to enforce equality check")
 
 
     if user_id:
@@ -54,15 +56,16 @@ def get_filter_sets(
 
     if throw_not_found and not filter_sets:
         raise NotFound(f"No filter_sets found")
+    
+    if throw_not_equal and len(filter_sets) != must_match:
+        raise UserError(f"{must_match} filter_sets were submitted but {len(filter_sets)} found")
 
     if not many:
         if len(filter_sets) > 1:
             raise UserError(f"More than one filter_set found check inputs")
         else:
-            filter_sets = filter_sets[0] if filter_sets else filter_sets
-    
-    if throw_not_equal and len(filter_sets) != must_match:
-        raise UserError(f"{must_match} filter_sets were submitted but {len(filter_sets)} found")
+            filter_sets = filter_sets[0] if filter_sets else None 
+        
     
     return filter_sets
 

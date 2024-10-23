@@ -576,7 +576,7 @@ def test_admin_upload_and_download_data(session, s3, client, login, project_data
 
     url = get_presigned_url_response.json
 
-    with open("test_resources/data/file.txt", "rb") as f:
+    with open("tests/data/file.txt", "rb") as f:
         # Perform the PUT request to upload the file
         upload_file_response = requests.put(url, data=f)
     

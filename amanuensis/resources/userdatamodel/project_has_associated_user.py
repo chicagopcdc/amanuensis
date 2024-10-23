@@ -61,7 +61,7 @@ def get_project_associated_users(
         if len(project_associated_user) > 1:
             raise UserError("Multiple ProjectAssociatedUsers found")
         else:
-            project_associated_user = project_associated_user[0] if project_associated_user else project_associated_user
+            project_associated_user = project_associated_user[0] if project_associated_user else None
 
     return project_associated_user
 

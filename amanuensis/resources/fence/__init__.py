@@ -1,6 +1,5 @@
 
 import json
-from inspect import signature
 
 import requests
 from cdislogging import get_logger
