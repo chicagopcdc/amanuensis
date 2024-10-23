@@ -47,8 +47,11 @@ def get_consortiums(current_session,
     return consortiums
 
 
-def create_consortium(current_session, name,code):
-    if get_consortiums(current_session, code=code):
+def create_consortium(current_session, name, code):
+
+    consortium = get_consortiums(current_session, code=code, many=False)
+
+    if consortium:
         logger.info(f"Consortium {code} already exists, skipping")
     
     else:

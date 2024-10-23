@@ -1,6 +1,7 @@
 from cdislogging import get_logger
 from amanuensis.errors import NotFound, UserError
-from amanuensis.models import Project, ProjectAssociatedUser
+from amanuensis.models import Project, ProjectAssociatedUser, AssociatedUser
+from sqlalchemy import and_
 
 logger = get_logger(__name__)
 
@@ -20,6 +21,7 @@ def get_projects(
         associted_user_user_id=None,
         associated_user_email=None,
         id=None,
+        name=None,
         many=True,
         throw_not_found=False
     ):
@@ -34,6 +36,10 @@ def get_projects(
     if id is not None:
         id = [id] if not isinstance(id, list) else id
         projects = projects.filter(Project.id.in_(id))
+
+    if name is not None:
+        name = [name] if not isinstance(name, list) else name
+        projects = projects.filter(Project.name.in_(name))
     
     #get projects by consortium
     if consortiums:
@@ -43,14 +49,15 @@ def get_projects(
     if user_id:
         user_id = [user_id] if not isinstance(user_id, list) else user_id
         projects = projects.filter(Project.user_id.in_(user_id))
+
     
     if associted_user_user_id:
         associted_user_user_id = [associted_user_user_id] if not isinstance(associted_user_user_id, list) else associted_user_user_id
-        projects = projects.filter(Project.associated_users.any(ProjectAssociatedUser.user_id.in_(associted_user_user_id)))
+        projects = projects.filter(Project.associated_users_roles.any(and_(ProjectAssociatedUser.associated_user.has(AssociatedUser.user_id.in_(associted_user_user_id)), ProjectAssociatedUser.active == True)))
 
     if associated_user_email:
         associated_user_email = [associated_user_email] if not isinstance(associated_user_email, list) else associated_user_email
-        projects = projects.filter(Project.associated_users.any(ProjectAssociatedUser.email.in_(associated_user_email)))
+        projects = projects.filter(Project.associated_users_roles.any(and_(ProjectAssociatedUser.associated_user.has(AssociatedUser.email.in_(associated_user_email)), ProjectAssociatedUser.active == True)))
 
 
     projects = projects.all()
@@ -64,7 +71,7 @@ def get_projects(
         if len(projects) > 1:
             raise UserError(f"More than one project found check inputs")
         else:
-            projects = projects[0] if projects else projects
+            projects = projects[0] if projects else None
     
     return projects
 
@@ -73,6 +80,13 @@ def create_project(current_session, user_id, description, name, institution):
     """
     Creates a project with an associated auth_id and storage access
     """
+
+    project = get_projects(current_session, name=name, many=False)
+
+    if project:
+        raise UserError(f"Project with name {name} already exists")
+
+
     new_project = Project(
         user_id=user_id,
         user_source="fence",

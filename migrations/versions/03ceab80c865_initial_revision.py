@@ -17,7 +17,6 @@ import logging
 # from sqlalchemy import engine_from_config
 # from sqlalchemy import inspect
 
-from amanuensis.models import migrate
 from amanuensis.config import config
 
 from userportaldatamodel.driver import SQLAlchemyDriver

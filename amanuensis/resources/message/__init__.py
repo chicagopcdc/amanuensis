@@ -18,6 +18,7 @@ from amanuensis.models import (
     Receiver
     # Request
 )
+from amanuensis.resources.userdatamodel.project import get_projects
 
 # TODO initialize on app init instead of here
 from hubspotclient.client.hubspot.client import HubspotClient
@@ -134,3 +135,12 @@ def send_admin_message(project, consortiums, subject, body):
             flask.current_app.boto.send_email_ses(body, requesters, subject)
 
 
+def notify_user_project_status_update(current_session, project_id, consortiums):
+    """
+    Notify the users when project state changes.
+    """
+    project = get_projects(current_session, id=project_id, many=False, throw_not_found=True)
+    email_subject = f"Project {project.name}: Data Delivered"
+    email_body = f"The project f{project.name} data was delivered."
+
+    return send_admin_message(project, consortiums, email_subject, email_body)

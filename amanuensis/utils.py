@@ -164,31 +164,7 @@ def getGQLFilterIdsList(ids_list):
 
     return { "AND": [{"IN":{"subject_submitter_id":ids_list}}]} 
 
-def get_consortium_list(src_filter, ids_list, path=None):
-    if src_filter is None and ids_list is None:
-        raise NotFound("There is no filter specified and associated with the project you are trying to create")
 
-    if not path:
-        path = config["GET_CONSORTIUMS_URL"]
-
-    isFilter = True if src_filter else False
-    transformed_filter = src_filter if isFilter else getGQLFilterIdsList(ids_list)
-    target_filter = {}
-    target_filter["filter"] = transformed_filter
-    try:
-        url = path
-        headers = {'Content-Type': 'application/json'}
-        body = json.dumps(target_filter, separators=(',', ':'))
-        jwt = get_jwt_from_header()
-        headers['Authorization'] = 'bearer ' + jwt
-
-        r = requests.post(
-            url, data=body, headers=headers # , proxies=flask.current_app.config.get("EXTERNAL_PROXIES")
-        )
-    except requests.HTTPError as e:
-        print(e.message)
-
-    return r.json()
     # if r.status_code == 200:
     #     return r.json()
     # return []

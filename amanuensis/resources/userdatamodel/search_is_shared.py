@@ -12,9 +12,15 @@ def get_shared_filter_sets(current_session, token):
                               .filter(SearchIsShared.shareable_token == token) \
                               .first()
     if not snapshot:
-        raise NotFound("error, snapshot not found") 
+        raise NotFound("error, snapshot not found")
 
-    return snapshot
+    return {
+            "id": snapshot.search_id,
+            "name": snapshot.search.name,
+            "explorer_id": snapshot.search.filter_source_internal_id,
+            "description": snapshot.search.description,
+            "filters": snapshot.search.filter_object
+        } 
 
 
 
@@ -52,7 +58,7 @@ def create_filter_set_snapshot(current_session,
     shareable_token = str(uuid.uuid4())
 
     shared_search = SearchIsShared(
-        search_id=filter_set_id,
+        search_id=snapshot.id,
         user_id=users_list,
         access_role="READ",
         shareable_token=shareable_token
@@ -60,6 +66,6 @@ def create_filter_set_snapshot(current_session,
 
     # filter_set.snapshots.append(shared_search)
     current_session.add(shared_search)
-    current_session.flush()
+    current_session.commit()
     
-    return shared_search
+    return shareable_token

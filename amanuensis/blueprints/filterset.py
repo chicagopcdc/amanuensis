@@ -4,6 +4,7 @@ from amanuensis.resources.userdatamodel.search_is_shared import get_shared_filte
 from amanuensis.auth.auth import current_user
 from amanuensis.errors import AuthError, UserError
 from cdislogging import get_logger
+from amanuensis.schema import SearchSchema, SearchIsSharedSchema
 
 
 logger = get_logger(__name__)
@@ -11,8 +12,10 @@ logger = get_logger(__name__)
 blueprint = flask.Blueprint("filter-sets", __name__)
 
 
-@blueprint.route("/<filter_set_id>", methods=["GET"], defaults={"filter_set_id": None})
-def get_search(filter_set_id):
+
+@blueprint.route("/", methods=["GET"])
+@blueprint.route("/<filter_set_id>", methods=["GET"])
+def get_filter_set(filter_set_id=None):
     try:
         logged_user_id = current_user.id
     except AuthError:
@@ -67,8 +70,8 @@ def create_search():
             ids_list=ids_list, 
             graphql_object=graphql_object
         )
-
-    return flask.jsonify(new_filter_set)
+        search_schema = SearchSchema()
+        return search_schema.dump(new_filter_set)
 
 
 @blueprint.route("/<filter_set_id>", methods=["PUT", "DELETE"])
@@ -90,10 +93,7 @@ def update_search(filter_set_id):
     filter_object = flask.request.get_json().get("filters", None)
     graphql_object = flask.request.get_json().get("gqlFilter", {})
 
-    if flask.request.method == "DELETE":
-        delete = True
-    else:
-        delete = False
+    search_schema = SearchSchema()
 
     with flask.current_app.db.session as session:
         
@@ -106,10 +106,10 @@ def update_search(filter_set_id):
                                     description=description, 
                                     filter_object=filter_object, 
                                     graphql_object=graphql_object,
-                                    delete=delete
+                                    delete= True if flask.request.method == "DELETE" else False
                                 )
     
-    return flask.jsonify(updated_filter_set)
+        return search_schema.dump(updated_filter_set)
 
 
 @blueprint.route("/snapshot", methods=["POST"])
@@ -129,10 +129,11 @@ def create_snapshot_from_filter_set():
     if not filter_set_id:
         raise UserError("Missing parameters.")
     
+    
     with flask.current_app.db.session as session:
         snapshot = create_filter_set_snapshot(session, logged_user_id, filter_set_id, users_list)
 
-    return flask.jsonify(snapshot)
+        return flask.jsonify(snapshot)
 
 
 @blueprint.route("/snapshot/<token>", methods=["GET"])
@@ -141,12 +142,12 @@ def get_filter_set_snapshot(token):
     Return the snapshot for the given token.
     """
     try:
-        logged_user_id = current_user.id
+        current_user.id
     except AuthError:
         logger.warning("Unable to load or find the user, check your token")
     
     with flask.current_app.db.session as session:
-        snapshot = get_shared_filter_sets(session, logged_user_id, token)
+        snapshot = get_shared_filter_sets(session, token)
 
     return flask.jsonify(snapshot)
 

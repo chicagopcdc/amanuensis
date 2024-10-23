@@ -1,46 +1,45 @@
-import flask
-import json
 from cdislogging import get_logger
-
-from amanuensis.resources.userdatamodel import (
-    create_consortium,
-    get_consotium_by_code,
-    get_consortiums_by_code
-)
-from amanuensis.resources import filterset
+from amanuensis.resources.userdatamodel.consortium_data_contributor import create_consortium
+from amanuensis.auth.auth import get_jwt_from_header
+import json
+import requests
+from amanuensis.errors import NotFound
 from amanuensis.config import config
-from amanuensis.errors import NotFound, Unauthorized, UserError, InternalError, Forbidden
-from amanuensis.models import (
-    ConsortiumDataContributor
-)
-
-from amanuensis.utils import get_consortium_list
-
 
 logger = get_logger(__name__)
 
+def get_consortium_list(src_filter, ids_list, path=None):
+    if src_filter is None and ids_list is None:
+        raise NotFound("There is no filter specified and associated with the project you are trying to create")
 
-def create(logged_user_id, name, code):
-    with flask.current_app.db.session as session:
-        return create_consortium(session, code=code, name=name)
+    if not path:
+        path = config["GET_CONSORTIUMS_URL"]
 
-def get(code,session = None):
-    if code is None:
-        return None
+    isFilter = True if src_filter else False
+    transformed_filter = src_filter if isFilter else { "AND": [{"IN":{"subject_submitter_id":ids_list}}]}
+    target_filter = {}
+    target_filter["filter"] = transformed_filter
+    try:
+        url = path
+        headers = {'Content-Type': 'application/json'} 
+        body = json.dumps(target_filter, separators=(',', ':'))
+        jwt = get_jwt_from_header()
+        headers['Authorization'] = 'bearer ' + jwt
 
-    if session:
-        return get_consotium_by_code(session, code=code)
-    else:
-        with flask.current_app.db.session as session:
-            return get_consotium_by_code(session, code=code)
+        r = requests.post(
+            url, data=body, headers=headers # , proxies=flask.current_app.config.get("EXTERNAL_PROXIES")
+        )
+    except requests.HTTPError as e:
+        print(e.message)
 
-def get_consortiums_from_fitersets(filter_sets, session=None):
-    if not filter_sets:
-        return None
+    return r.json()
+
+
+def get_consortiums_from_fitersets(filter_sets, session):
     
     consortiums_from_guppy = set()
 
-    return_consortiums = {}
+    return_consortiums = []
 
     #get consortiums in filter-sets from guppy
     for s in filter_sets:
@@ -49,21 +48,10 @@ def get_consortiums_from_fitersets(filter_sets, session=None):
         # s.filter_object - you can use getattr to get the value or implement __getitem__ - https://stackoverflow.com/questions/11469025/how-to-implement-a-subscriptable-class-in-python-subscriptable-class-not-subsc
         consortiums_from_guppy.update(consortium.upper() for consortium in get_consortium_list(s.graphql_object, s.ids_list))  
     
-    with session if session else flask.current_app.db.session as session:
-        #find which consortiums already exist in DB
-        present_consortiums = get_consortiums_by_code(session, consortiums_from_guppy)
+    #find which consortiums already exist in DB
+    for consortium in consortiums_from_guppy:
+      return_consortiums.append(create_consortium(session, consortium, consortium))
 
-        return_consortiums = {consortium.code: consortium for consortium in present_consortiums}
-
-        #find which consortiums do not exist in DB
-        new_consortiums = consortiums_from_guppy - return_consortiums.keys()
-
-        #add consortiums to DB that are not present
-        for code in new_consortiums:
-            return_consortiums[code] = create_consortium(session, code, code)
-
-    #return all consortiums from filter-sets
-    # consortiums = {consortium_code: consortium_object}
     return return_consortiums
 
 

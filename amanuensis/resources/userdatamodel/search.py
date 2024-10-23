@@ -17,7 +17,8 @@ def get_filter_sets(
         many=True,
         filter_by_active=True,
         filter_by_source_type=True,
-        throw_not_found=False
+        throw_not_found=False,
+        throw_not_equal=False
 ):
     filter_sets = current_session.query(Search)
 
@@ -34,9 +35,15 @@ def get_filter_sets(
         explorer_id = [explorer_id] if not isinstance(explorer_id, list) else explorer_id
         filter_sets = filter_sets.filter(Search.filter_source_internal_id.in_(explorer_id))
     
+    if id is None and throw_not_equal:
+        raise UserError("You must pass a filter_set_id")
+
     if id is not None:
         id = [id] if not isinstance(id, list) else id
         filter_sets = filter_sets.filter(Search.id.in_(id))
+        if throw_not_equal:
+            must_match = len(id)
+
 
     if user_id:
         user_id = [user_id] if not isinstance(user_id, list) else user_id
@@ -53,6 +60,9 @@ def get_filter_sets(
             raise UserError(f"More than one filter_set found check inputs")
         else:
             filter_sets = filter_sets[0] if filter_sets else filter_sets
+    
+    if throw_not_equal and len(filter_sets) != must_match:
+        raise UserError(f"{must_match} filter_sets were submitted but {len(filter_sets)} found")
     
     return filter_sets
 

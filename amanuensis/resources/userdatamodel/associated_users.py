@@ -56,7 +56,7 @@ def get_associated_users(current_session,
         if len(users) > 1:
             raise UserError(f"More than one user found check inputs")
         else:
-            users = users[0] if users else users
+            users = users[0] if users else None
     
     return users
 
@@ -127,7 +127,7 @@ def create_associated_user(current_session, email, user_id=None, user_source="fe
 
         
 
-        logger.info(f"User {user} has been created")
+        logger.info(f"User {new_user} has been created")
     
     current_session.commit()
     

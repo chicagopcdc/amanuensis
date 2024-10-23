@@ -1,4 +1,4 @@
-from amanuensis.models import RequestState, Request, State
+from amanuensis.models import RequestState, Request, State, ConsortiumDataContributor
 from cdislogging import get_logger
 from amanuensis.errors import NotFound, UserError, InternalError
 from sqlalchemy import func
@@ -11,6 +11,8 @@ logger = get_logger(__name__)
 def get_request_states(
         current_session, 
         request_id=None, 
+        project_id=None,
+        consortiums=None,
         state_id=None,
         latest=False,
         filter_out_depricated=False,
@@ -33,10 +35,18 @@ def get_request_states(
     """
     request_state = current_session.query(RequestState)
 
+    if project_id is not None:
+        project_id = [project_id] if not isinstance(project_id, list) else project_id
+        request_state = request_state.filter(RequestState.request.has(Request.project_id.in_(project_id)))
+
+    if consortiums is not None:
+        consortiums = [consortiums] if not isinstance(consortiums, list) else consortiums
+        request_state = request_state.filter(RequestState.request.has(Request.consortium_data_contributor.has(ConsortiumDataContributor.code.in_(consortiums))))
+    
     if request_id is not None:
         request_id = [request_id] if not isinstance(request_id, list) else request_id
         request_state = request_state.filter(RequestState.request_id.in_(request_id))
-    
+
     if latest:
         subquery = current_session.query(
             RequestState.request_id,
@@ -46,6 +56,8 @@ def get_request_states(
         .subquery()
 
         request_state = request_state.filter(RequestState.request_id == subquery.c.request_id, RequestState.create_date == subquery.c.max_create_date)
+    
+    
     
     if state_id is not None:
         state_id = [state_id] if not isinstance(state_id, list) else state_id
@@ -64,7 +76,7 @@ def get_request_states(
         if len(request_state) > 1:
             raise UserError(f"More than one request found check inputs")
         else:
-            request_state = request_state[0] if request_state else request_state
+            request_state = request_state[0] if request_state else None
     
     return request_state
 
@@ -81,7 +93,7 @@ def create_request_state(current_session, request_id, state_id):
         RequestState: a newly created request state
     """
     
-    request_state = get_request_states(current_session, request_id=request_id, state_id=state_id, latest=True)
+    request_state = get_request_states(current_session, request_id=request_id, state_id=state_id, latest=True, many=False)
 
     if request_state:
         logger.info(f"Request {request_id} already has state {state_id}")

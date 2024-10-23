@@ -12,7 +12,7 @@ __all__ = [
 ]
 
 
-def get_states(current_session, id=None, name=None, code=None, throw_not_found=False, many=True):
+def get_states(current_session, id=None, name=None, code=None, throw_not_found=False, many=True, filter_out_depricated=False):
     states = current_session.query(State)
 
     logger.info(f"get_states: {locals()}")
@@ -28,6 +28,9 @@ def get_states(current_session, id=None, name=None, code=None, throw_not_found=F
     if code:
         code = [code] if not isinstance(code, list) else code
         states = states.filter(State.code.in_(code))
+    
+    if filter_out_depricated:
+        states = states.filter(State.code != "DEPRECATED")
 
     states = states.all()
 
@@ -44,7 +47,9 @@ def get_states(current_session, id=None, name=None, code=None, throw_not_found=F
 
 
 def create_state(current_session, name, code):
-    if get_states(current_session, code=code):
+
+    state = get_states(current_session, code=code, many=False)
+    if state:
         logger.info(f"State {code} already exists, skipping")
     
     else:

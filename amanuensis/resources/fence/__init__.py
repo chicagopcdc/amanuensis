@@ -9,12 +9,13 @@ from amanuensis.auth.auth import get_jwt_from_header
 from pcdcutils.signature import SignatureManager
 from pcdcutils.errors import NoKeyError
 from pcdcutils.helpers import encode_str
+from amanuensis.config import config
 
 logger = get_logger(__name__)
 
 
 
-def fence_get_users(config, usernames=None, ids=None):
+def fence_get_users(usernames=None, ids=None):
     '''
     amanuensis sends a request to fence for a list of user ids 
     matching the supplied list of user email addresses

@@ -4,16 +4,11 @@ from cdislogging import get_logger
 
 from amanuensis.auth.auth import current_user
 from amanuensis.errors import AuthError, UserError, NotFound, InternalError, Forbidden
-from amanuensis.resources.project import get_by_id, get_overall_project_state
-from amanuensis.resources.request import get_latest_request_state, get_final_states_codes
-from amanuensis.resources.userdatamodel import get_final_states
-from amanuensis.resources.admin import update_project_state, get_by_code
 from pcdc_aws_client.utils import get_s3_key_and_bucket
 
 from amanuensis.resources.userdatamodel.project import get_projects
 from amanuensis.resources.userdatamodel.project_has_associated_user import get_project_associated_users
-from amanuensis.resources.userdatamodel.associated_user_roles import get_associated_user_roles
-
+from amanuensis.resources.request import change_request_state
 
 from amanuensis.config import config
 
@@ -44,7 +39,6 @@ def download_data(project_id):
     if not project_id:
         raise UserError("A project_id is needed to retrieve the correct URL")
 
-    project = get_by_id(logged_user_id, project_id)
     with flask.current_app.db.session as session:
 
         project = get_projects(session, id=project_id, many=False, throw_not_found=True)
@@ -54,8 +48,10 @@ def download_data(project_id):
         if not storage_url:
             raise NotFound("The project with id {} doesn't seem to have a loaded file with approved data.".format(project_id)) 
 
-        get_project_associated_users(session, project_id, associated_user_id=logged_user_id, associated_user_email=logged_user_email, role_code="DATA_ACCESS", many=False, throw_not_found=True)
+        user = get_project_associated_users(session, project_id, associated_user_user_id=logged_user_id, associated_user_email=logged_user_email, many=False, throw_not_found=True)
         
+        if user.role.code != "DATA_ACCESS":
+            raise Forbidden("User {} is not allowed to download data from project {}".format(logged_user_email, project_id))
         
         # TODO - assign on file creation metadata to S3 file (play with indexd since it probably supports it). 
         # Check that user has access to that file before creating the presigned url. The responsibility is on the admin here and a wrong 
@@ -63,7 +59,7 @@ def download_data(project_id):
 
 
         #check if project is in fianl state or in Data Download state before attempting to change state
-        update_request_state(session, "DATA_DOWNLOAD", project, check_overall_state=True)
+        change_request_state(session, project_id, state_code="DATA_DOWNLOADED")
             
 
         # Create pre-signed URL for downalod
