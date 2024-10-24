@@ -7,6 +7,7 @@ from datetime import datetime
 import time
 from amanuensis.blueprints.filterset import UserError
 import requests
+import json 
 
 
 logger = get_logger(logger_name=__name__)
@@ -328,6 +329,23 @@ def test_admin_edit_project_users(session, client, login, project_data, mock_req
     session.refresh(user_2) 
     assert user_2.active == False
     assert user_2.role.code == "DATA_ACCESS"
+
+    #TEST get all project_users and their roles by project_id
+    project_users_response = client.get(f"/admin/project_users/{project_data['project_id']}", headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert project_users_response.status_code == 200
+
+    correct_users = [{"email": project_data["user_email"], "role": "DATA_ACCESS"},
+                     {"email": project_data["admin_email"], "role": "METADATA_ACCESS"},
+                     {"email": project_data["user_3_email"], "role": "METADATA_ACCESS"},
+                     {"email": project_data["user_4_email"], "role": "METADATA_ACCESS"}] 
+    
+    sorted_list1 = sorted(correct_users, key=lambda x: json.dumps(x, sort_keys=True))
+    sorted_list2 = sorted(project_users_response.json, key=lambda x: json.dumps(x, sort_keys=True))
+    
+    assert sorted_list1 == sorted_list2
+        
+
+
 
     #readd user
     readd_user_2_response = client.post(
