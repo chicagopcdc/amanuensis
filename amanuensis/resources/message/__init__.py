@@ -1,23 +1,16 @@
 import flask
-import jwt
-import smtplib
-import json
 from cdislogging import get_logger
-from gen3authz.client.arborist.errors import ArboristError
 from pcdcutils.environment import is_env_enabled
 
 from amanuensis.config import config
-from amanuensis.errors import NotFound, Unauthorized, UserError, InternalError, Forbidden
-from amanuensis.resources import userdatamodel as udm
+from amanuensis.resources.userdatamodel.message import *
+from amanuensis.resources.userdatamodel.request import get_requests
 # from amanuensis.resources.userdatamodel import get_all_messages, get_messages_by_request, send_message
 from amanuensis.resources.fence import fence_get_users
-from amanuensis.auth.auth import current_user
 from amanuensis.models import (
-    ConsortiumDataContributor,
-    Message,
     Receiver
-    # Request
 )
+from amanuensis.resources.userdatamodel.project import get_projects
 
 # TODO initialize on app init instead of here
 from hubspotclient.client.hubspot.client import HubspotClient
@@ -28,9 +21,9 @@ logger = get_logger(__name__)
 def get_messages(logged_user_id, request_id=None):
     with flask.current_app.db.session as session:
         if request_id:
-            msgs = udm.get_messages_by_request(session, logged_user_id, request_id)
+            msgs = get_messages_by_request(session, logged_user_id, request_id)
         else:
-            msgs = udm.get_all_messages(session, logged_user_id)
+            msgs = get_all_messages(session, logged_user_id)
         
         return msgs
 
@@ -39,7 +32,7 @@ def send_message(logged_user_id, request_id, subject, body):
     with flask.current_app.db.session as session:    
 
         # Get consortium and check that the request exists
-        request = udm.get_request_by_id(session, logged_user_id, request_id)
+        request = get_requests(session, user_id=logged_user_id, id=request_id)
         # logger.debug("Request: " + str(request))
         consortium_code = request.consortium_data_contributor.code
         # logger.debug(f"Consortium Code: {consortium_code}")
@@ -134,3 +127,12 @@ def send_admin_message(project, consortiums, subject, body):
             flask.current_app.boto.send_email_ses(body, requesters, subject)
 
 
+def notify_user_project_status_update(current_session, project_id, consortiums):
+    """
+    Notify the users when project state changes.
+    """
+    project = get_projects(current_session, id=project_id, many=False, throw_not_found=True)
+    email_subject = f"Project {project.name}: Data Delivered"
+    email_body = f"The project f{project.name} data was delivered."
+
+    return send_admin_message(project, consortiums, email_subject, email_body)

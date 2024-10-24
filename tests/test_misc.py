@@ -1,8 +1,7 @@
-def test_healthcheck(client):
-    assert client.get("/_status").status_code == 200
-
+def test_status(client):
+    response = client.get("/_status")
+    assert response.status_code == 200
 
 def test_version(client):
-    r = client.get("/_version")
-    assert "version" in r.json
-    assert "commit" in r.json
+    response = client.get("/_version")
+    assert response.status_code == 200

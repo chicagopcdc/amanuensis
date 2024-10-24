@@ -17,13 +17,12 @@ import logging
 # from sqlalchemy import engine_from_config
 # from sqlalchemy import inspect
 
-from amanuensis.models import migrate
 from amanuensis.config import config
 
 from userportaldatamodel.driver import SQLAlchemyDriver
 
 from userportaldatamodel.models import (ConsortiumDataContributor, State)
-
+from amanuensis.models import migrate
 
 # revision identifiers, used by Alembic.
 revision = "03ceab80c865"
