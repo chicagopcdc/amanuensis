@@ -3,7 +3,8 @@ from cdislogging import get_logger
 from pcdcutils.environment import is_env_enabled
 
 from amanuensis.config import config
-from amanuensis.resources import userdatamodel as udm
+from amanuensis.resources.userdatamodel.message import *
+from amanuensis.resources.userdatamodel.request import get_requests
 # from amanuensis.resources.userdatamodel import get_all_messages, get_messages_by_request, send_message
 from amanuensis.resources.fence import fence_get_users
 from amanuensis.models import (
@@ -20,9 +21,9 @@ logger = get_logger(__name__)
 def get_messages(logged_user_id, request_id=None):
     with flask.current_app.db.session as session:
         if request_id:
-            msgs = udm.get_messages_by_request(session, logged_user_id, request_id)
+            msgs = get_messages_by_request(session, logged_user_id, request_id)
         else:
-            msgs = udm.get_all_messages(session, logged_user_id)
+            msgs = get_all_messages(session, logged_user_id)
         
         return msgs
 
@@ -31,7 +32,7 @@ def send_message(logged_user_id, request_id, subject, body):
     with flask.current_app.db.session as session:    
 
         # Get consortium and check that the request exists
-        request = udm.get_request_by_id(session, logged_user_id, request_id)
+        request = get_requests(session, user_id=logged_user_id, id=request_id)
         # logger.debug("Request: " + str(request))
         consortium_code = request.consortium_data_contributor.code
         # logger.debug(f"Consortium Code: {consortium_code}")
