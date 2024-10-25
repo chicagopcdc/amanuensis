@@ -15,4 +15,4 @@ from .search import *
 from .project_has_associated_user import *
 from .transition import *
 from .project_has_associated_user import *
-
+from .message import *
