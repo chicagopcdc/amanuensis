@@ -67,46 +67,42 @@ test = ["anyio[trio]", "coverage[toml] (>=7)", "exceptiongroup (>=1.2.0)", "hypo
 trio = ["trio (>=0.26.1)"]
 
 [[package]]
-name = "Authlib"
-version = "0.11"
-description = "The ultimate Python library in building OAuth and OpenID Connect servers."
+name = "authlib"
+version = "1.3.1"
+description = "The ultimate Python library in building OAuth and OpenID Connect servers and clients."
 optional = false
-python-versions = "*"
-files = []
-develop = false
-
-[package.dependencies]
-cryptography = "*"
-requests = "*"
-
-[package.source]
-type = "git"
-url = "https://github.com/uc-cdis/authlib"
-reference = "v0.11_CVE_patch_v1"
-resolved_reference = "80345f2877ec2a1a29468aa465c07623347c3ef6"
-
-[[package]]
-name = "authutils"
-version = "6.2.2"
-description = "Gen3 auth utility functions"
-optional = false
-python-versions = ">=3.9,<4.0"
+python-versions = ">=3.8"
 files = [
-    {file = "authutils-6.2.2-py3-none-any.whl", hash = "sha256:df9b551b4ab561452f0f4b50edaddccc443905b4d77ee69ea7eea78938e7caed"},
-    {file = "authutils-6.2.2.tar.gz", hash = "sha256:ded3e5c0e35160eab83bfb217976920396441e19ed977acacbb769e988323850"},
+    {file = "Authlib-1.3.1-py2.py3-none-any.whl", hash = "sha256:d35800b973099bbadc49b42b256ecb80041ad56b7fe1216a362c7943c088f377"},
+    {file = "authlib-1.3.1.tar.gz", hash = "sha256:7ae843f03c06c5c0debd63c9db91f9fda64fa62a42a77419fa15fbb7e7a58917"},
 ]
 
 [package.dependencies]
-authlib = "0.11.0"
+cryptography = "*"
+
+[[package]]
+name = "authutils"
+version = "6.2.5"
+description = "Gen3 auth utility functions"
+optional = false
+python-versions = "<4.0,>=3.9"
+files = [
+    {file = "authutils-6.2.5-py3-none-any.whl", hash = "sha256:ef91c9c7c750123c28b7376be9ca00b4e89b2d52fa183dec9bfe681d8eac6227"},
+    {file = "authutils-6.2.5.tar.gz", hash = "sha256:0d496721e9f0d8c69b34aff8f6fccdc7768ca4f104504d68e70fd647d4c23b19"},
+]
+
+[package.dependencies]
+authlib = ">=1.1.0"
 cached-property = ">=1.4,<2.0"
 cdiserrors = "<2.0.0"
+cryptography = ">=41.0.6"
 httpx = ">=0.23.0,<1.0.0"
 pyjwt = {version = ">=2.4.0,<3.0", extras = ["crypto"]}
 xmltodict = ">=0.9,<1.0"
 
 [package.extras]
 fastapi = ["fastapi (>=0.65.2,<0.66.0)"]
-flask = ["Flask (>=0.10.1)"]
+flask = ["Flask (<=2.3.3)"]
 
 [[package]]
 name = "aws-xray-sdk"
@@ -2522,4 +2518,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0.0"
-content-hash = "efd695a69a91d5e0384a38f99598b06ad572acac9ef95989e76a0a9f2750e51e"
+content-hash = "5ba20fe1924f42099dfe108337e8edc2138ddc2b2a85bb1967cb2fd11ffdf2d4"
