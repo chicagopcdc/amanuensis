@@ -663,8 +663,34 @@ def test_get_projects(session, client, login, project_data, mock_requests_post):
     assert len(user_1_get_projects_response.json) == 2
 
     
+@pytest.mark.order(8)
+def test_delete_filter_set(session, client, login, project_data):
+    login(project_data['user_id'], project_data['user_email'])
+
+    filter_set_update_json = {
+        "name": "new_name",
+        "description": "new_description",
+        "filters": "new_filter_object",
+        "graphql_object": "new_graphql_object"
+    }
+    filter_set_put_response = client.put(f'/filter-sets/{project_data["filter_set_id"]}', json=filter_set_update_json, headers={"Authorization": f'bearer {project_data["user_id"]}'})
+    assert filter_set_put_response.status_code == 200
+
+    filter_set_get_response = client.get(f'/filter-sets/{project_data["filter_set_id"]}?explorerId=1', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+    assert filter_set_get_response.status_code == 200
+    assert len(filter_set_get_response.json["filter_sets"]) == 1
+    assert filter_set_get_response.json["filter_sets"][0]["id"] == project_data["filter_set_id"]
+    assert filter_set_get_response.json["filter_sets"][0]["name"] == filter_set_update_json["name"]
+    assert filter_set_get_response.json["filter_sets"][0]["description"] == filter_set_update_json["description"]
+    assert filter_set_get_response.json["filter_sets"][0]["filters"] == filter_set_update_json["filters"]
+    #assert filter_set_get_response.json["filter_sets"][0]["graphql_object"] == filter_set_update_json["graphql_object"]
 
 
+    filter_set_delete_response = client.delete(f'/filter-sets/{project_data["filter_set_id"]}', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+    assert filter_set_delete_response.status_code == 200
 
+    filter_set_get_delete_search_response = client.get(f'/filter-sets/{project_data["filter_set_id"]}?explorerId=1', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+    assert filter_set_get_delete_search_response.status_code == 200
+    assert len(filter_set_get_delete_search_response.json["filter_sets"]) == 0
 
         
