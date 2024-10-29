@@ -88,10 +88,19 @@ def update_search(filter_set_id):
 
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
-    name = flask.request.get_json().get("name", None)
-    description = flask.request.get_json().get("description", None)
-    filter_object = flask.request.get_json().get("filters", None)
-    graphql_object = flask.request.get_json().get("gqlFilter", {})
+    
+    if flask.request.method == "PUT":
+        name = flask.request.get_json().get("name", None)
+        description = flask.request.get_json().get("description", None)
+        filter_object = flask.request.get_json().get("filters", None)
+        graphql_object = flask.request.get_json().get("gqlFilter", {})
+    
+    else:
+        name = None 
+        description = None
+        filter_object = None
+        graphql_object = {}
+
 
     search_schema = SearchSchema()
 
