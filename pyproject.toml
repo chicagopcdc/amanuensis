@@ -26,8 +26,7 @@ gen3config = ">=1.1.0"
 markupsafe = "^2.0.1"
 
 requests = ">=2.32.3"
-#sqlalchemy = "<=1.4.0"
-#psycopg2 = "^2.8.3" 
+sqlalchemy = ">=2.0.36"
 werkzeug = "3.0.6"
 
 html2text = "^2020.1.16"
