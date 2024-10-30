@@ -66,6 +66,6 @@ def create_filter_set_snapshot(current_session,
 
     # filter_set.snapshots.append(shared_search)
     current_session.add(shared_search)
-    current_session.commit()
+    current_session.flush()
     
     return shareable_token

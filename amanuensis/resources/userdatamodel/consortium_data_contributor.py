@@ -64,7 +64,7 @@ def create_consortium(current_session, name, code):
             consortium
         )
 
-    current_session.commit()
+    current_session.flush()
 
     return consortium
 

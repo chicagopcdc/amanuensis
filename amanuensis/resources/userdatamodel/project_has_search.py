@@ -42,6 +42,6 @@ def create_project_search(current_session, project_id, filter_set_id):
     else:
         project_search = ProjectSearch(project_id=project_id, filter_set_id=filter_set_id)
         current_session.add(project_search)
-        current_session.commit()
+        current_session.flush()
         
     return project_search

@@ -98,7 +98,7 @@ def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=N
 
     project.searches = filter_sets
 
-    session.commit()
+    session.flush()
     project_schema.dump(project)
     return project
     
