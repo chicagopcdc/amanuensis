@@ -1,4 +1,3 @@
-from collections import OrderedDict
 import os
 import flask
 from flask_cors import CORS
@@ -9,17 +8,13 @@ from pcdcutils.signature import SignatureManager
 from pcdcutils.errors import KeyPathInvalidError, NoKeyError
 from pcdc_aws_client.boto import BotoManager
 from cdislogging import get_logger
-from cdispyutils.config import get_value
 from gen3authz.client.arborist.client import ArboristClient
-from amanuensis.errors import UserError
-from amanuensis.models import migrate
 from amanuensis.error_handler import get_error_response
 from amanuensis.config import config
 from amanuensis.settings import CONFIG_SEARCH_FOLDERS
 import amanuensis.blueprints.misc
 import amanuensis.blueprints.filterset
 import amanuensis.blueprints.project
-import amanuensis.blueprints.request
 # import amanuensis.blueprints.message
 import amanuensis.blueprints.admin
 import amanuensis.blueprints.download_urls
@@ -66,8 +61,6 @@ def app_sessions(app):
     app.url_map.strict_slashes = False
     SQLAlchemyDriver.setup_db = lambda _: None
     app.db = SQLAlchemyDriver(config["DB"])
-
-   
     app.scoped_session = scoped_session(app.db.Session)
 
 
@@ -76,7 +69,6 @@ def app_register_blueprints(app):
     app.register_blueprint(amanuensis.blueprints.download_urls.blueprint, url_prefix="/download-urls")
     app.register_blueprint(amanuensis.blueprints.filterset.blueprint, url_prefix="/filter-sets")
     app.register_blueprint(amanuensis.blueprints.project.blueprint, url_prefix="/projects")
-    app.register_blueprint(amanuensis.blueprints.request.blueprint, url_prefix="/requests")
 
     # Disable for now since they are not used yet
     # app.register_blueprint(amanuensis.blueprints.message.blueprint, url_prefix="/message")
@@ -137,60 +129,6 @@ def app_config(
 
     # _check_s3_buckets(app)
 
-
-# def _check_s3_buckets(app):
-#     """
-#     Function to ensure that all s3_buckets have a valid credential.
-#     Additionally, if there is no region it will produce a warning then try to fetch and cache the region.
-#     """
-#     buckets = config.get("S3_BUCKETS") or {}
-#     aws_creds = config.get("AWS_CREDENTIALS") or {}
-
-#     for bucket_name, bucket_details in buckets.items():
-#         cred = bucket_details.get("cred")
-#         region = bucket_details.get("region")
-#         if not cred:
-#             raise ValueError(
-#                 "No cred for S3_BUCKET: {}. cred is required.".format(bucket_name)
-#             )
-
-#         # if this is a public bucket, amanuensis will not try to sign the URL
-#         # so it won't need to know the region.
-#         if cred == "*":
-#             continue
-
-#         if cred not in aws_creds:
-#             raise ValueError(
-#                 "Credential {} for S3_BUCKET {} is not defined in AWS_CREDENTIALS".format(
-#                     cred, bucket_name
-#                 )
-#             )
-
-#         # only require region when we're not specifying an
-#         # s3-compatible endpoint URL (ex: no need for region when using cleversafe)
-#         if not region and not bucket_details.get("endpoint_url"):
-#             logger.warning(
-#                 "WARNING: no region for S3_BUCKET: {}. Providing the region will reduce"
-#                 " response time and avoid a call to GetBucketLocation which you make lack the AWS ACLs for.".format(
-#                     bucket_name
-#                 )
-#             )
-#             credential = S3IndexedFileLocation.get_credential_to_access_bucket(
-#                 bucket_name,
-#                 aws_creds,
-#                 config.get("MAX_PRESIGNED_URL_TTL", 3600),
-#                 app.boto,
-#             )
-#             if not getattr(app, "boto"):
-#                 logger.warning(
-#                     "WARNING: boto not setup for app, probably b/c "
-#                     "nothing in AWS_CREDENTIALS. Cannot attempt to get bucket "
-#                     "bucket regions."
-#                 )
-#                 return
-
-#             region = app.boto.get_bucket_region(bucket_name, credential)
-#             config["S3_BUCKETS"][bucket_name]["region"] = region
 
 def _setup_data_endpoint_and_boto(app):
     if "AWS_CREDENTIALS" in config and len(config["AWS_CREDENTIALS"]) > 0:
