@@ -570,7 +570,13 @@ def copy_search_to_project():
     # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))
 
 
+@blueprint.route("/project_users/<project_id>", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_project_users(project_id):
+    with current_app.db.session as session:
+        users = get_project_associated_users(session, project_id, many=True)
 
+        return jsonify([{"email": user.associated_user.email, "role": user.role.code} for user in users])
 
 
   
