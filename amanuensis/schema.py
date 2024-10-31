@@ -14,6 +14,7 @@ from userportaldatamodel.schemas.schemas import (
     RequestStateSchema,
     SearchIsSharedSchema,
     ProjectAssociatedUserSchema, 
+    AssociatedUserRolesSchema,
     NotificationSchema,
     NotificationLogSchema
 )
