@@ -10,13 +10,22 @@ from flask import request, jsonify, Blueprint, current_app
 from cdislogging import get_logger
 
 from amanuensis.auth.auth import check_arborist_auth, current_user, has_arborist_access
-from amanuensis.config import config
-from amanuensis.errors import UserError, NotFound, AuthError
+from amanuensis.errors import UserError, AuthError
 from amanuensis.resources.institution import get_background
 from amanuensis.resources import project
-from amanuensis.resources import admin
+from amanuensis.resources.userdatamodel.request_has_state import create_request_state
+from amanuensis.resources.userdatamodel.request import get_requests
+from amanuensis.resources.userdatamodel.project import update_project
+from amanuensis.resources.userdatamodel.state import create_state, get_states
+from amanuensis.resources.userdatamodel.consortium_data_contributor import create_consortium
+from amanuensis.resources.userdatamodel.search import create_filter_set, get_filter_sets
+from amanuensis.resources.request import change_request_state, project_requests_from_filter_sets
+from amanuensis.resources.userdatamodel.associated_user_roles import get_associated_user_roles
+from amanuensis.resources.userdatamodel.project_has_associated_user import get_project_associated_users, update_project_associated_user
+from amanuensis.resources.userdatamodel.associated_users import get_associated_users
+from amanuensis.resources.associated_user import add_associated_users
+from amanuensis.resources.userdatamodel.project import get_projects
 
-from amanuensis.models import AssociatedUserRoles
 from amanuensis.schema import (
     ProjectSchema,
     StateSchema,
@@ -24,6 +33,8 @@ from amanuensis.schema import (
     ConsortiumDataContributorSchema,
     AssociatedUserSchema,
     SearchSchema,
+    AssociatedUserRolesSchema,
+    ProjectAssociatedUserSchema
 )
 
 logger = get_logger(__name__)

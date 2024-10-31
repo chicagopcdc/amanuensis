@@ -17,5 +17,4 @@ from userportaldatamodel.schemas.schemas import (
     NotificationSchema,
     NotificationLogSchema
 )
-#TODO fix this in userdataportalmodel
-from userportaldatamodel.schemas.associated_user_roles_schema import AssociatedUserRolesSchema
+
