@@ -7,17 +7,14 @@ import functools
 
 from cdiserrors import APIError
 from flask import request, jsonify, Blueprint, current_app
-from datetime import datetime
 from cdislogging import get_logger
 
 from amanuensis.auth.auth import check_arborist_auth, current_user, has_arborist_access
 from amanuensis.config import config
 from amanuensis.errors import UserError, NotFound, AuthError
 from amanuensis.resources.institution import get_background
-from amanuensis.resources import filterset
 from amanuensis.resources import project
 from amanuensis.resources import admin
-from amanuensis.resources import notification
 
 from amanuensis.models import AssociatedUserRoles
 from amanuensis.schema import (
@@ -27,8 +24,6 @@ from amanuensis.schema import (
     ConsortiumDataContributorSchema,
     AssociatedUserSchema,
     SearchSchema,
-    NotificationSchema,
-    NotificationLogSchema,
 )
 
 logger = get_logger(__name__)
@@ -62,16 +57,37 @@ def force_state_change():
     state_id = request.get_json().get("state_id", None)
     consortiums = request.get_json().get("consortiums", None)
 
-    if consortiums and not isinstance(consortiums, list):
-        consortiums = [consortiums]
-
     if not state_id or not project_id:
         return UserError("There are missing params.")
+    
+    with current_app.db.session as session:
+        requests = get_requests(session, project_id=project_id, consortiums=consortiums)
 
-    request_schema = RequestSchema(many=True)
-    return jsonify(
-        request_schema.dump(admin.update_project_state(project_id, state_id, consortiums, force=True))
-    )
+        new_states = []
+
+        for request_obj in requests:
+            new_state = create_request_state(session, request_obj.id, state_id)
+            new_states.append(new_state)
+
+        request_schema = RequestSchema(many=True)
+        return jsonify(
+            request_schema.dump(new_states)
+        )
+
+@blueprint.route("/delete-project", methods=["DELETE"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def delete_project():
+    project_id = request.get_json().get("project_id", None)
+    if not project_id:
+        raise UserError("A project_id is required for this endpoint.")
+    
+
+    with current_app.db.session as session:
+
+        project = update_project(session, project_id, delete=True)
+
+        return jsonify(project)
+
 
 @blueprint.route("/upload-file", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
@@ -83,18 +99,18 @@ def upload_file():
     update approved_url with url generated from the uploaded file
     """
 
-    #required
-    bucket = request.get_json().get("bucket", None)
     key = request.get_json().get("key", None)
     project_id = request.get_json().get("project_id", None)
     
     #optional 
     expires = request.get_json().get("expires", None)
     
-    if any(param is None for param in [bucket, key, project_id]):
+    if any(param is None for param in [key, project_id]):
             raise UserError("One or more required parameters are missing")
+    
+    with current_app.db.session as session:
 
-    return jsonify(project.upload_file(bucket, key, project_id, expires))
+        return jsonify(project.upload_file(session, key, project_id, expires))
 
 
 @blueprint.route("/states", methods=["POST"])
@@ -111,7 +127,10 @@ def add_state():
     code = request.get_json().get("code", None)
 
     state_schema = StateSchema()
-    return jsonify(state_schema.dump(admin.create_state(name, code)))
+    with current_app.db.session as session:
+        state = create_state(session, name, code)
+
+        return jsonify(state_schema.dump(state))
 
 
 @blueprint.route("/consortiums", methods=["POST"])
@@ -128,11 +147,15 @@ def add_consortium():
     code = request.get_json().get("code", None)
 
     consortium_schema = ConsortiumDataContributorSchema()
-    return jsonify(consortium_schema.dump(admin.create_consortium(name, code)))
+
+    with current_app.db.session as session:
+        consortium = create_consortium(session, name, code)
+
+        return jsonify(consortium_schema.dump(consortium))
 
 
 @blueprint.route("/states", methods=["GET"])
-def get_states():
+def get_state():
     """
     Create a new state
 
@@ -140,9 +163,14 @@ def get_states():
     """
 
     state_schema = StateSchema(many=True)
-    return jsonify(state_schema.dump(admin.get_all_states()))
 
+    with current_app.db.session as session:
+        states = get_states(session, filter_out_depricated=True)
 
+        return jsonify(state_schema.dump(states))
+
+#TODO we should deprecate these filter-set routes and move them to the filter-set blueprint
+#and add the is_admin and user_id params and then check the token if those are present
 @blueprint.route("/filter-sets", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 # @debug_log
@@ -169,30 +197,47 @@ def create_search():
     description = request.get_json().get("description", None)
     ids_list = request.get_json().get("ids_list", None)
 
-    return jsonify(
-        filterset.create(
-            user_id, True, None, name, description, None, ids_list, graphql_object
+    with current_app.db.session as session:
+        new_filter_set = create_filter_set(
+            session,
+            logged_user_id=user_id,
+            is_amanuensis_admin=True, 
+            explorer_id=None, 
+            name=name, 
+            description=description, 
+            filter_object=None,
+            ids_list=ids_list,
+            graphql_object=graphql_object 
         )
-    )
+    
+        search_schema = SearchSchema()
+
+        return search_schema.dump(new_filter_set)
 
     
 @blueprint.route("/filter-sets/user", methods=["GET"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 # @debug_log
-def get_search_by_user_id():
+def get_search_by_user_id():    
     """
     Returns a json object
     """
     user_id = request.get_json().get("user_id", None)
     if not user_id:
         raise UserError("Missing user_id in the payload")
-
-    is_admin = True
     # name = request.get_json().get("name", None)
     # search_id = request.get_json().get("search_id", None)
     # explorer_id = request.get_json().get('explorer_id', None)
-
-    filter_sets = [{"name": s.name, "id": s.id, "description": s.description, "filters": s.filter_object, "ids": s.ids_list} for s in filterset.get_by_user_id(user_id, is_admin)]
+    with current_app.db.session as session:
+        filter_sets = [
+            {
+                "name": s.name, 
+                "id": s.id, 
+                "description": s.description, 
+                "filters": s.filter_object, 
+                "ids": s.ids_list
+            } for s in get_filter_sets(session, user_id=user_id, filter_by_source_type=False)
+        ]
 
     return jsonify({"filter_sets": filter_sets})
 
@@ -249,32 +294,37 @@ def create_project():
 
     filter_set_ids = request.get_json().get("filter_set_ids", None)
 
-    project_schema = ProjectSchema()
-    return jsonify(
-        project_schema.dump(
-            project.create(
-                user_id,
-                True,
-                name,
-                description,
-                filter_set_ids,
-                None,
-                institution,
-                associated_users_emails
+    with current_app.db.session as session:
+
+        project_schema = ProjectSchema()
+        return jsonify(
+            project_schema.dump(
+                project.create(
+                    session,
+                    user_id,
+                    True,
+                    name,
+                    description,
+                    filter_set_ids,
+                    None,
+                    institution,
+                    associated_users_emails
+                )
             )
         )
-    )
 
 
 @blueprint.route("/projects", methods=["PUT"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 # @debug_log
-def update_project():
+def update_project_attributes():
     """
     Update a project attributes
 
     Returns a json object
     """
+    #TODO we should deprecate this endpoint or change it to update the project attributes 
+    #approved url and filter_set_ids should be done through the other endpoints
     project_id = request.get_json().get("project_id", None)
     if not project_id:
         raise UserError("A project_id is required for this endpoint.")
@@ -283,9 +333,10 @@ def update_project():
     filter_set_ids = request.get_json().get("filter_set_ids", None)
 
     project_schema = ProjectSchema()
-    return jsonify(
-        project_schema.dump(project.update(project_id, approved_url, filter_set_ids))
-    )
+    with current_app.db.session as session:
+        return jsonify(
+            project_schema.dump(update_project(session, id=project_id, approved_url=approved_url))
+        )
 
 
 @blueprint.route("/projects/state", methods=["POST"])
@@ -308,14 +359,18 @@ def update_project_state():
         return UserError("There are missing params.")
 
     request_schema = RequestSchema(many=True)
-    return jsonify(
-        request_schema.dump(admin.update_project_state(project_id, state_id, consortiums))
-    )
+
+    with current_app.db.session as session:
+        return jsonify(
+            request_schema.dump(change_request_state(session, project_id=project_id, state_id=state_id, consortium_list=consortiums))
+        )
 
 @blueprint.route("/all_associated_user_roles", methods=["GET"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def get_all_associated_user_roles():
-    return jsonify(admin.get_codes_for_roles())
+    associated_user_roles_schema = AssociatedUserRolesSchema(many=True)
+    with current_app.db.session as session:
+        return associated_user_roles_schema.dump(get_associated_user_roles(session))
 
 @blueprint.route("/remove_associated_user_from_project", methods=["DELETE"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
@@ -327,9 +382,14 @@ def delete_user_from_project():
     project_id = request.get_json().get("project_id", None)
     if not project_id:
         raise UserError("A project is nessary for this endpoint")
-    if not project.get_by_id(None, project_id):
-        raise NotFound("the project provided does not exist")
-    return jsonify(admin.delete_user_from_project(project_id, associated_user_id, associated_user_email))
+
+    with current_app.db.session as session:
+        project_associated_user_schema = ProjectAssociatedUserSchema()
+        project = get_projects(session, id=project_id, many=False, throw_not_found=True)
+        if project.user_id == associated_user_id:
+            raise UserError("You can't remove the owner from the project")
+        user = get_associated_users(session, email=associated_user_email, user_id=associated_user_id,  many=False, throw_not_found=True)
+        return project_associated_user_schema.dump(update_project_associated_user(session, project_id=project_id, associated_user_id=user.id, delete=True))
 
 
 @blueprint.route("/associated_user_role", methods=["PUT"])
@@ -349,14 +409,15 @@ def update_associated_user_role():
     project_id = request.get_json().get("project_id", None)
     if not project_id:
         raise UserError("A project is nessary for this endpoint")
-    if not project.get_by_id(None, project_id):
-        raise NotFound("the project provided does not exist")
     role = request.get_json().get("role", None)     
     if not role:
         raise UserError("A role is required for this endpoint")
-    if role not in admin.get_codes_for_roles():
-        raise NotFound("The role {} is not in the allowed list, reach out to pcdc_help@lists.uchicago.edu".format(role))
-    return jsonify(admin.update_role(project_id, associated_user_id, associated_user_email, role))
+
+    with current_app.db.session as session:
+        project_associated_user_schema = ProjectAssociatedUserSchema()
+        ROLE = get_associated_user_roles(session, code=role, many=False, throw_not_found=True)
+        user = get_associated_users(session, email=associated_user_email, user_id=associated_user_id,  many=False, throw_not_found=True)
+        return project_associated_user_schema.dump(update_project_associated_user(session, associated_user_id=user.id, project_id=project_id,  role_id=ROLE.id))
 
 
 @blueprint.route("/associated_user", methods=["POST"])
@@ -375,15 +436,20 @@ def add_associated_user():
         raise UserError("The body should be in the following format: [{project_id: \"\", id: \"\", email: \"\"},...] ")
 
     associated_user_schema = AssociatedUserSchema(many=True)
-    return jsonify(associated_user_schema.dump(admin.add_associated_users(users, role)))
+
+    with current_app.db.session as session:
+        return jsonify(associated_user_schema.dump(add_associated_users(session, users, role)))
 
 
 @blueprint.route("/projects_by_users/<user_id>/<user_email>", methods=["GET"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def get_projetcs_by_user_id(user_id, user_email):
+    #TODO we can deprecate the user_id part of this endpoint
+    # the email is better cause there isnt a gurantee that the user_id is in the DB
     project_schema = ProjectSchema(many=True)
-    projects = project_schema.dump(project.get_all(user_id, user_email, None))
-    return jsonify(projects)
+    with current_app.db.session as session:
+        projects = get_projects(session, associated_user_email=user_email, many=True)
+    return jsonify(project_schema.dump(projects))
 
 
 @blueprint.route("/copy-search-to-user", methods=["POST"])
@@ -407,7 +473,19 @@ def copy_search_to_user():
 
     search_schema = SearchSchema()
     # return flask.jsonify(search_schema.dump(filterset.copy_filter_set_to_user(filterset_id, logged_user_id, user_id)))
-    return jsonify(filterset.copy_filter_set_to_user(filterset_id, logged_user_id, user_id))
+    with current_app.db.session as session:
+        filterset = get_filter_sets(session, id=filterset_id, user_id=user_id, filter_by_source_type=False, many=False, throw_not_found=True)
+        return jsonify(search_schema.dump(create_filter_set(
+            session,
+            user_id=user_id,
+            is_amanuensis_admin=True,
+            explorer_id=filterset.explorer_id,
+            name=filterset.name,
+            description=filterset.description,
+            filter_object=filterset.filter_object,
+            ids_list=filterset.ids_list,
+            graphql_object=filterset.graphql_object
+        )))
 
 @blueprint.route("/copy-search-to-project", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
@@ -418,11 +496,6 @@ def copy_search_to_project():
 
     Returns a json object
     """
-    try:
-        logged_user_id = current_user.id
-    except AuthError:
-        logger.warning("Unable to load or find the user, check your token")
-
 
     filterset_id = request.get_json().get("filtersetId", None)
     project_id = request.get_json().get("projectId", None)
@@ -430,7 +503,9 @@ def copy_search_to_project():
     if not filterset_id:
         raise UserError("a filter-set id is required for this endpoint")
     project_schema = ProjectSchema()
-    return jsonify(project_schema.dump(project.update_project_searches(logged_user_id, project_id, filterset_id)))
+    with current_app.db.session as session:
+
+        return jsonify(project_schema.dump(project_requests_from_filter_sets(session, filter_set_ids=filterset_id, project_id=project_id)))
     # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))
 
 
@@ -515,6 +590,13 @@ def delete_notification(notification_id):
     return jsonify(notification_schema.dump(notifications))
 
 
+@blueprint.route("/project_users/<project_id>", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_project_users(project_id):
+    with current_app.db.session as session:
+        users = get_project_associated_users(session, project_id, many=True)
+
+        return jsonify([{"email": user.associated_user.email, "role": user.role.code} for user in users])
 
 
-
+  

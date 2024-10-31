@@ -1,11 +1,6 @@
 import requests, json
 from amanuensis.config import config
-from amanuensis.resources.userdatamodel import (
-    get_institution,
-	get_all_institutions,
-    update_institution,
-    add_institution,
-)
+
 
 def get_background(name):
     """

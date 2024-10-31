@@ -4,10 +4,11 @@ from cdislogging import get_logger
 
 from amanuensis.auth.auth import current_user
 from amanuensis.errors import AuthError, UserError, NotFound, InternalError, Forbidden
-from amanuensis.resources.project import get_by_id
-from amanuensis.resources.admin import update_project_state, get_by_code
 from pcdc_aws_client.utils import get_s3_key_and_bucket
 
+from amanuensis.resources.userdatamodel.project import get_projects
+from amanuensis.resources.userdatamodel.project_has_associated_user import get_project_associated_users
+from amanuensis.resources.request import change_request_state
 
 from amanuensis.config import config
 
@@ -17,7 +18,7 @@ logger = get_logger(__name__)
 blueprint = flask.Blueprint("download-urls", __name__)
 
 
-@blueprint.route("/<path:project_id>", methods=["GET"])
+@blueprint.route("/<project_id>", methods=["GET"])
 def download_data(project_id):
     """
     Get a presigned url to download a file given a project_id.
@@ -38,45 +39,36 @@ def download_data(project_id):
     if not project_id:
         raise UserError("A project_id is needed to retrieve the correct URL")
 
-    project = get_by_id(logged_user_id, project_id)
-    if not project:
-        raise NotFound("The project with id {} has not been found.".format(project_id))
+    with flask.current_app.db.session as session:
 
-    associated_users_ids = []
-    associated_users_emails = []
-    for associated_user_role in project.associated_users_roles:
-        if associated_user_role.active and associated_user_role.associated_user.user_id and associated_user_role.role.code == "DATA_ACCESS":
-            associated_users_ids.append(associated_user_role.associated_user.user_id)
-        if associated_user_role.active and associated_user_role.associated_user.email and associated_user_role.role.code == "DATA_ACCESS":
-            associated_users_emails.append(associated_user_role.associated_user.email)
-    if logged_user_id not in associated_users_ids and logged_user_email not in associated_users_emails:
-        raise Forbidden("The user is not in the list of associated_users that signed the DUA. Please reach out to pcdc_help@lists.uchicago.edu")
+        project = get_projects(session, id=project_id, many=False, throw_not_found=True)
 
-    # Get download url from project table
-    storage_url = project.approved_url
-    if not storage_url:
-        raise NotFound("The project with id {} doesn't seem to have a loaded file with approved data.".format(project_id))
+        # Get download url from project table
+        storage_url = project.approved_url
+        if not storage_url:
+            raise NotFound("The project with id {} doesn't seem to have a loaded file with approved data.".format(project_id)) 
 
-
-    # TODO - assign on file creation metadata to S3 file (play with indexd since it probably supports it). 
-    # Check that user has access to that file before creating the presigned url. The responsibility is on the admin here and a wrong 
-    # project_id in the API call could assign data download rights to the wrong user
+        user = get_project_associated_users(session, project_id, associated_user_user_id=logged_user_id, associated_user_email=logged_user_email, many=False, throw_not_found=True)
+        
+        if user.role.code != "DATA_ACCESS":
+            raise Forbidden("User {} is not allowed to download data from project {}".format(logged_user_email, project_id))
+        
+        # TODO - assign on file creation metadata to S3 file (play with indexd since it probably supports it). 
+        # Check that user has access to that file before creating the presigned url. The responsibility is on the admin here and a wrong 
+        # project_id in the API call could assign data download rights to the wrong user
 
 
-    
-    data_downloaded_state = get_by_code("DATA_DOWNLOADED")
-    if not data_downloaded_state:
-        raise NotFound("Data download state does not exist. Please reach out to pcdc_help@lists.uchicago.edu")
-    else:
-        update_project_state(project_id, data_downloaded_state.id)
+        #check if project is in fianl state or in Data Download state before attempting to change state
+        change_request_state(session, project_id, state_code="DATA_DOWNLOADED")
+            
 
-    # Create pre-signed URL for downalod
-    s3_info = get_s3_key_and_bucket(storage_url)
-    if s3_info is None:
-        raise NotFound("The S3 bucket and key information cannot be extracted from the URL {}".format(storage_url))
+        # Create pre-signed URL for downalod
+        s3_info = get_s3_key_and_bucket(storage_url)
+        if s3_info is None:
+            raise NotFound("The S3 bucket and key information cannot be extracted from the URL {}".format(storage_url))
 
-    result = flask.current_app.boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
-    return flask.jsonify({"download_url": result})
+        result = flask.current_app.boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
+        return flask.jsonify({"download_url": result})
 
 
 
