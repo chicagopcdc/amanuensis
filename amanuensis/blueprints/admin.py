@@ -445,10 +445,15 @@ def add_associated_user():
     if not users:
         raise UserError("The body should be in the following format: [{project_id: \"\", id: \"\", email: \"\"},...] ")
 
-    associated_user_schema = AssociatedUserSchema(many=True)
+    project_associated_user_schema = ProjectAssociatedUserSchema(many=True)
 
     with current_app.db.session as session:
-        return jsonify(associated_user_schema.dump(add_associated_users(session, users, role)))
+
+        users = add_associated_users(session, users, role)
+
+        session.commit()
+
+        return project_associated_user_schema.dump(users)
 
 
 @blueprint.route("/projects_by_users/<user_id>/<user_email>", methods=["GET"])

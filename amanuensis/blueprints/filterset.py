@@ -70,8 +70,14 @@ def create_search():
             ids_list=ids_list, 
             graphql_object=graphql_object
         )
-        search_schema = SearchSchema()
-        return search_schema.dump(new_filter_set)
+        session.commit()
+        return flask.jsonify({
+            "name": new_filter_set.name, 
+            "id": new_filter_set.id,
+            "explorer_id": new_filter_set.filter_source_internal_id,
+            "description": new_filter_set.description, 
+            "filters": new_filter_set.filter_object
+        })
 
 
 @blueprint.route("/<filter_set_id>", methods=["PUT", "DELETE"])
