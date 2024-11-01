@@ -101,6 +101,6 @@ def create_request_state(current_session, request_id, state_id):
     else:
         request_state = RequestState(request_id=request_id, state_id=state_id)
         current_session.add(request_state)
-        current_session.commit()
+        current_session.flush()
 
     return request_state

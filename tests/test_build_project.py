@@ -8,6 +8,7 @@ import time
 from amanuensis.blueprints.filterset import UserError
 import requests
 import json 
+from amanuensis.config import config
 
 
 logger = get_logger(logger_name=__name__)
@@ -185,7 +186,20 @@ def test_admin_create_project(session, client, login, project_data, mock_request
     INSTRUCT_request = session.query(Request).filter(Request.project_id == project_id).filter(Request.consortium_data_contributor.has(code="INSTRUCT")).first()
     assert INSTRUCT_request
     
-    #TODO test bad project creations
+    #block project creation if request to pcdcanalysistools fails
+    mock_requests_post(consortiums=["INSTRUCT", "INRG"], urls={config["GET_CONSORTIUMS_URL"]: 400})
+    create_project_json = {
+            "user_id": project_data["user_id"],
+            "name": f"{__name__}_bad_project",
+            "description": "This is an endpoint test project",
+            "institution": "test university",
+            "filter_set_ids": [project_data["filter_set_id"]],
+            "associated_users_emails": []
+    }
+    create_project_response = client.post('/admin/projects', json=create_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert create_project_response.status_code == 500
+    assert session.query(ConsortiumDataContributor).count() == 3
+    assert session.query(Project).filter(Project.name == f"{__name__}_bad_project").count() == 0
 
 
 @pytest.mark.order(3)

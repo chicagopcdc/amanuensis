@@ -80,9 +80,12 @@ def force_state_change():
             new_states.append(new_state)
 
         request_schema = RequestSchema(many=True)
+        session.commit()
         return jsonify(
             request_schema.dump(new_states)
         )
+
+        
 
 @blueprint.route("/delete-project", methods=["DELETE"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
@@ -95,6 +98,8 @@ def delete_project():
     with current_app.db.session as session:
 
         project = update_project(session, project_id, delete=True)
+
+        session.commit()
 
         return jsonify(project)
 
@@ -140,6 +145,8 @@ def add_state():
     with current_app.db.session as session:
         state = create_state(session, name, code)
 
+        session.commit()
+
         return jsonify(state_schema.dump(state))
 
 
@@ -160,6 +167,8 @@ def add_consortium():
 
     with current_app.db.session as session:
         consortium = create_consortium(session, name, code)
+
+        session.commit()
 
         return jsonify(consortium_schema.dump(consortium))
 
@@ -222,6 +231,8 @@ def create_search():
     
         search_schema = SearchSchema()
 
+        session.commit()
+
         return search_schema.dump(new_filter_set)
 
     
@@ -248,6 +259,7 @@ def get_search_by_user_id():
                 "ids": s.ids_list
             } for s in get_filter_sets(session, user_id=user_id, filter_by_source_type=False)
         ]
+
 
     return jsonify({"filter_sets": filter_sets})
 
@@ -307,9 +319,7 @@ def create_project():
     with current_app.db.session as session:
 
         project_schema = ProjectSchema()
-        return jsonify(
-            project_schema.dump(
-                project.create(
+        new_project = project.create(
                     session,
                     user_id,
                     True,
@@ -320,6 +330,12 @@ def create_project():
                     institution,
                     associated_users_emails
                 )
+        
+        session.commit()
+
+        return jsonify(
+            project_schema.dump(
+                new_project
             )
         )
 
@@ -344,8 +360,13 @@ def update_project_attributes():
 
     project_schema = ProjectSchema()
     with current_app.db.session as session:
+
+        project = update_project(session, id=project_id, approved_url=approved_url)
+
+        session.commit()
+
         return jsonify(
-            project_schema.dump(update_project(session, id=project_id, approved_url=approved_url))
+            project_schema.dump(project)
         )
 
 
@@ -371,8 +392,14 @@ def update_project_state():
     request_schema = RequestSchema(many=True)
 
     with current_app.db.session as session:
+
+        request_state = change_request_state(session, project_id=project_id, state_id=state_id, consortium_list=consortiums)
+
+        session.commit()
+
+
         return jsonify(
-            request_schema.dump(change_request_state(session, project_id=project_id, state_id=state_id, consortium_list=consortiums))
+            request_schema.dump(request_state)
         )
 
 @blueprint.route("/all_associated_user_roles", methods=["GET"])
@@ -399,7 +426,12 @@ def delete_user_from_project():
         if project.user_id == associated_user_id:
             raise UserError("You can't remove the owner from the project")
         user = get_associated_users(session, email=associated_user_email, user_id=associated_user_id,  many=False, throw_not_found=True)
-        return project_associated_user_schema.dump(update_project_associated_user(session, project_id=project_id, associated_user_id=user.id, delete=True))
+
+        project_user = update_project_associated_user(session, project_id=project_id, associated_user_id=user.id, delete=True)
+
+        session.commit()
+
+        return project_associated_user_schema.dump(project_user)
 
 
 @blueprint.route("/associated_user_role", methods=["PUT"])
@@ -427,7 +459,12 @@ def update_associated_user_role():
         project_associated_user_schema = ProjectAssociatedUserSchema()
         ROLE = get_associated_user_roles(session, code=role, many=False, throw_not_found=True)
         user = get_associated_users(session, email=associated_user_email, user_id=associated_user_id,  many=False, throw_not_found=True)
-        return project_associated_user_schema.dump(update_project_associated_user(session, associated_user_id=user.id, project_id=project_id,  role_id=ROLE.id))
+
+        project_user = update_project_associated_user(session, associated_user_id=user.id, project_id=project_id,  role_id=ROLE.id)
+
+        session.commit()
+
+        return project_associated_user_schema.dump(project_user)
 
 
 @blueprint.route("/associated_user", methods=["POST"])
@@ -448,7 +485,12 @@ def add_associated_user():
     associated_user_schema = AssociatedUserSchema(many=True)
 
     with current_app.db.session as session:
-        return jsonify(associated_user_schema.dump(add_associated_users(session, users, role)))
+
+        users = add_associated_users(session, users, role)
+
+        session.commit()
+
+        return jsonify(associated_user_schema.dump(users))
 
 
 @blueprint.route("/projects_by_users/<user_id>/<user_email>", methods=["GET"])
@@ -485,7 +527,8 @@ def copy_search_to_user():
     # return flask.jsonify(search_schema.dump(filterset.copy_filter_set_to_user(filterset_id, logged_user_id, user_id)))
     with current_app.db.session as session:
         filterset = get_filter_sets(session, id=filterset_id, user_id=user_id, filter_by_source_type=False, many=False, throw_not_found=True)
-        return jsonify(search_schema.dump(create_filter_set(
+
+        search_to_user = create_filter_set(
             session,
             user_id=user_id,
             is_amanuensis_admin=True,
@@ -495,7 +538,11 @@ def copy_search_to_user():
             filter_object=filterset.filter_object,
             ids_list=filterset.ids_list,
             graphql_object=filterset.graphql_object
-        )))
+        )
+
+        session.commit()
+
+        return jsonify(search_schema.dump(search_to_user))
 
 @blueprint.route("/copy-search-to-project", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
@@ -514,8 +561,12 @@ def copy_search_to_project():
         raise UserError("a filter-set id is required for this endpoint")
     project_schema = ProjectSchema()
     with current_app.db.session as session:
+        
+        copy_search_to_project = project_requests_from_filter_sets(session, filter_set_ids=filterset_id, project_id=project_id)
 
-        return jsonify(project_schema.dump(project_requests_from_filter_sets(session, filter_set_ids=filterset_id, project_id=project_id)))
+        session.commit()
+
+        return jsonify(project_schema.dump(copy_search_to_project))
     # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))
 
 
