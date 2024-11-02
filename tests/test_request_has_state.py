@@ -5,6 +5,7 @@ from amanuensis.resources.userdatamodel.project import create_project
 from amanuensis.resources.userdatamodel.consortium_data_contributor import get_consortiums
 from amanuensis.resources.userdatamodel.associated_users import create_associated_user
 import pytest
+from time import sleep
 
 @pytest.fixture(scope="session", autouse=True)
 def create_test_data(session, register_user):
@@ -28,11 +29,12 @@ def test_create_request_state(session, create_test_data):
     assert create_request_state(session, request_1.id, IN_REVIEW.id)
     assert create_request_state(session, request_2.id, IN_REVIEW.id)
     assert create_request_state(session, request_3.id, IN_REVIEW.id)
+    session.commit()
 
     APPROVED = get_states(session, code="APPROVED", many=False)
 
     assert create_request_state(session, request_1.id, APPROVED.id)
-
+    session.commit()
     #block create duplicate
     assert create_request_state(session, request_1.id, APPROVED.id)
     assert len(get_request_states(session, request_id=request_1.id)) == 2
@@ -45,6 +47,7 @@ def test_create_request_state(session, create_test_data):
 
     assert create_request_state(session, request_1.id, DEPRECATED.id)
 
+    session.commit()
 
 @pytest.mark.order(2)
 def test_get_request_state(session, create_test_data):
@@ -65,3 +68,5 @@ def test_get_request_state(session, create_test_data):
     assert len(get_request_states(session, request_id=request_2.id, latest=True, filter_out_depricated=True)) == 1
 
     assert len(get_request_states(session, request_id=[request_1.id, request_2.id, request_3.id], state_id=IN_REVIEW.id)) == 3
+
+    session.commit()

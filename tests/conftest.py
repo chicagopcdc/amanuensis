@@ -12,8 +12,7 @@ from amanuensis.errors import AuthError
 app_init(app, config_file_name="amanuensis-config.yaml")
 
 logger = get_logger(logger_name=__name__)
-
-
+from amanuensis.models import ConsortiumDataContributor
 
 @pytest.fixture(scope="session")
 def app_instance():
@@ -38,15 +37,28 @@ def session(app_instance):
         session.query(AssociatedUser).delete()
         session.query(Request).delete()
         session.query(Project).delete()
-        session.query(ConsortiumDataContributor).filter(ConsortiumDataContributor.code == "ENDPOINT_TEST").delete()
-        session.query(ConsortiumDataContributor).filter(ConsortiumDataContributor.code == "TEST").delete()
-        session.query(ConsortiumDataContributor).filter(ConsortiumDataContributor.code == "TEST1").delete()
-        session.query(ConsortiumDataContributor).filter(ConsortiumDataContributor.code == "TEST2").delete()
-        session.query(ConsortiumDataContributor).filter(ConsortiumDataContributor.code == "TEST3").delete()
-        session.query(ConsortiumDataContributor).filter(ConsortiumDataContributor.code == "FAKE_CONSORTIUM_1").delete()
-        session.query(ConsortiumDataContributor).filter(ConsortiumDataContributor.code == "FAKE_CONSORTIUM_2").delete()
-        session.query(ConsortiumDataContributor).filter(ConsortiumDataContributor.code == "BAD").delete()
-        session.query(ConsortiumDataContributor).filter(ConsortiumDataContributor.code == "NOT_IN_DB").delete()
+        session.query(ConsortiumDataContributor).delete()
+        consortiums = []
+        consortiums.append(
+            ConsortiumDataContributor(
+                name="INRG", 
+                code ="INRG"
+            )
+        )
+        consortiums.append(
+                ConsortiumDataContributor(
+                    name="INSTRUCT", 
+                    code ="INSTRUCT"
+                    )
+        )
+        consortiums.append(
+            ConsortiumDataContributor(
+                name="INTERACT",
+                code ="INTERACT"
+            )
+        )
+
+        session.add_all(consortiums)
         session.query(State).filter(State.code == "STATE1").delete()
         session.query(State).filter(State.code == "STATE2").delete()
         session.query(State).filter(State.code == "ENDPOINT_TEST").delete()
@@ -56,6 +68,8 @@ def session(app_instance):
         session.commit()
 
         yield session
+
+        session.commit()
     
 
 @pytest.fixture(scope='function')
@@ -142,11 +156,13 @@ def patch_auth_request(app_instance, find_fence_user):
 def mock_requests_post(request, find_fence_user):
 
 
-    def do_patch(consortiums=None):
+    def do_patch(consortiums=None, urls={}):
         
         def response_for(url, *args, **kwargs):
-
-            urls = [config["GET_CONSORTIUMS_URL"], "http://fence-service/admin/users/selected"]
+            nonlocal urls
+            default_urls = {config["GET_CONSORTIUMS_URL"]: 200, "http://fence-service/admin/users/selected": 200}
+            default_urls.update(urls)
+            urls = default_urls
 
             mocked_response = MagicMock(requests.post)
 
@@ -154,9 +170,14 @@ def mock_requests_post(request, find_fence_user):
                 mocked_response.status_code = 404
                 mocked_response.text = "NOT FOUND"
 
-            elif 'data' not in kwargs:
+            elif 'data' not in kwargs or urls[url] == 400:
                 mocked_response.status_code = 400
-                mocked_response.text = "BAD REQUEST"
+                mocked_response.json = MagicMock(return_value="BAD REQUEST")
+            
+            elif urls[url] == 403:
+                mocked_response.status_code = 403
+                mocked_response.text = "FORBIDDEN"
+
             
             else:
                 if isinstance(kwargs["data"], str):

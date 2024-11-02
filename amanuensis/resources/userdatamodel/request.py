@@ -63,6 +63,6 @@ def create_request(current_session, project_id, consortium_id):
     current_session.add(request)
 
 
-    current_session.commit()
+    current_session.flush()
 
     return request
