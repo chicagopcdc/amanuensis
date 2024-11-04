@@ -659,7 +659,7 @@ def test_get_projects(session, client, login, project_data, mock_requests_post):
             "filter_set_ids": [project_data["filter_set_id"]],
             "associated_users_emails": [project_data["user_email"]]
 
-        }
+    }
     create_project_response = client.post('/admin/projects', json=create_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
     assert create_project_response.status_code == 200
     project_id = create_project_response.json['id']
@@ -679,6 +679,24 @@ def test_get_projects(session, client, login, project_data, mock_requests_post):
     login(project_data["user_id"], project_data["user_email"])
     user_1_get_projects_response = client.get("/projects", headers={"Authorization": f'bearer {project_data["user_id"]}'})
     assert len(user_1_get_projects_response.json) == 2
+
+    #Test deleting project
+    login(project_data["admin_id"], project_data["admin_email"])
+    delete_project_response = client.delete(f"/admin/delete-project/", json={"project_id": create_project_response.json['id']}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert delete_project_response.status_code == 200
+
+    
+    admin_get_pojects_response = client.get("/projects?special_user=admin", headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    for project in admin_get_pojects_response.json:
+        if create_project_response.json['id'] == project['id']:
+            assert False
+    
+    login(project_data["user_id"], project_data["user_email"])
+    user_1_get_projects_response = client.get("/projects", headers={"Authorization": f'bearer {project_data["user_id"]}'})
+    assert len(user_1_get_projects_response.json) == 1
+
+
+
 
     
 @pytest.mark.order(8)

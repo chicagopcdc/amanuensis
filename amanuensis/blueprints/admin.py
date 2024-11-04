@@ -94,9 +94,11 @@ def delete_project():
 
     with current_app.db.session as session:
 
+        project_schema = ProjectSchema()
+
         project = update_project(session, project_id, delete=True)
 
-        return jsonify(project)
+        return jsonify(project_schema.dump(project))
 
 
 @blueprint.route("/upload-file", methods=["POST"])
