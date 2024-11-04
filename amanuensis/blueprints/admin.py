@@ -97,11 +97,13 @@ def delete_project():
 
     with current_app.db.session as session:
 
+        project_schema = ProjectSchema()
+
         project = update_project(session, project_id, delete=True)
 
         session.commit()
 
-        return jsonify(project)
+        return jsonify(project_schema.dump(project))
 
 
 @blueprint.route("/upload-file", methods=["POST"])
@@ -482,7 +484,7 @@ def add_associated_user():
     if not users:
         raise UserError("The body should be in the following format: [{project_id: \"\", id: \"\", email: \"\"},...] ")
 
-    associated_user_schema = AssociatedUserSchema(many=True)
+    project_associated_user_schema = ProjectAssociatedUserSchema(many=True)
 
     with current_app.db.session as session:
 
@@ -490,7 +492,7 @@ def add_associated_user():
 
         session.commit()
 
-        return jsonify(associated_user_schema.dump(users))
+        return project_associated_user_schema.dump(users)
 
 
 @blueprint.route("/projects_by_users/<user_id>/<user_email>", methods=["GET"])
