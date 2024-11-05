@@ -3,7 +3,7 @@ from amanuensis.resources.userdatamodel.consortium_data_contributor import creat
 from amanuensis.auth.auth import get_jwt_from_header
 import json
 import requests
-from amanuensis.errors import NotFound
+from amanuensis.errors import NotFound, InternalError
 from amanuensis.config import config
 
 logger = get_logger(__name__)
@@ -29,10 +29,15 @@ def get_consortium_list(src_filter, ids_list, path=None):
         r = requests.post(
             url, data=body, headers=headers # , proxies=flask.current_app.config.get("EXTERNAL_PROXIES")
         )
-    except requests.HTTPError as e:
+    except requests.RequestException as e:
         print(e.message)
+       
 
-    return r.json()
+    if r.status_code != 200:
+        raise InternalError(f"Sorry could not complete request")
+
+    else:
+        return r.json()
 
 
 def get_consortiums_from_fitersets(filter_sets, session):

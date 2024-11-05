@@ -1,6 +1,6 @@
 from collections import defaultdict
 from amanuensis.errors import  UserError
-from amanuensis.schema import AssociatedUserSchema
+from amanuensis.schema import ProjectAssociatedUserSchema
 from amanuensis.resources.fence import fence_get_users
 from amanuensis.resources.userdatamodel.associated_users import update_associated_user, create_associated_user
 from amanuensis.resources.userdatamodel.associated_user_roles import get_associated_user_roles
@@ -19,7 +19,6 @@ __all__ = [
 def add_associated_users(session, users, role=None):
     
     ROLE = get_associated_user_roles(session, code=config["ASSOCIATED_USER_ROLE_DEFAULT"] if not role else role, many=False)
-    associated_user_schema = AssociatedUserSchema(many=True)
     ret = []
     input_users = [defaultdict(lambda: None, user) for user in users]
     for input_user in input_users:
@@ -64,4 +63,4 @@ def add_associated_users(session, users, role=None):
 
         ret.append(project_associated_user)
 
-    return associated_user_schema.dump(ret)
+    return ret

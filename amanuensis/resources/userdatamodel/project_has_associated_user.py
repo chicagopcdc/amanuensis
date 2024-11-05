@@ -90,7 +90,7 @@ def update_project_associated_user(
     project_associated_user.active = True if not delete else False
     project_associated_user.role_id = role_id if role_id else project_associated_user.role_id
 
-    current_session.commit()
+    current_session.flush()
 
     return project_associated_user
 
@@ -119,16 +119,16 @@ def create_project_associated_user(
             logger.info(f"ProjectAssociatedUser already exists: {project_id} {associated_user_id}")
 
     else:
-        new_project_associated_user = ProjectAssociatedUser(
+        project_associated_user = ProjectAssociatedUser(
             project_id = project_id,
             associated_user_id = associated_user_id,
             role_id = role_id,
             active = True
         )
 
-        current_session.add(new_project_associated_user)
+        current_session.add(project_associated_user)
     
-    current_session.commit()
+    current_session.flush()
     
     return project_associated_user
     
