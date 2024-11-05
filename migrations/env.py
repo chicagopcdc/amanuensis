@@ -6,7 +6,7 @@ from sqlalchemy import engine_from_config, pool
 
 from cdislogging import get_logger
 from userportaldatamodel import Base
-
+from sqlalchemy import text
 from amanuensis.config import config as amanuensis_config
 from amanuensis.settings import CONFIG_SEARCH_FOLDERS
 
@@ -91,7 +91,7 @@ def run_migrations_online() -> None:
                 # Solution based on https://github.com/sqlalchemy/alembic/issues/633
                 # TODO lock the DB for all processes during migrations
                 connection.execute(
-                    f"SELECT pg_advisory_xact_lock({amanuensis_config['DB_MIGRATION_POSTGRES_LOCK_KEY']});"
+                    text(f"SELECT pg_advisory_xact_lock({amanuensis_config['DB_MIGRATION_POSTGRES_LOCK_KEY']});")
 
                 )
             context.run_migrations()
