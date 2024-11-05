@@ -8,6 +8,7 @@ Create Date: 2024-01-31 14:09:20.480237
 from alembic import op
 from userportaldatamodel.models import AssociatedUserRoles
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
 # revision identifiers, used by Alembic.
 revision = '57bc0c5a9733'
@@ -22,7 +23,7 @@ def upgrade() -> None:
     
     meta_data_role = session.query(AssociatedUserRoles.id).filter(AssociatedUserRoles.code == "METADATA_ACCESS").first()[0]
     
-    op.execute(f"UPDATE project_has_associated_user SET role_id = {meta_data_role} WHERE role_id IS NULL")
+    op.execute(text(f"UPDATE project_has_associated_user SET role_id = {meta_data_role} WHERE role_id IS NULL"))
 
     op.alter_column('project_has_associated_user', 'role_id', nullable=False)
 

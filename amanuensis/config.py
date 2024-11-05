@@ -2,7 +2,7 @@ import os
 from yaml import safe_load as yaml_load
 import urllib.parse
 
-import cirrus
+
 from gen3config import Config
 
 from cdislogging import get_logger

@@ -10,7 +10,7 @@ from random import SystemRandom
 from urllib.parse import parse_qs, urlencode, urlsplit, urlunsplit
 
 
-import bcrypt
+
 import flask
 import requests
 from cdislogging import get_logger
