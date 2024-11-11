@@ -18,6 +18,7 @@ import amanuensis.blueprints.project
 # import amanuensis.blueprints.message
 import amanuensis.blueprints.admin
 import amanuensis.blueprints.download_urls
+import amanuensis.blueprints.notification
 
 
 # Can't read config yet. Just set to debug for now, else no handlers.
@@ -69,7 +70,7 @@ def app_register_blueprints(app):
     app.register_blueprint(amanuensis.blueprints.download_urls.blueprint, url_prefix="/download-urls")
     app.register_blueprint(amanuensis.blueprints.filterset.blueprint, url_prefix="/filter-sets")
     app.register_blueprint(amanuensis.blueprints.project.blueprint, url_prefix="/projects")
-
+    app.register_blueprint(amanuensis.blueprints.notification.blueprint, url_prefix="/notifications")
     # Disable for now since they are not used yet
     # app.register_blueprint(amanuensis.blueprints.message.blueprint, url_prefix="/message")
     

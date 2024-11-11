@@ -25,6 +25,8 @@ from amanuensis.resources.userdatamodel.project_has_associated_user import get_p
 from amanuensis.resources.userdatamodel.associated_users import get_associated_users
 from amanuensis.resources.associated_user import add_associated_users
 from amanuensis.resources.userdatamodel.project import get_projects
+from amanuensis.resources.userdatamodel.notification import get_notifications, update_notification
+from amanuensis.resources.userdatamodel.notification_log import create_notification_log, update_notification_log, get_notification_logs
 
 from amanuensis.schema import (
     ProjectSchema,
@@ -34,7 +36,9 @@ from amanuensis.schema import (
     AssociatedUserSchema,
     SearchSchema,
     AssociatedUserRolesSchema,
-    ProjectAssociatedUserSchema
+    ProjectAssociatedUserSchema,
+    NotificationSchema,
+    NotificationLogSchema
 )
 
 logger = get_logger(__name__)
@@ -128,7 +132,11 @@ def upload_file():
     
     with current_app.db.session as session:
 
-        return jsonify(project.upload_file(session, key, project_id, expires))
+        url = project.upload_file(session, key, project_id, expires)
+
+        session.commit()
+
+        return jsonify(url)
 
 
 @blueprint.route("/states", methods=["POST"])
@@ -573,87 +581,6 @@ def copy_search_to_project():
     # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))
 
 
-
-
-
-
-
-
-
-@blueprint.route("/notification/add", methods=["POST"])
-@check_arborist_auth(resource="/services/amanuensis", method="*")
-def add_new_notification():
-    try:
-        logged_user_id = current_user.id
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
-    
-    message = request.get_json().get("message", None)
-    if message is None or message == "":
-        return UserError("There are missing params.")
-
-    notification_schema = NotificationLogSchema()
-    new_notification = notification.create_notification(message)
-    return flask.jsonify(notification_schema.dump(new_notification))
-
-
-@blueprint.route("/notification/all", methods=["GET"])
-@check_arborist_auth(resource="/services/amanuensis", method="*")
-def get_all_notifications():
-    try:
-        logged_user_id = current_user.id
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
-
-    notifications = notification.get_notifications()
-    notification_schema = NotificationLogSchema(many=True)
-    return jsonify(notification_schema.dump(notifications))
-
-
-@blueprint.route("/notification/by", methods=["GET"])
-def get_notifications_by():
-    try:
-        logged_user_id = current_user.id
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
-    user_id = flask.request.args.get("user_id", None)
-    notification_id = flask.request.args.get("notification_id", None)
-    xor = bool(user_id) ^ bool(notification_id)
-
-    notification_schema = NotificationLogSchema(many=True)
-    if not xor:
-        raise UserError("You are supposed to submit one and only one variable between user_id and notification_id")
-
-    if not has_arborist_access(resource="/services/amanuensis", method="*"):
-        raise AuthError(
-                "The user is trying to use an admin functionality but it is not an admin."
-            )
-        
-    unseen = notification.get_seen_notifications_by(user_id, notification_id)
-    return flask.jsonify(notification_schema.dump(unseen))
-
-
-@blueprint.route("/notification_log/<path:notification_id>", methods=["DELETE"])
-@check_arborist_auth(resource="/services/amanuensis", method="*")
-def delete_notification(notification_id):
-    try:
-        logged_user_id = current_user.id
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
-
-    notifications = notification.get_notifications()
-    notification_schema = NotificationLogSchema(many=True)
-    return jsonify(notification_schema.dump(notifications))
-
-
 @blueprint.route("/project_users/<project_id>", methods=["GET"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def get_project_users(project_id):
@@ -661,6 +588,128 @@ def get_project_users(project_id):
         users = get_project_associated_users(session, project_id, many=True)
 
         return jsonify([{"email": user.associated_user.email, "role": user.role.code} for user in users])
+
+
+
+#admin can create new notifications
+#admins can look at users notfications
+#admins can update users notfications
+
+
+
+@blueprint.route("/create-notification", methods=["POST"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def add_new_notification():
+    
+    message = request.get_json().get("message", None)
+    if not message:
+        return UserError("A message is required for this endpoint")
+
+    with current_app.db.session as session:
+
+        notification_schema = NotificationLogSchema()
+        new_notification = create_notification_log(session, message)
+        session.commit()
+
+        return notification_schema.dump(new_notification)
+
+
+@blueprint.route("/notifications", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_notification():
+    
+    user_id = request.args.get("user_id", type=int)
+    notification_log_id = request.args.get("notification_log_id", type=int)
+    message = request.args.get("message", type=str)
+    seen = request.args.get("seen", type=bool)
+
+
+    if seen is not None:
+        filter_by_seen = True
+    else:
+        filter_by_seen = False
+
+
+    with current_app.db.session as session:
+
+        if user_id:
+
+            notification_schema = NotificationSchema(many=True)
+
+            notifications = get_notifications(
+                                session, 
+                                user_id=user_id, 
+                                notification_log_id=notification_log_id, 
+                                seen=seen,
+                                filter_for_seen=filter_by_seen, 
+                                many=True
+                            )
+        
+            return notification_schema.dump(notifications)
+
+        else:
+
+            notification_log_schema = NotificationLogSchema(many=True)
+
+            notifications = get_notification_logs(
+                                session,  
+                                ids=notification_log_id, 
+                                messages=message,
+                                many=True
+                            )
+        
+            return notification_log_schema.dump(notifications)
+
+
+@blueprint.route("/update-notification", methods=["PUT", "DELETE"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def edit_notification():
+    notification_log_id = request.get_json().get("notification_log_id", None)
+    message = request.get_json().get("message", None)
+    seen = request.get_json().get("seen", None)
+    user_id = request.get_json().get("user_id", None)
+
+    with current_app.db.session as session:
+
+        
+        if request.method == "DELETE":
+            if not notification_log_id and not message:
+                return UserError("A notification ID or a message is required for this endpoint")
+            
+            notification_log_schema = NotificationLogSchema()
+
+            notification = update_notification_log(
+                session, 
+                id=notification_log_id, 
+                message=message, 
+                delete=True
+            )
+
+            notification = notification_log_schema.dump(notification)
+
+        else:
+
+            if not user_id or not notification_log_id:
+                return UserError("A user id and a notification id is required for this endpoint")
+
+            if seen is None:
+                raise UserError("You must pass weather to mark or unmark a notification as seen")
+
+            notification_schema = NotificationSchema()
+            notification = update_notification(
+                session, 
+                notification_log_id=notification_log_id, 
+                user_id=user_id, 
+                seen=seen
+            )
+
+            notification = notification_schema.dump(notification)
+    
+        session.commit()
+
+        return notification
+
+
 
 
   

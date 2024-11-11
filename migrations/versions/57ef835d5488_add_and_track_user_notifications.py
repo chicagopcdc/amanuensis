@@ -20,15 +20,20 @@ def upgrade() -> None:
     
     op.create_table('notification_log', 
                     sa.Column('id', sa.Integer(), nullable = False, autoincrement=True), 
-                    sa.Column('notif_message', sa.String(), nullable = False), 
-                    sa.Column('create_date', sa.DateTime(), nullable = False, server_default = sa.text('NOW()')), 
-                    sa.PrimaryKeyConstraint('id'))
+                    sa.Column('message', sa.String(), nullable = False), 
+                    sa.Column('create_date', sa.DateTime(), nullable = False, server_default = sa.text('NOW()')),
+                    sa.Column('active', sa.Boolean(), nullable=True, default=True),  
+                    sa.PrimaryKeyConstraint('id'),
+                    sa.UniqueConstraint('message')
+    )
 
     op.create_table('notification', 
-                        sa.Column('notification_id', sa.Integer(), sa.ForeignKey("notification_log.id"), nullable = False), 
-                        sa.Column('user_id', sa.Integer(), nullable = False), 
-                        sa.Column("seen", sa.Boolean(), nullable=True, default=False), 
-                        sa.PrimaryKeyConstraint('user_id', 'notification_id'))
+                    sa.Column('notification_log_id', sa.Integer(), sa.ForeignKey("notification_log.id"), nullable = False), 
+                    sa.Column('user_id', sa.Integer(), nullable = False), 
+                    sa.Column("seen", sa.Boolean(), nullable=True, default=False),
+                    sa.Column('create_date', sa.DateTime(), nullable = False, server_default = sa.text('NOW()')),
+                    sa.PrimaryKeyConstraint('user_id', 'notification_log_id')
+    )
 
 
 def downgrade() -> None:

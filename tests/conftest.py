@@ -64,6 +64,8 @@ def session(app_instance):
         session.query(State).filter(State.code == "ENDPOINT_TEST").delete()
         session.query(AssociatedUserRoles).filter(AssociatedUserRoles.code == "TEST").delete()
         session.query(Search).delete()
+        session.query(Notification).delete()
+        session.query(NotificationLog).delete()
 
         session.commit()
 
@@ -221,12 +223,14 @@ def login(request, find_fence_user):
         patcher_admin = patch('amanuensis.blueprints.admin.current_user')
         patcher_download_urls = patch('amanuensis.blueprints.download_urls.current_user')
         patcher_projects = patch('amanuensis.blueprints.project.current_user')
+        patcher_notifications = patch('amanuensis.blueprints.notification.current_user')
 
         # Start both patches and set their attributes
         mock_current_user_filterset = patcher_filterset.start()
         mock_current_user_admin = patcher_admin.start()
         mock_current_user_download_urls = patcher_download_urls.start()
         mock_current_user_projects = patcher_projects.start()
+        mock_current_user_notifications = patcher_notifications.start()
 
         # Set the same `id` and `username` for both mock objects
         mock_current_user_filterset.id = id
@@ -241,10 +245,14 @@ def login(request, find_fence_user):
         mock_current_user_projects.id = id
         mock_current_user_projects.username = username
 
+        mock_current_user_notifications.id = id
+        mock_current_user_notifications.username = username
+
         request.addfinalizer(patcher_filterset.stop)
         request.addfinalizer(patcher_admin.stop)
         request.addfinalizer(patcher_download_urls.stop)
         request.addfinalizer(patcher_projects.stop)
+        request.addfinalizer(patcher_notifications.stop)
 
     
     return patch_user
