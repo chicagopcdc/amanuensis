@@ -3,7 +3,7 @@ from mock import patch
 from cdislogging import get_logger
 from amanuensis.models import *
 from amanuensis.schema import *
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from amanuensis.blueprints.filterset import UserError
 import requests
@@ -752,8 +752,21 @@ def test_notification_system(session, client, login, project_data):
     
     session.commit() 
 
+    # Original date
+    expire_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+    dont_expire_date = (datetime.now() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S.%f")
+
+    #TEST BAD datetime format
+    bad_notification = client.post('/admin/create-notification', json={
+        "message": "test notification 1",
+        "expire_date": "2024-11-12 177:5:31.06723"
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert bad_notification.status_code == 400
+
+
     notification_1 = client.post('/admin/create-notification', json={
         "message": "test notification 1",
+        "expire_date": dont_expire_date
     }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
 
     assert notification_1.status_code == 200
@@ -774,6 +787,7 @@ def test_notification_system(session, client, login, project_data):
 
     notification_2 = client.post('/admin/create-notification', json={
         "message": "test notification 2",
+        "expire_date": dont_expire_date
     }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
 
     assert notification_2.status_code == 200
@@ -794,6 +808,7 @@ def test_notification_system(session, client, login, project_data):
 
     notification_3 = client.post('/admin/create-notification', json={
         "message": "test notification 3",
+        "expire_date": dont_expire_date
     }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
 
     assert notification_3.status_code == 200
@@ -808,6 +823,20 @@ def test_notification_system(session, client, login, project_data):
     assert user_1_doesnt_see_notification_3.status_code == 200
     assert len(user_1_doesnt_see_notification_3.json) == 0
 
+    #Test users dont see expired notifications
+    notification_4 = client.post('/admin/create-notification', json={
+        "message": "test notification 4",
+        "expire_date": expire_date
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert notification_4.status_code == 200
+
+    login(project_data['user_id'], project_data['user_email'])
+    user_1_doesnt_see_notification_4 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_doesnt_see_notification_4.status_code == 200
+    assert len(user_1_doesnt_see_notification_4.json) == 0
+    
 
     update_user_1_notifcation_1_to_seen = client.put(f'/admin/update-notification', json={"notification_log_id": notification_1.json["id"], "user_id": project_data['user_id'], "seen": True}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
 
@@ -821,3 +850,20 @@ def test_notification_system(session, client, login, project_data):
     assert len(admin_get_route_filter_by_seen.json) == 1
 
     get_all_notifications = client.get('/admin/notifications', headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert get_all_notifications.status_code == 200
+    assert len(get_all_notifications.json) == 3
+
+
+    #update expiration date on notification 4
+
+    update_notification_4 = client.put(f'/admin/update-notification', json={"notification_log_id": notification_4.json["id"], "expire_date": dont_expire_date}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert update_notification_4.status_code == 200
+
+    login(project_data['user_id'], project_data['user_email'])
+    user_1_sees_notification_4 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_sees_notification_4.status_code == 200
+    assert len(user_1_sees_notification_4.json) == 1
+

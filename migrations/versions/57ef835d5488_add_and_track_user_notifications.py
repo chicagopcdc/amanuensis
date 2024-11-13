@@ -22,6 +22,7 @@ def upgrade() -> None:
                     sa.Column('id', sa.Integer(), nullable = False, autoincrement=True), 
                     sa.Column('message', sa.String(), nullable = False), 
                     sa.Column('create_date', sa.DateTime(), nullable = False, server_default = sa.text('NOW()')),
+                    sa.Column('expiration_date', sa.DateTime(), nullable = False, server_default = sa.text('NOW()')),
                     sa.Column('active', sa.Boolean(), nullable=True, default=True),  
                     sa.PrimaryKeyConstraint('id'),
                     sa.UniqueConstraint('message')

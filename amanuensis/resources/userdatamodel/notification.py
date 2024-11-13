@@ -92,19 +92,3 @@ def update_notification(session, notification=None, user_id=None, notification_l
 
 
 
-
-
-
-# Change notification status
-def change_seen_status(current_session, notifications):
-    current_session.bulk_save_objects(notifications)
-    current_session.commit()
-    return new_notications
-
-
-
-
-
-
-
-

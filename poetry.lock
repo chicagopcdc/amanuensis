@@ -122,13 +122,13 @@ flask = ["Flask (<=2.3.3)"]
 
 [[package]]
 name = "aws-sam-translator"
-version = "1.91.0"
+version = "1.92.0"
 description = "AWS SAM Translator is a library that transform SAM templates into AWS CloudFormation templates"
 optional = false
 python-versions = "!=4.0,<=4.0,>=3.8"
 files = [
-    {file = "aws_sam_translator-1.91.0-py3-none-any.whl", hash = "sha256:9ebf4b53c226338e6b89d14d8583bc4559b87f0be52ed8d577c5a1dc2db14962"},
-    {file = "aws_sam_translator-1.91.0.tar.gz", hash = "sha256:0cdfbc598f384c430c3ec064f6008d80c5a0d58f1dc45ca4e331ae5c43cb4697"},
+    {file = "aws_sam_translator-1.92.0-py3-none-any.whl", hash = "sha256:10e77ab628cead3d0e8ee0211eb84c04010c051b9a48ce6b15171c39bdbe917d"},
+    {file = "aws_sam_translator-1.92.0.tar.gz", hash = "sha256:49014e783180ca1fcdd70790645a850d20f4285c19ae694d37fefc52a60d7c64"},
 ]
 
 [package.dependencies]
@@ -168,13 +168,13 @@ files = [
 
 [[package]]
 name = "blinker"
-version = "1.8.2"
+version = "1.9.0"
 description = "Fast, simple object-to-object and broadcast signaling"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 files = [
-    {file = "blinker-1.8.2-py3-none-any.whl", hash = "sha256:1779309f71bf239144b9399d06ae925637cf6634cf6bd131104184531bf67c01"},
-    {file = "blinker-1.8.2.tar.gz", hash = "sha256:8f77b09d3bf7c795e969e9486f39c2c5e9c39d4ee07424be2bc594ece9642d83"},
+    {file = "blinker-1.9.0-py3-none-any.whl", hash = "sha256:ba0efaa9080b619ff2f3459d1d500c57bddea4a6b424b60a91141db6fd2f08bc"},
+    {file = "blinker-1.9.0.tar.gz", hash = "sha256:b4ce2265a7abece45e7cc896e98dbebe6cead56bcf805a3d23136d145f5445bf"},
 ]
 
 [[package]]
@@ -209,21 +209,21 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.35.55"
+version = "1.35.58"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "botocore-1.35.55-py3-none-any.whl", hash = "sha256:3d54739e498534c9d7a6e9732ae2d17ed29c7d5e29fe36c956d8488b859538b0"},
-    {file = "botocore-1.35.55.tar.gz", hash = "sha256:61ae18f688250372d7b6046e35c86f8fd09a7c0f0064b52688f3490b4d6c9d6b"},
+    {file = "botocore-1.35.58-py3-none-any.whl", hash = "sha256:647b8706ae6484ee4c2208235f38976d9f0e52f80143e81d7941075215e96111"},
+    {file = "botocore-1.35.58.tar.gz", hash = "sha256:8303309c7b59ddf04b11d79813530809d6b10b411ac9f93916d2032c283d6881"},
 ]
 
 [package.dependencies]
 jmespath = ">=0.7.1,<2.0.0"
 python-dateutil = ">=2.1,<3.0.0"
 urllib3 = [
-    {version = ">=1.25.4,<2.2.0 || >2.2.0,<3", markers = "python_version >= \"3.10\""},
     {version = ">=1.25.4,<1.27", markers = "python_version < \"3.10\""},
+    {version = ">=1.25.4,<2.2.0 || >2.2.0,<3", markers = "python_version >= \"3.10\""},
 ]
 
 [package.extras]
@@ -392,13 +392,13 @@ pycparser = "*"
 
 [[package]]
 name = "cfn-lint"
-version = "1.18.4"
+version = "1.19.0"
 description = "Checks CloudFormation templates for practices and behaviour that could potentially be improved"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "cfn_lint-1.18.4-py3-none-any.whl", hash = "sha256:76741e76fa26f31bfacc3eb465eddd93ad535838d84fbc6dd092817d8e22d57f"},
-    {file = "cfn_lint-1.18.4.tar.gz", hash = "sha256:73dadc33d6a91c69651cb08fe919138ab4e2f6cf1be1e361f7c6dcbccd1527ba"},
+    {file = "cfn_lint-1.19.0-py3-none-any.whl", hash = "sha256:9c43a6b866915df6d2ac5584000ef05e53c67624809808c2cebd3dc6154b7c14"},
+    {file = "cfn_lint-1.19.0.tar.gz", hash = "sha256:63835e083f7831e54c512bce4808754df221b5895aed9a114c71879d1cc4ebff"},
 ]
 
 [package.dependencies]
@@ -1407,13 +1407,13 @@ test = ["pytest (>=7.2)", "pytest-cov (>=4.0)"]
 
 [[package]]
 name = "packaging"
-version = "24.1"
+version = "24.2"
 description = "Core utilities for Python packages"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "packaging-24.1-py3-none-any.whl", hash = "sha256:5b8f2217dbdbd2f7f384c41c628544e6d52f2d0f53c6d0c3ea61aa5d1d7ff124"},
-    {file = "packaging-24.1.tar.gz", hash = "sha256:026ed72c8ed3fcce5bf8950572258698927fd1dbda10a5e981cdf0ac37f4f002"},
+    {file = "packaging-24.2-py3-none-any.whl", hash = "sha256:09abb1bccd265c01f4a3aa3f7a7db064b36514d2cba19a2f694fe6150451a759"},
+    {file = "packaging-24.2.tar.gz", hash = "sha256:c228a6dc5e932d346bc5739379109d49e8853dd8223571c7c5b55260edc0b97f"},
 ]
 
 [[package]]
@@ -1590,8 +1590,8 @@ files = [
 annotated-types = ">=0.6.0"
 pydantic-core = "2.23.4"
 typing-extensions = [
-    {version = ">=4.12.2", markers = "python_version >= \"3.13\""},
     {version = ">=4.6.1", markers = "python_version < \"3.13\""},
+    {version = ">=4.12.2", markers = "python_version >= \"3.13\""},
 ]
 
 [package.extras]
@@ -1772,8 +1772,8 @@ files = [
 
 [package.dependencies]
 pytest = [
-    {version = ">=6.2.4", markers = "python_version >= \"3.10\""},
     {version = ">=5.0", markers = "python_version < \"3.10\""},
+    {version = ">=6.2.4", markers = "python_version >= \"3.10\""},
 ]
 
 [[package]]
@@ -2393,13 +2393,13 @@ files = [
 
 [[package]]
 name = "tomli"
-version = "2.0.2"
+version = "2.1.0"
 description = "A lil' TOML parser"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "tomli-2.0.2-py3-none-any.whl", hash = "sha256:2ebe24485c53d303f690b0ec092806a085f07af5a5aa1464f3931eec36caaa38"},
-    {file = "tomli-2.0.2.tar.gz", hash = "sha256:d46d457a85337051c36524bc5349dd91b1877838e2979ac5ced3e710ed8a60ed"},
+    {file = "tomli-2.1.0-py3-none-any.whl", hash = "sha256:a5c57c3d1c56f5ccdf89f6523458f60ef716e210fc47c4cfb188c5ba473e0391"},
+    {file = "tomli-2.1.0.tar.gz", hash = "sha256:3f646cae2aec94e17d04973e4249548320197cfabdf130015d023de4b74d8ab8"},
 ]
 
 [[package]]
@@ -2445,8 +2445,8 @@ sqlalchemy = "^2.0.36"
 [package.source]
 type = "git"
 url = "https://github.com/chicagopcdc/userPortalDataModel.git"
-reference = "pcdc_intern_om"
-resolved_reference = "ff880e512d9750098b994947da8049f1ac4660c9"
+reference = "add-exp-date-to-notification"
+resolved_reference = "44b0da322478733a708ca8f558fee8cddf1f71cb"
 
 [[package]]
 name = "werkzeug"
@@ -2557,13 +2557,13 @@ files = [
 
 [[package]]
 name = "zipp"
-version = "3.20.2"
+version = "3.21.0"
 description = "Backport of pathlib-compatible object wrapper for zip files"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 files = [
-    {file = "zipp-3.20.2-py3-none-any.whl", hash = "sha256:a817ac80d6cf4b23bf7f2828b7cabf326f15a001bea8b1f9b49631780ba28350"},
-    {file = "zipp-3.20.2.tar.gz", hash = "sha256:bc9eb26f4506fda01b81bcde0ca78103b6e62f991b381fec825435c836edbc29"},
+    {file = "zipp-3.21.0-py3-none-any.whl", hash = "sha256:ac1bbe05fd2991f160ebce24ffbac5f6d11d83dc90891255885223d42b3cd931"},
+    {file = "zipp-3.21.0.tar.gz", hash = "sha256:2c9958f6430a2040341a52eb608ed6dd93ef4392e02ffe219417c1b28b5dd1f4"},
 ]
 
 [package.extras]
@@ -2577,4 +2577,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0.0"
-content-hash = "40dd62945b57da58910eb0f5ac1c5750600c2eb0a1b3bb2ba3ddc9766bd1e094"
+content-hash = "c39b1d70e190ec98e6e33f70be3475829a74b7ab6ddf131ba320b7de193faff5"

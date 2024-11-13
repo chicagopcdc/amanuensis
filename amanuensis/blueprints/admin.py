@@ -4,7 +4,7 @@ solutions. Operations here assume the underlying operations in the interface
 will maintain coherence between both systems.
 """
 import functools
-
+from datetime import datetime
 from cdiserrors import APIError
 from flask import request, jsonify, Blueprint, current_app
 from cdislogging import get_logger
@@ -73,7 +73,7 @@ def force_state_change():
     consortiums = request.get_json().get("consortiums", None)
 
     if not state_id or not project_id:
-        return UserError("There are missing params.")
+        raise UserError("There are missing params.")
     
     with current_app.db.session as session:
         requests = get_requests(session, project_id=project_id, consortiums=consortiums)
@@ -398,7 +398,7 @@ def update_project_state():
         consortiums = [consortiums]
 
     if not state_id or not project_id:
-        return UserError("There are missing params.")
+        raise UserError("There are missing params.")
 
     request_schema = RequestSchema(many=True)
 
@@ -591,24 +591,26 @@ def get_project_users(project_id):
 
 
 
-#admin can create new notifications
-#admins can look at users notfications
-#admins can update users notfications
-
-
-
 @blueprint.route("/create-notification", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def add_new_notification():
     
     message = request.get_json().get("message", None)
+    expire_date = request.get_json().get("expire_date", None)
     if not message:
-        return UserError("A message is required for this endpoint")
+        raise UserError("A message is required for this endpoint")
+    if not expire_date:
+        raise UserError("An expire date is required for this endpoint")
+    
+    try:
+        datetime.strptime(expire_date, "%Y-%m-%d %H:%M:%S.%f")
+    except ValueError:
+        raise UserError("A valid datetime is required for this endpoint '%Y-%m-%d %H:%M:%S.%f'")
 
     with current_app.db.session as session:
 
         notification_schema = NotificationLogSchema()
-        new_notification = create_notification_log(session, message)
+        new_notification = create_notification_log(session, message, expire_date)
         session.commit()
 
         return notification_schema.dump(new_notification)
@@ -655,6 +657,7 @@ def get_notification():
                                 session,  
                                 ids=notification_log_id, 
                                 messages=message,
+                                expired=False,
                                 many=True
                             )
         
@@ -668,32 +671,43 @@ def edit_notification():
     message = request.get_json().get("message", None)
     seen = request.get_json().get("seen", None)
     user_id = request.get_json().get("user_id", None)
+    expire_date = request.get_json().get("expire_date", None)
 
     with current_app.db.session as session:
 
-        
-        if request.method == "DELETE":
+        if not user_id:
             if not notification_log_id and not message:
-                return UserError("A notification ID or a message is required for this endpoint")
+                raise UserError("A notification ID or a message is required for this endpoint")
+            
+            notification_log_schema = NotificationLogSchema()
+
+            if request.method == "PUT":
+                if not expire_date:
+                    raise UserError("An expire date is required for this endpoint")
+                try:
+                    datetime.strptime(expire_date, "%Y-%m-%d %H:%M:%S.%f")
+                except ValueError:
+                    raise UserError("A valid datetime is required for this endpoint '%Y-%m-%d %H:%M:%S.%f'")
             
             notification_log_schema = NotificationLogSchema()
 
             notification = update_notification_log(
                 session, 
-                id=notification_log_id, 
+                id=notification_log_id,
                 message=message, 
-                delete=True
+                expiration_date=expire_date,
+                delete=request.method == "DELETE"
             )
 
             notification = notification_log_schema.dump(notification)
 
         else:
-
             if not user_id or not notification_log_id:
-                return UserError("A user id and a notification id is required for this endpoint")
+                raise UserError("A user id and a notification id is required for this endpoint")
 
             if seen is None:
                 raise UserError("You must pass weather to mark or unmark a notification as seen")
+            
 
             notification_schema = NotificationSchema()
             notification = update_notification(

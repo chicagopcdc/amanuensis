@@ -3,7 +3,7 @@ from amanuensis.errors import NotFound, UserError
 from amanuensis.models import (
     Notification, NotificationLog
 )
-
+from datetime import datetime
 
 logger = get_logger(__name__)
 
@@ -13,6 +13,7 @@ def get_notification_logs(current_session,
                           messages=None, 
                           active=True, 
                           date_time=None,
+                          expired=True,
                           filter_by_active=True, 
                           many=True, 
                           throw_not_found=False):
@@ -34,6 +35,9 @@ def get_notification_logs(current_session,
     if date_time:
         notification_logs = notification_logs.filter(NotificationLog.create_date > date_time)
 
+    if expired:
+        notification_logs = notification_logs.filter(NotificationLog.expiration_date > datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"))
+
     notification_logs = notification_logs.all()
 
     if throw_not_found and not notification_logs:
@@ -51,7 +55,8 @@ def update_notification_log(
         session, 
         notification_log=None, 
         id=None, 
-        message=None, 
+        message=None,
+        expiration_date=None, 
         delete=False
     ):
 
@@ -60,26 +65,31 @@ def update_notification_log(
             raise UserError("notification_log must be an instance of NotificationLog")
     
     else:
-
-        notification_log = get_notification_logs(session, ids=id, messages=message, many=False, throw_not_found=True)
+        notification_log = get_notification_logs(session, ids=id, messages=message, expired=False, many=False, throw_not_found=True)
     
     notification_log.active = False if delete else notification_log.active
+
+    if expiration_date is not None:
+        expiration_date = datetime.strptime(expiration_date, "%Y-%m-%d %H:%M:%S.%f")
+        notification_log.expiration_date = expiration_date
 
     session.flush()
 
     return notification_log
 
-def create_notification_log(session, message):
-    new_message = get_notification_logs(session, messages=message, filter_by_active=False, many=False)
-
+def create_notification_log(session, message, expiration_date):
+    new_message = get_notification_logs(session, messages=message, expired=False, filter_by_active=False, many=False)
+    expiration_date = datetime.strptime(expiration_date, "%Y-%m-%d %H:%M:%S.%f")
     if new_message:
         if not new_message.active:
             logger.info(f"Notification log {message} has been reactivated")
             new_message.active = True
+            new_message.expiration_date = expiration_date
         else:
             logger.info(f"Notification log {message} already exists")
     else:
-        new_message = NotificationLog(message = message)
+
+        new_message = NotificationLog(message = message, expiration_date = expiration_date)
         session.add(new_message)
     
     session.flush()

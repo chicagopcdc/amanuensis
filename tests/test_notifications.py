@@ -1,6 +1,7 @@
 from amanuensis.resources.userdatamodel.notification import *
 import pytest
 from amanuensis.models import Notification, NotificationLog
+from datetime import datetime, timedelta
 
 ################################
 # CREATE
@@ -28,11 +29,11 @@ from amanuensis.models import Notification, NotificationLog
 def setup_tests(session, register_user):
     user_id, user_email = register_user(email=f"user_1@{__name__}.com", name=__name__)
     user_2_id, user_2_email = register_user(email=f"user_2@{__name__}.com", name=__name__)
-
-    not_1 = NotificationLog(message="message user 1")
-    not_2 = NotificationLog(message="message user 2")
-    not_3 = NotificationLog(message="message 2  user 1")
-    not_4 = NotificationLog(message="message user 1 and 2")
+    expiration_date = (datetime.now() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S.%f")
+    not_1 = NotificationLog(message="message user 1", expiration_date=expiration_date)
+    not_2 = NotificationLog(message="message user 2", expiration_date=expiration_date)
+    not_3 = NotificationLog(message="message 2  user 1", expiration_date=expiration_date)
+    not_4 = NotificationLog(message="message user 1 and 2", expiration_date=expiration_date)
     
 
     session.add_all(
