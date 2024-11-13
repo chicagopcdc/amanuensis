@@ -14,7 +14,6 @@ blueprint = flask.Blueprint("notifications", __name__)
 
 @blueprint.route("/", methods=["GET"])
 def retrieve_notifications():
-    new = flask.request.args.get("new", type=bool, default=False)
     try:
         logged_user_id = current_user.id
     except AuthError:
