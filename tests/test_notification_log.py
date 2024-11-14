@@ -6,6 +6,7 @@ from time import sleep
 
 @pytest.fixture(scope="module", autouse=True)
 def setup(session):
+    session.query(Notification).delete()
     session.query(NotificationLog).delete()
     session.commit()
 
@@ -24,7 +25,7 @@ def test_create_notification_log(session):
     notification = message_from_db[0]
     assert f"{__name__} test message" == notification_log.message
     assert notification.create_date == notification_log.create_date
-    assert notification.expiration_date > datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+    assert notification.expiration_date > datetime.now()
     assert True == notification_log.active
 
 

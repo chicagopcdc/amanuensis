@@ -209,13 +209,13 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "botocore"
-version = "1.35.58"
+version = "1.35.60"
 description = "Low-level, data-driven core of boto 3."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "botocore-1.35.58-py3-none-any.whl", hash = "sha256:647b8706ae6484ee4c2208235f38976d9f0e52f80143e81d7941075215e96111"},
-    {file = "botocore-1.35.58.tar.gz", hash = "sha256:8303309c7b59ddf04b11d79813530809d6b10b411ac9f93916d2032c283d6881"},
+    {file = "botocore-1.35.60-py3-none-any.whl", hash = "sha256:ddccfc39a0a55ac0321191a36d29c2ea9be2c96ceefb3928dd3c91c79c494d50"},
+    {file = "botocore-1.35.60.tar.gz", hash = "sha256:378f53037d817bed2c04a006b7319745e664030182211429c924647273b29bc9"},
 ]
 
 [package.dependencies]
@@ -2431,7 +2431,7 @@ socks = ["PySocks (>=1.5.6,!=1.5.7,<2.0)"]
 
 [[package]]
 name = "userportaldatamodel"
-version = "1.6.4"
+version = "1.9.0"
 description = "contains database model for project request tool"
 optional = false
 python-versions = "^3.9"
@@ -2445,8 +2445,8 @@ sqlalchemy = "^2.0.36"
 [package.source]
 type = "git"
 url = "https://github.com/chicagopcdc/userPortalDataModel.git"
-reference = "add-exp-date-to-notification"
-resolved_reference = "44b0da322478733a708ca8f558fee8cddf1f71cb"
+reference = "1.8.1"
+resolved_reference = "b4f7e91f1a3631ee3ee643be0f2c343d0a564e65"
 
 [[package]]
 name = "werkzeug"
@@ -2577,4 +2577,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<4.0.0"
-content-hash = "c39b1d70e190ec98e6e33f70be3475829a74b7ab6ddf131ba320b7de193faff5"
+content-hash = "88c0565413c5ae680553b59a57ff6c002950f533faf05559b02da0bf76c8c5bf"
