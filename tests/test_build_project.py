@@ -3,7 +3,7 @@ from mock import patch
 from cdislogging import get_logger
 from amanuensis.models import *
 from amanuensis.schema import *
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from amanuensis.blueprints.filterset import UserError
 import requests
@@ -743,4 +743,127 @@ def test_delete_filter_set(session, client, login, project_data):
     assert filter_set_get_delete_search_response.status_code == 200
     assert len(filter_set_get_delete_search_response.json["filter_sets"]) == 0
 
-        
+
+
+@pytest.mark.order(9)
+def test_notification_system(session, client, login, project_data):
+    session.query(Notification).delete()
+    session.query(NotificationLog).delete()
+    
+    session.commit() 
+
+    # Original date
+    expire_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+    dont_expire_date = (datetime.now() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S.%f")
+
+    #TEST BAD datetime format
+    bad_notification = client.post('/admin/create-notification', json={
+        "message": "test notification 1",
+        "expire_date": "2024-11-12 177:5:31.06723"
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert bad_notification.status_code == 400
+
+
+    notification_1 = client.post('/admin/create-notification', json={
+        "message": "test notification 1",
+        "expire_date": dont_expire_date
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert notification_1.status_code == 200
+
+    notification_1_query = session.query(NotificationLog).filter(NotificationLog.message == "test notification 1").all()
+    assert len(notification_1_query) == 1
+
+    login(project_data['user_id'], project_data['user_email'])
+
+    user_1_sees_notification = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_sees_notification.status_code == 200
+
+    user_1_sees_notification_query = session.query(Notification).filter(Notification.user_id == project_data['user_id']).all()
+
+    assert len(user_1_sees_notification_query) == 1
+
+
+    notification_2 = client.post('/admin/create-notification', json={
+        "message": "test notification 2",
+        "expire_date": dont_expire_date
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert notification_2.status_code == 200
+
+    user_1_sees_notification_2 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_sees_notification_2.status_code == 200
+    assert len(user_1_sees_notification_2.json) == 1
+
+    user_1_sees_notification_2_query = session.query(Notification).filter(Notification.user_id == project_data['user_id']).all()
+    assert len(user_1_sees_notification_2_query) == 2
+
+    login(project_data['user_2_id'], project_data['user_2_email'])
+    user_2_sees_notification = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_2_id"]}'})
+
+    assert user_2_sees_notification.status_code == 200
+    assert len(user_2_sees_notification.json) == 2
+
+    notification_3 = client.post('/admin/create-notification', json={
+        "message": "test notification 3",
+        "expire_date": dont_expire_date
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert notification_3.status_code == 200
+
+    delete_notification_1 = client.delete(f'/admin/update-notification', json={"notification_log_id": [notification_3.json["id"]]}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert delete_notification_1.status_code == 200
+
+    login(project_data['user_id'], project_data['user_email'])
+    user_1_doesnt_see_notification_3 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_doesnt_see_notification_3.status_code == 200
+    assert len(user_1_doesnt_see_notification_3.json) == 0
+
+    #Test users dont see expired notifications
+    notification_4 = client.post('/admin/create-notification', json={
+        "message": "test notification 4",
+        "expire_date": expire_date
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert notification_4.status_code == 200
+
+    login(project_data['user_id'], project_data['user_email'])
+    user_1_doesnt_see_notification_4 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_doesnt_see_notification_4.status_code == 200
+    assert len(user_1_doesnt_see_notification_4.json) == 0
+    
+
+    update_user_1_notifcation_1_to_seen = client.put(f'/admin/update-notification', json={"notification_log_id": notification_1.json["id"], "user_id": project_data['user_id'], "seen": True}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert update_user_1_notifcation_1_to_seen.status_code == 200
+
+    #get notifications for user_1 where seen is true
+
+    admin_get_route_filter_by_seen = client.get(f'/admin/notifications?user_id={project_data["user_id"]}&seen=True', headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert admin_get_route_filter_by_seen.status_code == 200
+    assert len(admin_get_route_filter_by_seen.json) == 1
+
+    get_all_notifications = client.get('/admin/notifications', headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert get_all_notifications.status_code == 200
+    assert len(get_all_notifications.json) == 3
+
+
+    #update expiration date on notification 4
+
+    update_notification_4 = client.put(f'/admin/update-notification', json={"notification_log_id": notification_4.json["id"], "expire_date": dont_expire_date}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert update_notification_4.status_code == 200
+
+    login(project_data['user_id'], project_data['user_email'])
+    user_1_sees_notification_4 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_sees_notification_4.status_code == 200
+    assert len(user_1_sees_notification_4.json) == 1
+

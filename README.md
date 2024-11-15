@@ -1,5 +1,6 @@
 # Development Workflow
 
+## DEPRECATED ##
 To speed up the local development workflow for amanuensis, alongside the gen3 stack, follow these steps.
 
 1) Build the image using Dockerfile.dev:
@@ -19,6 +20,23 @@ docker build -f Dockerfile.dev -t amanuensis:test .
 3) Inside compose-services run ```docker compose up``` to start all services of the gen3 stack.
 
 4) Open a shell to the amanuensis:test container. Navigate to /amanuensis/amanuensis and run ```bash watch-files.sh```. This will watch for files changes in this directory and re-run the uwsgi command every time there is a file change, which will ensure that changes are reflected in the container almost immediatelly.
+
+## DEPRECATED ##
+
+1) Follow the steps provided in the confluence page `Using Helm for local development` to set up and run a local kubernetes cluster using Helm 
+
+2) run ` nerdctl --namespace k8s.io build -f Dockerfile.dev amanuensis:test . ` This will create a image in your rancher Desktop app
+
+3) in pcdc-default-values.yaml or default-values.yaml (depending on which version of gen3-helm you are using) replace the amanuensis section with this:
+
+    amanuensis:
+        image:
+            repository: "amanuensis"
+            tag: "test"
+            pullPolicy: Never
+
+4) run `pcdc roll` or if you already have rolled out the deployment run `pcdc roll amanuensis`
+
 
 ## Debugging
 
@@ -41,20 +59,36 @@ poetry install
 
 alembic revision -m "add_save"
 
-## Run Endpoint tests
+## Run tests
 
-1) in the config fill in ARBORIST with 'http://arborist-service'
+1) in the config fill in the value DB, AWS_CREDENTIALS with your values and ARBORIST with 'http://arborist-service'
 
 2) activate the virtual env
 
-3) pytest tests_endpoints/endpoints
+3) pytest --order-scope=module
 
-4) pytest tests_endpoints/resources
+## Mocking
 
-## How to build endpoint tests
+    all the mocking fixtures for Fence, Arborist and PcdcAnalysisTools are found in conftest
 
-1) mocking: 
-    1) all initiated variables, functions, objects and attributes can be mocked
+    1) Fence
+
+        pass an email, name and optional "admin" to the register_user() fixture to add a user to fence
+
+        the fence users are stored in the fence_users fixture and resets every time the tests are run
+
+        the fence_get_users method is mocked by default and will search through the fence_users fixture instead of sending a request to fence.
+        fence_get_users inputs are the same as the unmocked version
+
+
+    2) Arborist
+
+        to mock current_user use the login() fixture and pass a id and username (email) to mock current_user.id and current_user.username throughout
+        amanuensis. This will reset by default at the end of a test function but can be overridden by calling login again
+ 
+        the endpoints with the admin decorator or functions that use the has_arborist_access() function can be bypassed by passing the header 
+        "Authorization": 'bearer {fence_id}' where fence_id is the ID of a fence_user who is an admin that you created using register_user().
+    
 
     2) using the patch function from the mock library
     
@@ -67,131 +101,3 @@ alembic revision -m "add_save"
         make sure to use the path where the object is called not definied
 
         example: patch('amanuensis.resources.consortium_data_contributor.get_consortium_list', ["INRG"]) 
-
-2)  Fence
-    in tests_endpoints/endpoints.conftest there are two pytest fixtures that simulate calls to fence
-
-    when creating a new test pass fence_get_users_mock as a parameter to the test function and then use side_effect=fence_get_users_mock to patch fence_get_users
-
-    this will use the fixture fence_users to represent the fence DB
-
-    if a test requires adding a user to fence_users mid way through a test pass fence_users as a parameter in the test function and then new users can be appended at any point
-
-3) Arborist
-
-    for every request add the header "Authorization": 'bearer {fence_id}'
-
-    this will use the fence_get_users_mock to retrieve the fence user with the given fence_id
-
-    if check_arborist_auth was a decorator on the requests method it allow the request thorugh if the fence_users role is admin
-
-
-## test build project endpoint tests
-
-The test_build_project file tests a group of users making a data request from start to finish
-here is what is occuring in this test, feel free to add onto this as changes are made in amanuensis
-
-USERS:
-    in FENCE DB:
-    user1
-    user2
-    user3
-    admin
-
-    in AMANUENSIS DB:
-    user2
-    admin
-
-    in NEITHER:
-    user4
-    user5
-
-1) user1 creates a filter set
-    
-    1) sends post req to /filter-sets?explorerId=1 to create a filter set
-
-    2)  sends get req to /filter-sets?explorerId=1 to get all of their filter sets
-
-    3) sends post req to /filter-sets/snapshot to create a snap shot of the filter set they created
-
-    * user1 shares the filter set with user2 and user2 has user1 make a change
-    
-    1) user1 shares the snapshot code with user2
-
-    2) user2 sends get req to /filter-sets/snapshot/{snapshot_response.json} to get the filterset from the snapshot
-
-    3) user1 sends put req to /filter-sets/{id}?explorerId=1'to make the change to the filter set
-
-2) the users are ready to make a data request and contact an admin to do so
-
-    1) admin send get req to /admin/filter-sets/user" to retrieve the filter set from user1
-
-    2) admin sends a post req to '/admin/projects' to create a project
-        * user1, admin, user4, and user5 are added as associated users in this request all have metadata access
-        * data was requested from INRG and INSTRUCT
-    
-    3) admin sends get req to "/admin/all_associated_user_roles" to retreve all roles 
-    
-    4) admin sends post req to "/admin/associated_user" to add user2 to project with data access
-
-    5) admin sends post req to "/admin/associated_user" to add user3 to project with metadata access
-
-    6) admin sends requests to readd user1 and user5 and nothing happens as they are already added
-
-    7) admin sends put req to "/admin/associated_user_role" to give user1 data access
-    
-    8) admin sends put req to "/admin/associated_user_role" to get user3 data access
-
-    * users decide they want to remove user3 from the project
-
-    9) admin sends delete req to "/admin/remove_associated_user_from_project" to remove user3 from project
-        *user3 active set to false and role set to metadata access in ProjectAssociatedUser table
-    
-    10) admin sends get req to "/admin/states" to get all the possible states
-
-    * INRG data request was approved 
-
-    11) admin sends post req to "/admin/projects/state" to change request state for INRG to approved
-
-    *INSTRUCT requires revision to filter set
-
-    12) admin sends post req to "/admin/projects/state" to change request state for INSTRUCT to revision
-
-    13)  admin sends a post req to "/admin/filter-sets" to create a new filter set with corrections
-
-    14) admin sends post req to "admin/copy-search-to-user" to add user1 to the new filter set
-
-    15) admin sends post req to "admin/copy-search-to-project" to add the new filter set to the project
-
-    16) admin sends post req to "/admin/projects/state" to change INSTRUCT to approved
-
-    17) admin sends put req to "/admin/projects" to add an approved url
-
-    18) admin sends post req to "/admin/projects/state" to move all requests to data available
-
-    19)  user2 sends get req to "/download-urls/{project_id}" to get the data
-
-    20) user3 sends get req to "/download-urls/{project_id}" to get the data but a 403 is returned becuase they were removed from the project
-
-    21) admin sends get req to "/download-urls/{project_id}" to get the data but a 403 is returned becuase they dont have data access
-
-    22) user5 signs up in fence and sends get req to /projects and their userid should be updated in the associated_users table
-
-    23) user3 sends get reqeust to /projects and should see nothing becuase they are not an active user of the project
-
-    24) user1 sends get req to /projects and should see the the project
-
-
-    25) user1 sends get req to "filter-sets/{id}?explorerId=1" to retrieve the original filter set of the project
-
-    26) user1 send delete req to "filter-sets/{id}?explorerId=1" to delete the oringial filter set
-
-3) admin creates a project for user4
-
-    1) admin sends post req to /admin/projects to create a data request
-
-        user4 should not be added to associated_user table again
-
-
-
-    

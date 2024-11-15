@@ -4,13 +4,13 @@ solutions. Operations here assume the underlying operations in the interface
 will maintain coherence between both systems.
 """
 import functools
-
+from datetime import datetime
 from cdiserrors import APIError
 from flask import request, jsonify, Blueprint, current_app
 from cdislogging import get_logger
 
-from amanuensis.auth.auth import check_arborist_auth, current_user
-from amanuensis.errors import UserError, NotFound, AuthError
+from amanuensis.auth.auth import check_arborist_auth, current_user, has_arborist_access
+from amanuensis.errors import UserError, AuthError
 from amanuensis.resources.institution import get_background
 from amanuensis.resources import project
 from amanuensis.resources.userdatamodel.request_has_state import create_request_state
@@ -25,6 +25,9 @@ from amanuensis.resources.userdatamodel.project_has_associated_user import get_p
 from amanuensis.resources.userdatamodel.associated_users import get_associated_users
 from amanuensis.resources.associated_user import add_associated_users
 from amanuensis.resources.userdatamodel.project import get_projects
+from amanuensis.resources.userdatamodel.notification import get_notifications, update_notification
+from amanuensis.resources.userdatamodel.notification_log import create_notification_log, update_notification_log, get_notification_logs
+
 from amanuensis.schema import (
     ProjectSchema,
     StateSchema,
@@ -33,7 +36,9 @@ from amanuensis.schema import (
     AssociatedUserSchema,
     SearchSchema,
     AssociatedUserRolesSchema,
-    ProjectAssociatedUserSchema
+    ProjectAssociatedUserSchema,
+    NotificationSchema,
+    NotificationLogSchema
 )
 
 logger = get_logger(__name__)
@@ -68,7 +73,7 @@ def force_state_change():
     consortiums = request.get_json().get("consortiums", None)
 
     if not state_id or not project_id:
-        return UserError("There are missing params.")
+        raise UserError("There are missing params.")
     
     with current_app.db.session as session:
         requests = get_requests(session, project_id=project_id, consortiums=consortiums)
@@ -127,7 +132,11 @@ def upload_file():
     
     with current_app.db.session as session:
 
-        return jsonify(project.upload_file(session, key, project_id, expires))
+        url = project.upload_file(session, key, project_id, expires)
+
+        session.commit()
+
+        return jsonify(url)
 
 
 @blueprint.route("/states", methods=["POST"])
@@ -389,7 +398,7 @@ def update_project_state():
         consortiums = [consortiums]
 
     if not state_id or not project_id:
-        return UserError("There are missing params.")
+        raise UserError("There are missing params.")
 
     request_schema = RequestSchema(many=True)
 
@@ -579,6 +588,142 @@ def get_project_users(project_id):
         users = get_project_associated_users(session, project_id, many=True)
 
         return jsonify([{"email": user.associated_user.email, "role": user.role.code} for user in users])
+
+
+
+@blueprint.route("/create-notification", methods=["POST"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def add_new_notification():
+    
+    message = request.get_json().get("message", None)
+    expire_date = request.get_json().get("expire_date", None)
+    if not message:
+        raise UserError("A message is required for this endpoint")
+    if not expire_date:
+        raise UserError("An expire date is required for this endpoint")
+    
+    try:
+        datetime.strptime(expire_date, "%Y-%m-%d %H:%M:%S.%f")
+    except ValueError:
+        raise UserError("A valid datetime is required for this endpoint '%Y-%m-%d %H:%M:%S.%f'")
+
+    with current_app.db.session as session:
+
+        notification_schema = NotificationLogSchema()
+        new_notification = create_notification_log(session, message, expire_date)
+        session.commit()
+
+        return notification_schema.dump(new_notification)
+
+
+@blueprint.route("/notifications", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_notification():
+    
+    user_id = request.args.get("user_id", type=int)
+    notification_log_id = request.args.get("notification_log_id", type=int)
+    message = request.args.get("message", type=str)
+    seen = request.args.get("seen", type=bool)
+
+
+    if seen is not None:
+        filter_by_seen = True
+    else:
+        filter_by_seen = False
+
+
+    with current_app.db.session as session:
+
+        if user_id:
+
+            notification_schema = NotificationSchema(many=True)
+
+            notifications = get_notifications(
+                                session, 
+                                user_id=user_id, 
+                                notification_log_id=notification_log_id, 
+                                seen=seen,
+                                filter_for_seen=filter_by_seen, 
+                                many=True
+                            )
+        
+            return notification_schema.dump(notifications)
+
+        else:
+
+            notification_log_schema = NotificationLogSchema(many=True)
+
+            notifications = get_notification_logs(
+                                session,  
+                                ids=notification_log_id, 
+                                messages=message,
+                                expired=False,
+                                many=True
+                            )
+        
+            return notification_log_schema.dump(notifications)
+
+
+@blueprint.route("/update-notification", methods=["PUT", "DELETE"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def edit_notification():
+    notification_log_id = request.get_json().get("notification_log_id", None)
+    message = request.get_json().get("message", None)
+    seen = request.get_json().get("seen", None)
+    user_id = request.get_json().get("user_id", None)
+    expire_date = request.get_json().get("expire_date", None)
+
+    with current_app.db.session as session:
+
+        if not user_id:
+            if not notification_log_id and not message:
+                raise UserError("A notification ID or a message is required for this endpoint")
+            
+            notification_log_schema = NotificationLogSchema()
+
+            if request.method == "PUT":
+                if not expire_date:
+                    raise UserError("An expire date is required for this endpoint")
+                try:
+                    datetime.strptime(expire_date, "%Y-%m-%d %H:%M:%S.%f")
+                except ValueError:
+                    raise UserError("A valid datetime is required for this endpoint '%Y-%m-%d %H:%M:%S.%f'")
+            
+            notification_log_schema = NotificationLogSchema()
+
+            notification = update_notification_log(
+                session, 
+                id=notification_log_id,
+                message=message, 
+                expiration_date=expire_date,
+                delete=request.method == "DELETE"
+            )
+
+            notification = notification_log_schema.dump(notification)
+
+        else:
+            if not user_id or not notification_log_id:
+                raise UserError("A user id and a notification id is required for this endpoint")
+
+            if seen is None:
+                raise UserError("You must pass weather to mark or unmark a notification as seen")
+            
+
+            notification_schema = NotificationSchema()
+            notification = update_notification(
+                session, 
+                notification_log_id=notification_log_id, 
+                user_id=user_id, 
+                seen=seen
+            )
+
+            notification = notification_schema.dump(notification)
+    
+        session.commit()
+
+        return notification
+
+
 
 
   
