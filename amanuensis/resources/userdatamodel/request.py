@@ -14,7 +14,8 @@ def get_requests(
         current_session, 
         id=None, 
         user_id=None, 
-        consortiums=None, 
+        consortiums=None,
+        consortium_id=None, 
         project_id=None,
         many=True,
         throw_not_found=False
@@ -34,6 +35,10 @@ def get_requests(
     if consortiums:
         consortiums = [consortiums] if not isinstance(consortiums, list) else consortiums
         requests = requests.filter(Request.consortium_data_contributor.has(ConsortiumDataContributor.code.in_(consortiums)))
+
+    if consortium_id:
+        consortium_id = [consortium_id] if not isinstance(consortium_id, list) else consortium_id
+        requests = requests.filter(Request.consortium_data_contributor.has(ConsortiumDataContributor.id.in_(consortium_id)))
         
     if project_id:
         project_id = [project_id] if not isinstance(project_id, list) else project_id
@@ -55,12 +60,17 @@ def get_requests(
 
 
 def create_request(current_session, project_id, consortium_id):
-    request = Request(
-        project_id=project_id,
-        consortium_data_contributor_id=consortium_id
-    )
 
-    current_session.add(request)
+    request = get_requests(current_session, project_id=project_id, consortium_id=consortium_id, many=False, throw_not_found=False)
+
+    if not request:
+
+        request = Request(
+            project_id=project_id,
+            consortium_data_contributor_id=consortium_id
+        )
+
+        current_session.add(request)
 
 
     current_session.flush()

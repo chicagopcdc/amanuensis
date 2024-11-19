@@ -79,12 +79,13 @@ def create_filter_set(
         description, 
         filter_object, 
         ids_list, 
-        graphql_object
+        graphql_object,
+        user_source="fence"
     ):
 
     new_filter_set = Search(
         user_id=logged_user_id,
-        user_source="fence",
+        user_source=user_source,
         name=name,
         description=description,
         filter_object=filter_object,

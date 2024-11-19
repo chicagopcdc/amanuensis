@@ -1,7 +1,7 @@
 from amanuensis.schema import ProjectSchema
 
 from amanuensis.resources.userdatamodel.project import get_projects
-from amanuensis.resources.userdatamodel.search import get_filter_sets
+from amanuensis.resources.userdatamodel.search import get_filter_sets, create_filter_set
 from amanuensis.resources.userdatamodel.state import get_states
 from amanuensis.resources.consortium_data_contributor import get_consortiums_from_fitersets
 from amanuensis.resources.userdatamodel.request_has_state import create_request_state, get_request_states
@@ -18,11 +18,11 @@ from cdislogging import get_logger
 logger = get_logger(__name__)
 
 
-def change_request_state(session, project_id, state_id=None, state_code=None, consortium_list=None):
+def change_request_state(session, project_id, state_id=None, state_code=None, consortium_list=None, filter_out_depricated=True):
         
     NEW_STATE = get_states(session, id=state_id, code=state_code, many=False, throw_not_found=True)    
 
-    current_request_states = get_request_states(session, project_id=project_id, filter_out_depricated=True, consortiums=consortium_list, latest=True)
+    current_request_states = get_request_states(session, project_id=project_id, filter_out_depricated=filter_out_depricated, consortiums=consortium_list, latest=True)
 
     final_states = get_transition_graph(session, final_states=True)
     
@@ -37,6 +37,7 @@ def change_request_state(session, project_id, state_id=None, state_code=None, co
             )
         updated_requests.append(create_request_state(session, request_state.request.id, NEW_STATE.id).request)
 
+
     if NEW_STATE.code in config["NOTIFY_STATE"] and updated_requests:
         notify_user_project_status_update(
             session,
@@ -47,61 +48,6 @@ def change_request_state(session, project_id, state_id=None, state_code=None, co
 
     return updated_requests
 
-
-
-
-def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=None, project=None, filter_sets=None):
-    project_schema = ProjectSchema()
-    
-    # Retrieve the project
-    project = get_projects(session, id=project_id, many=False, throw_not_found=True) if not project else project
-
-    filter_sets = get_filter_sets(session, id=filter_set_ids, filter_by_source_type=False, throw_not_equal=True, throw_not_found=True) if not filter_sets else filter_sets
-    
-    #TODO block requests where filter-sets are part of project
-
-    new_consortiums = {consortium.code: consortium for consortium in get_consortiums_from_fitersets(filter_sets, session)}
-    
-    old_consortiums = {request.consortium_data_contributor.code: request for request in project.requests}
-
-    remove_consortiums = old_consortiums.keys() - new_consortiums.keys()
-
-    IN_REVIEW = get_states(session, code="IN_REVIEW", many=False, throw_not_found=True)
-
-    DEPRECATED = get_states(session, code="DEPRECATED", many=False, throw_not_found=True)
- 
-
-    if new_consortiums:
-  
-        for new_consortium_code in new_consortiums.keys():
-
-
-
-            if old_consortiums.get(new_consortium_code, None):
-
-    
-
-                create_request_state(session, request_id=old_consortiums[new_consortium_code].id, state_id=IN_REVIEW.id)            
-    
-            else:
-                
-                request = create_request(session, project_id=project.id, consortium_id=new_consortiums[new_consortium_code].id)
-
-                create_request_state(session, request_id=request.id, state_id=IN_REVIEW.id)
-
-    
-
-    for remove_consortium_code in remove_consortiums:
-        
-        create_request_state(session, request_id=old_consortiums[remove_consortium_code].id, state_id=DEPRECATED.id)
-
-
-    project.searches = filter_sets
-
-    session.flush()
-    project_schema.dump(project)
-    return project
-    
 def calculate_overall_project_state(session, project_id=None, this_project_requests_states=None):
     """
     Takes status codes from all the requests within a project and returns the project status based on their precedence.
@@ -112,7 +58,7 @@ def calculate_overall_project_state(session, project_id=None, this_project_reque
     #run BFS on state flow chart
     if not this_project_requests_states:
         if project_id:
-            this_project_requests_states = get_request_states(session, project_id=project_id, filter_out_depricated=True, latest=True)
+            this_project_requests_states = {request_state.state.code for request_state in get_request_states(session, project_id=project_id, filter_out_depricated=True, latest=True)}
 
     if not this_project_requests_states:
         return {"status": None}
@@ -155,5 +101,81 @@ def calculate_overall_project_state(session, project_id=None, this_project_reque
 
     except Exception:
         raise InternalError("Unable to load or find the consortium status")
+
+
+
+def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=None, project=None, filter_sets=None):
+    project_schema = ProjectSchema()
+    
+    # Retrieve the project
+    project = get_projects(session, id=project_id, many=False, throw_not_found=True) if not project else project
+
+    filter_sets = get_filter_sets(session, id=filter_set_ids, filter_by_source_type=False, throw_not_equal=True, throw_not_found=True) if not filter_sets else filter_sets
+
+    project_filter_sets = []
+    for filter_set in filter_sets:
+        new_filter_set = create_filter_set(
+            session,
+            None,
+            True,
+            filter_set.filter_source_internal_id,
+            project.name + "_" + filter_set.name,
+            filter_set.description,
+            filter_set.filter_object,
+            filter_set.ids_list,
+            filter_set.graphql_object,
+            user_source=""
+        )
+
+        project_filter_sets.append(new_filter_set)
+
+    
+    #TODO block requests where filter-sets are part of project
+
+    # list of requests to be included in the project
+    new_consortiums = {consortium.code: consortium for consortium in get_consortiums_from_fitersets(project_filter_sets, session)}
+    
+    # list of requests that already exist in the project. requests in state Deprecated will not appear
+    old_consortiums = {request_state.request.consortium_data_contributor.code for request_state in get_request_states(session, project_id=project.id, filter_out_depricated=True, latest=True)}
+
+    # List of request to be moved to DEPRECATED
+    remove_consortiums = old_consortiums - new_consortiums.keys()
+
+    # list of requests to be created or moved from deprecated to IN_REVIEW
+    add_consortiums = new_consortiums.keys() - old_consortiums
+
+    # list of request to have their state changed
+    update_consortiums = old_consortiums & new_consortiums.keys()
+    if add_consortiums or remove_consortiums:
+       
+        if add_consortiums:
+            IN_REVIEW = get_states(session, code="IN_REVIEW", many=False, throw_not_found=True)
+            for consortium in add_consortiums:
+                request = create_request(session, project_id=project.id, consortium_id=new_consortiums[consortium].id)
+                create_request_state(session, request_id=request.id, state_id=IN_REVIEW.id)
+        
+        if remove_consortiums:
+            change_request_state(session, project_id=project.id, state_code="DEPRECATED", consortium_list=list(remove_consortiums))
+
+        change_request_state(session, project_id=project.id, state_code="IN_REVIEW", filter_out_depricated=False, consortium_list=list(update_consortiums))
+    
+    else:
+
+        overall_project_state = calculate_overall_project_state(session, project_id=project.id)["status"]
+
+        if overall_project_state == "DATA_DOWNLOADED" or overall_project_state == "DATA_AVAILABLE":
+            change_request_state(session, project_id=project.id, state_code="APPROVED", filter_out_depricated=False, consortium_list=list(update_consortiums))
+        
+        else:
+            change_request_state(session, project_id=project.id, state_code="IN_REVIEW", filter_out_depricated=False, consortium_list=list(update_consortiums))
+ 
+
+
+    project.searches = project_filter_sets
+
+    session.flush()
+    project_schema.dump(project)
+    return project
+    
 
     
