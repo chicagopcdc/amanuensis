@@ -25,7 +25,7 @@ docker build -f Dockerfile.dev -t amanuensis:test .
 
 1) Follow the steps provided in the confluence page `Using Helm for local development` to set up and run a local kubernetes cluster using Helm 
 
-2) run ` nerdctl --namespace k8s.io build -f Dockerfile.dev amanuensis:test . ` This will create a image in your rancher Desktop app
+2) run ` nerdctl --namespace k8s.io build -f Dockerfile.dev -t amanuensis:test . ` This will create a image in your rancher Desktop app
 
 3) in pcdc-default-values.yaml or default-values.yaml (depending on which version of gen3-helm you are using) replace the amanuensis section with this:
 
