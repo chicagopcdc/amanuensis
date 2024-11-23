@@ -97,7 +97,7 @@ def create_project(current_session, user_id, description, name, institution):
 
     current_session.add(new_project)
 
-    current_session.commit()
+    current_session.flush()
 
     return new_project
 
@@ -127,6 +127,6 @@ def update_project(current_session,
     project.approved_url = approved_url if approved_url is not None else project.approved_url
     project.active = True if not delete else False
 
-    current_session.commit()
+    current_session.flush()
 
     return project

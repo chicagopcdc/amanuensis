@@ -44,7 +44,7 @@ def send_message(
     else:
         if receivers:
             current_session.add(new_message)
-            current_session.commit()
+            current_session.flush()
 
     if is_env_enabled("AWS_SES_DEBUG"):
         logger.debug(f"send_message emails (debug mode): {str(emails)}")

@@ -1,8 +1,10 @@
 from cdiserrors import UnhealthyCheck
 import flask
-
+from cdislogging import get_logger
 from amanuensis.version_data import VERSION, COMMIT
+from sqlalchemy import text
 
+logger = get_logger(__name__)
 
 def register_misc(app):
     @app.route("/_status", methods=["GET"])
@@ -12,8 +14,9 @@ def register_misc(app):
         """
         with flask.current_app.db.session as session:
             try:
-                session.execute("SELECT 1")
-            except Exception:
+                session.execute(text("SELECT 1"))
+            except Exception as e:
+                logger.error(f"Failed health check: {e}")
                 raise UnhealthyCheck("Unhealthy")
 
         return "Healthy", 200

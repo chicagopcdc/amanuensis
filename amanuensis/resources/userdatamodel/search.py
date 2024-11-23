@@ -79,12 +79,13 @@ def create_filter_set(
         description, 
         filter_object, 
         ids_list, 
-        graphql_object
+        graphql_object,
+        user_source="fence"
     ):
 
     new_filter_set = Search(
         user_id=logged_user_id,
-        user_source="fence",
+        user_source=user_source,
         name=name,
         description=description,
         filter_object=filter_object,
@@ -95,7 +96,7 @@ def create_filter_set(
     )
     # TODO add es_index, add dataset_version
     current_session.add(new_filter_set)
-    current_session.commit()
+    current_session.flush()
 
     return new_filter_set
 
@@ -121,7 +122,7 @@ def update_filter_set(
     filter_set.graphql_object = graphql_object if graphql_object is not None else filter_set.graphql_object
     filter_set.active = True if not delete else False
 
-    current_session.commit()
+    current_session.flush()
 
     return filter_set
 

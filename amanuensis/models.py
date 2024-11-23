@@ -18,7 +18,9 @@ from userportaldatamodel.models import (
     AssociatedUserRoles, 
     RequestState, 
     SearchIsShared, 
-    Transition
+    Transition,
+    Notification,
+    NotificationLog
 )
 
 

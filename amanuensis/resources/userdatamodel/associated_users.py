@@ -95,7 +95,7 @@ def update_associated_user(current_session,
     user.email = new_email if new_email else user.email
     user.active = True if not delete else False
 
-    current_session.commit()
+    current_session.flush()
 
     return user
 
@@ -129,6 +129,6 @@ def create_associated_user(current_session, email, user_id=None, user_source="fe
 
         logger.info(f"User {new_user} has been created")
     
-    current_session.commit()
+    current_session.flush()
     
     return user if user else new_user

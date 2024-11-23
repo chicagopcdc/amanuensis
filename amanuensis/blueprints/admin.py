@@ -4,13 +4,13 @@ solutions. Operations here assume the underlying operations in the interface
 will maintain coherence between both systems.
 """
 import functools
-
+from datetime import datetime
 from cdiserrors import APIError
 from flask import request, jsonify, Blueprint, current_app
 from cdislogging import get_logger
 
-from amanuensis.auth.auth import check_arborist_auth, current_user
-from amanuensis.errors import UserError, NotFound, AuthError
+from amanuensis.auth.auth import check_arborist_auth, current_user, has_arborist_access
+from amanuensis.errors import UserError, AuthError
 from amanuensis.resources.institution import get_background
 from amanuensis.resources import project
 from amanuensis.resources.userdatamodel.request_has_state import create_request_state
@@ -25,6 +25,9 @@ from amanuensis.resources.userdatamodel.project_has_associated_user import get_p
 from amanuensis.resources.userdatamodel.associated_users import get_associated_users
 from amanuensis.resources.associated_user import add_associated_users
 from amanuensis.resources.userdatamodel.project import get_projects
+from amanuensis.resources.userdatamodel.notification import get_notifications, update_notification
+from amanuensis.resources.userdatamodel.notification_log import create_notification_log, update_notification_log, get_notification_logs
+
 from amanuensis.schema import (
     ProjectSchema,
     StateSchema,
@@ -33,7 +36,9 @@ from amanuensis.schema import (
     AssociatedUserSchema,
     SearchSchema,
     AssociatedUserRolesSchema,
-    ProjectAssociatedUserSchema
+    ProjectAssociatedUserSchema,
+    NotificationSchema,
+    NotificationLogSchema
 )
 
 logger = get_logger(__name__)
@@ -68,7 +73,7 @@ def force_state_change():
     consortiums = request.get_json().get("consortiums", None)
 
     if not state_id or not project_id:
-        return UserError("There are missing params.")
+        raise UserError("There are missing params.")
     
     with current_app.db.session as session:
         requests = get_requests(session, project_id=project_id, consortiums=consortiums)
@@ -80,9 +85,12 @@ def force_state_change():
             new_states.append(new_state)
 
         request_schema = RequestSchema(many=True)
+        session.commit()
         return jsonify(
             request_schema.dump(new_states)
         )
+
+        
 
 @blueprint.route("/delete-project", methods=["DELETE"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
@@ -97,6 +105,8 @@ def delete_project():
         project_schema = ProjectSchema()
 
         project = update_project(session, project_id, delete=True)
+
+        session.commit()
 
         return jsonify(project_schema.dump(project))
 
@@ -122,7 +132,11 @@ def upload_file():
     
     with current_app.db.session as session:
 
-        return jsonify(project.upload_file(session, key, project_id, expires))
+        url = project.upload_file(session, key, project_id, expires)
+
+        session.commit()
+
+        return jsonify(url)
 
 
 @blueprint.route("/states", methods=["POST"])
@@ -141,6 +155,8 @@ def add_state():
     state_schema = StateSchema()
     with current_app.db.session as session:
         state = create_state(session, name, code)
+
+        session.commit()
 
         return jsonify(state_schema.dump(state))
 
@@ -162,6 +178,8 @@ def add_consortium():
 
     with current_app.db.session as session:
         consortium = create_consortium(session, name, code)
+
+        session.commit()
 
         return jsonify(consortium_schema.dump(consortium))
 
@@ -224,6 +242,8 @@ def create_search():
     
         search_schema = SearchSchema()
 
+        session.commit()
+
         return search_schema.dump(new_filter_set)
 
     
@@ -250,6 +270,7 @@ def get_search_by_user_id():
                 "ids": s.ids_list
             } for s in get_filter_sets(session, user_id=user_id, filter_by_source_type=False)
         ]
+
 
     return jsonify({"filter_sets": filter_sets})
 
@@ -309,9 +330,7 @@ def create_project():
     with current_app.db.session as session:
 
         project_schema = ProjectSchema()
-        return jsonify(
-            project_schema.dump(
-                project.create(
+        new_project = project.create(
                     session,
                     user_id,
                     True,
@@ -322,6 +341,12 @@ def create_project():
                     institution,
                     associated_users_emails
                 )
+        
+        session.commit()
+
+        return jsonify(
+            project_schema.dump(
+                new_project
             )
         )
 
@@ -346,8 +371,13 @@ def update_project_attributes():
 
     project_schema = ProjectSchema()
     with current_app.db.session as session:
+
+        project = update_project(session, id=project_id, approved_url=approved_url)
+
+        session.commit()
+
         return jsonify(
-            project_schema.dump(update_project(session, id=project_id, approved_url=approved_url))
+            project_schema.dump(project)
         )
 
 
@@ -368,13 +398,19 @@ def update_project_state():
         consortiums = [consortiums]
 
     if not state_id or not project_id:
-        return UserError("There are missing params.")
+        raise UserError("There are missing params.")
 
     request_schema = RequestSchema(many=True)
 
     with current_app.db.session as session:
+
+        request_state = change_request_state(session, project_id=project_id, state_id=state_id, consortium_list=consortiums)
+
+        session.commit()
+
+
         return jsonify(
-            request_schema.dump(change_request_state(session, project_id=project_id, state_id=state_id, consortium_list=consortiums))
+            request_schema.dump(request_state)
         )
 
 @blueprint.route("/all_associated_user_roles", methods=["GET"])
@@ -401,7 +437,12 @@ def delete_user_from_project():
         if project.user_id == associated_user_id:
             raise UserError("You can't remove the owner from the project")
         user = get_associated_users(session, email=associated_user_email, user_id=associated_user_id,  many=False, throw_not_found=True)
-        return project_associated_user_schema.dump(update_project_associated_user(session, project_id=project_id, associated_user_id=user.id, delete=True))
+
+        project_user = update_project_associated_user(session, project_id=project_id, associated_user_id=user.id, delete=True)
+
+        session.commit()
+
+        return project_associated_user_schema.dump(project_user)
 
 
 @blueprint.route("/associated_user_role", methods=["PUT"])
@@ -429,7 +470,12 @@ def update_associated_user_role():
         project_associated_user_schema = ProjectAssociatedUserSchema()
         ROLE = get_associated_user_roles(session, code=role, many=False, throw_not_found=True)
         user = get_associated_users(session, email=associated_user_email, user_id=associated_user_id,  many=False, throw_not_found=True)
-        return project_associated_user_schema.dump(update_project_associated_user(session, associated_user_id=user.id, project_id=project_id,  role_id=ROLE.id))
+
+        project_user = update_project_associated_user(session, associated_user_id=user.id, project_id=project_id,  role_id=ROLE.id)
+
+        session.commit()
+
+        return project_associated_user_schema.dump(project_user)
 
 
 @blueprint.route("/associated_user", methods=["POST"])
@@ -492,7 +538,8 @@ def copy_search_to_user():
     # return flask.jsonify(search_schema.dump(filterset.copy_filter_set_to_user(filterset_id, logged_user_id, user_id)))
     with current_app.db.session as session:
         filterset = get_filter_sets(session, id=filterset_id, user_id=user_id, filter_by_source_type=False, many=False, throw_not_found=True)
-        return jsonify(search_schema.dump(create_filter_set(
+
+        search_to_user = create_filter_set(
             session,
             user_id=user_id,
             is_amanuensis_admin=True,
@@ -502,7 +549,11 @@ def copy_search_to_user():
             filter_object=filterset.filter_object,
             ids_list=filterset.ids_list,
             graphql_object=filterset.graphql_object
-        )))
+        )
+
+        session.commit()
+
+        return jsonify(search_schema.dump(search_to_user))
 
 @blueprint.route("/copy-search-to-project", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
@@ -521,8 +572,12 @@ def copy_search_to_project():
         raise UserError("a filter-set id is required for this endpoint")
     project_schema = ProjectSchema()
     with current_app.db.session as session:
+        
+        copy_search_to_project = project_requests_from_filter_sets(session, filter_set_ids=filterset_id, project_id=project_id)
 
-        return jsonify(project_schema.dump(project_requests_from_filter_sets(session, filter_set_ids=filterset_id, project_id=project_id)))
+        session.commit()
+
+        return jsonify(project_schema.dump(copy_search_to_project))
     # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))
 
 
@@ -533,6 +588,142 @@ def get_project_users(project_id):
         users = get_project_associated_users(session, project_id, many=True)
 
         return jsonify([{"email": user.associated_user.email, "role": user.role.code} for user in users])
+
+
+
+@blueprint.route("/create-notification", methods=["POST"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def add_new_notification():
+    
+    message = request.get_json().get("message", None)
+    expire_date = request.get_json().get("expire_date", None)
+    if not message:
+        raise UserError("A message is required for this endpoint")
+    if not expire_date:
+        raise UserError("An expire date is required for this endpoint")
+    
+    try:
+        datetime.strptime(expire_date, "%Y-%m-%d %H:%M:%S.%f")
+    except ValueError:
+        raise UserError("A valid datetime is required for this endpoint '%Y-%m-%d %H:%M:%S.%f'")
+
+    with current_app.db.session as session:
+
+        notification_schema = NotificationLogSchema()
+        new_notification = create_notification_log(session, message, expire_date)
+        session.commit()
+
+        return notification_schema.dump(new_notification)
+
+
+@blueprint.route("/notifications", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_notification():
+    
+    user_id = request.args.get("user_id", type=int)
+    notification_log_id = request.args.get("notification_log_id", type=int)
+    message = request.args.get("message", type=str)
+    seen = request.args.get("seen", type=bool)
+
+
+    if seen is not None:
+        filter_by_seen = True
+    else:
+        filter_by_seen = False
+
+
+    with current_app.db.session as session:
+
+        if user_id:
+
+            notification_schema = NotificationSchema(many=True)
+
+            notifications = get_notifications(
+                                session, 
+                                user_id=user_id, 
+                                notification_log_id=notification_log_id, 
+                                seen=seen,
+                                filter_for_seen=filter_by_seen, 
+                                many=True
+                            )
+        
+            return notification_schema.dump(notifications)
+
+        else:
+
+            notification_log_schema = NotificationLogSchema(many=True)
+
+            notifications = get_notification_logs(
+                                session,  
+                                ids=notification_log_id, 
+                                messages=message,
+                                expired=False,
+                                many=True
+                            )
+        
+            return notification_log_schema.dump(notifications)
+
+
+@blueprint.route("/update-notification", methods=["PUT", "DELETE"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def edit_notification():
+    notification_log_id = request.get_json().get("notification_log_id", None)
+    message = request.get_json().get("message", None)
+    seen = request.get_json().get("seen", None)
+    user_id = request.get_json().get("user_id", None)
+    expire_date = request.get_json().get("expire_date", None)
+
+    with current_app.db.session as session:
+
+        if not user_id:
+            if not notification_log_id and not message:
+                raise UserError("A notification ID or a message is required for this endpoint")
+            
+            notification_log_schema = NotificationLogSchema()
+
+            if request.method == "PUT":
+                if not expire_date:
+                    raise UserError("An expire date is required for this endpoint")
+                try:
+                    datetime.strptime(expire_date, "%Y-%m-%d %H:%M:%S.%f")
+                except ValueError:
+                    raise UserError("A valid datetime is required for this endpoint '%Y-%m-%d %H:%M:%S.%f'")
+            
+            notification_log_schema = NotificationLogSchema()
+
+            notification = update_notification_log(
+                session, 
+                id=notification_log_id,
+                message=message, 
+                expiration_date=expire_date,
+                delete=request.method == "DELETE"
+            )
+
+            notification = notification_log_schema.dump(notification)
+
+        else:
+            if not user_id or not notification_log_id:
+                raise UserError("A user id and a notification id is required for this endpoint")
+
+            if seen is None:
+                raise UserError("You must pass weather to mark or unmark a notification as seen")
+            
+
+            notification_schema = NotificationSchema()
+            notification = update_notification(
+                session, 
+                notification_log_id=notification_log_id, 
+                user_id=user_id, 
+                seen=seen
+            )
+
+            notification = notification_schema.dump(notification)
+    
+        session.commit()
+
+        return notification
+
+
 
 
   

@@ -63,6 +63,6 @@ def create_state(current_session, name, code):
             state
         )
 
-        current_session.commit()
+        current_session.flush()
 
     return state

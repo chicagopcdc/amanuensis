@@ -3,11 +3,13 @@ from mock import patch
 from cdislogging import get_logger
 from amanuensis.models import *
 from amanuensis.schema import *
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 from amanuensis.blueprints.filterset import UserError
 import requests
 import json 
+from amanuensis.config import config
+
 
 
 logger = get_logger(logger_name=__name__)
@@ -166,7 +168,6 @@ def test_admin_create_project(session, client, login, project_data, mock_request
             "institution": "test university",
             "filter_set_ids": [project_data["filter_set_id"]],
             "associated_users_emails": []
-
         }
     create_project_response = client.post('/admin/projects', json=create_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
     assert create_project_response.status_code == 200
@@ -179,13 +180,40 @@ def test_admin_create_project(session, client, login, project_data, mock_request
     assert user_1.active == True
     assert user_1.role.code == "METADATA_ACCESS"
 
+    #test new filter-set was created with same data except for name and added to project with no user id
+    project = session.query(Project).filter(Project.id == project_id).first()
+    assert project.searches[0].id != project_data["filter_set_id"]
+    assert not project.searches[0].user_id
+    assert not project.searches[0].user_source
+    assert project.searches[0].filter_source == "manual"
+    users_filter_set = session.query(Search).filter(Search.id == project_data["filter_set_id"]).first()
+    assert project.searches[0].name == project.name + "_" + users_filter_set.name
+    assert project.searches[0].description == users_filter_set.description
+    assert project.searches[0].filter_object == users_filter_set.filter_object
+    assert project.searches[0].graphql_object == users_filter_set.graphql_object
+
+
+
     INRG_request = session.query(Request).filter(Request.project_id == project_id).filter(Request.consortium_data_contributor.has(code="INRG")).first()
     assert INRG_request
 
     INSTRUCT_request = session.query(Request).filter(Request.project_id == project_id).filter(Request.consortium_data_contributor.has(code="INSTRUCT")).first()
     assert INSTRUCT_request
     
-    #TODO test bad project creations
+    #block project creation if request to pcdcanalysistools fails
+    mock_requests_post(consortiums=["INSTRUCT", "INRG"], urls={config["GET_CONSORTIUMS_URL"]: 400})
+    create_project_json = {
+            "user_id": project_data["user_id"],
+            "name": f"{__name__}_bad_project",
+            "description": "This is an endpoint test project",
+            "institution": "test university",
+            "filter_set_ids": [project_data["filter_set_id"]],
+            "associated_users_emails": []
+    }
+    create_project_response = client.post('/admin/projects', json=create_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert create_project_response.status_code == 500
+    assert session.query(ConsortiumDataContributor).count() == 3
+    assert session.query(Project).filter(Project.name == f"{__name__}_bad_project").count() == 0
 
 
 @pytest.mark.order(3)
@@ -378,9 +406,14 @@ def test_admin_edit_project_state(session, client, project_data, mock_requests_p
             approved_state = state
             project_data["approved_state_id"] = approved_state["id"]
         elif state["code"] == "DATA_AVAILABLE":
+            project_data["data_available_state_id"] = state["id"]
             data_available = state
         elif state["code"] == "PUBLISHED":
             published_state = state 
+            project_data["published_state_id"] = published_state["id"]
+        elif state["code"] == "DATA_DOWNLOADED":
+            project_data["data_downloaded_state_id"] = state["id"]
+        
 
     update_project_state_INRG_approved_json = {"project_id": project_data["project_id"], "state_id": approved_state["id"], "consortiums": "INRG"}
     update_project_state_INRG_approved_response = client.post("/admin/projects/state", json=update_project_state_INRG_approved_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
@@ -555,6 +588,107 @@ def test_admin_edit_filter_sets(session, client, project_data, mock_requests_pos
     assert get_request_states(session, request_id=INRG.id, latest=True, many=False).state.code == "IN_REVIEW"
     assert get_request_states(session, request_id=MAGIC.id, latest=True, many=False).state.code == "DEPRECATED"
 
+    #TEST if project is in data_available then if the filter-set is changed then state should go back to approved
+
+    update_project_state_data_available_state_json = {"project_id": project_data["project_id"], "state_id": project_data["data_available_state_id"]}
+    update_project_state_approved_state_response = client.post("/admin/projects/state", json=update_project_state_data_available_state_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert get_request_states(session, request_id=INSTRUCT.id, latest=True, many=False).state.code == "DATA_AVAILABLE"
+    assert get_request_states(session, request_id=INRG.id, latest=True, many=False).state.code == "DATA_AVAILABLE"
+    assert get_request_states(session, request_id=MAGIC.id, latest=True, many=False).state.code == "DEPRECATED"
+
+
+
+    admin_copy_search_to_project_json = {
+                "filtersetId": id_3_requests,
+                "projectId": project_data["project_id"]
+    }
+
+    admin_copy_search_to_project_response = client.post("admin/copy-search-to-project", json=admin_copy_search_to_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_copy_search_to_project_response.status_code == 200
+
+    assert get_request_states(session, request_id=INSTRUCT.id, latest=True, many=False).state.code == "APPROVED"
+    assert get_request_states(session, request_id=INRG.id, latest=True, many=False).state.code == "APPROVED"
+    assert get_request_states(session, request_id=MAGIC.id, latest=True, many=False).state.code == "DEPRECATED"
+
+    #TEST if project is in data_downloaded then if the filter-set is changed then state should go back to approved 
+    #TEST if state is in deprecated then if the filter-set is changed then state should go back to approved
+
+    mock_requests_post(consortiums=["INSTRUCT"])
+
+    update_project_state_data_downloaded_state_json = {"project_id": project_data["project_id"], "state_id": project_data["data_downloaded_state_id"]}
+    update_project_state_approved_state_response = client.post("/admin/projects/state", json=update_project_state_data_downloaded_state_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert get_request_states(session, request_id=INSTRUCT.id, latest=True, many=False).state.code == "DATA_DOWNLOADED"
+    assert get_request_states(session, request_id=INRG.id, latest=True, many=False).state.code == "DATA_DOWNLOADED"
+    assert get_request_states(session, request_id=MAGIC.id, latest=True, many=False).state.code == "DEPRECATED"
+
+    admin_copy_search_to_project_json = {
+                "filtersetId": id_1_requests,
+                "projectId": project_data["project_id"]
+    }
+
+    admin_copy_search_to_project_response = client.post("admin/copy-search-to-project", json=admin_copy_search_to_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_copy_search_to_project_response.status_code == 200
+
+    assert get_request_states(session, request_id=INSTRUCT.id, latest=True, many=False).state.code == "IN_REVIEW"
+    assert get_request_states(session, request_id=INRG.id, latest=True, many=False).state.code == "DEPRECATED"
+    assert get_request_states(session, request_id=MAGIC.id, latest=True, many=False).state.code == "DEPRECATED"
+
+
+    mock_requests_post(consortiums=["INSTRUCT", "INRG"])
+
+    update_project_state_data_downloaded_state_json = {"project_id": project_data["project_id"], "state_id": project_data["data_available_state_id"]}
+    update_project_state_approved_state_response = client.post("/admin/projects/state", json=update_project_state_data_downloaded_state_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert get_request_states(session, request_id=INSTRUCT.id, latest=True, many=False).state.code == "DATA_AVAILABLE"
+    assert get_request_states(session, request_id=INRG.id, latest=True, many=False).state.code == "DEPRECATED"
+    assert get_request_states(session, request_id=MAGIC.id, latest=True, many=False).state.code == "DEPRECATED"
+
+
+    admin_copy_search_to_project_json = {
+                "filtersetId": id_3_requests,
+                "projectId": project_data["project_id"]
+    }
+
+    admin_copy_search_to_project_response = client.post("admin/copy-search-to-project", json=admin_copy_search_to_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_copy_search_to_project_response.status_code == 200
+
+    assert get_request_states(session, request_id=INSTRUCT.id, latest=True, many=False).state.code == "IN_REVIEW"
+    assert get_request_states(session, request_id=INRG.id, latest=True, many=False).state.code == "IN_REVIEW"
+    assert get_request_states(session, request_id=MAGIC.id, latest=True, many=False).state.code == "DEPRECATED"
+
+
+
+
+    #block filter-set change when project is in final state
+
+    mock_requests_post(consortiums=["INSTRUCT", "INRG"])
+
+    update_project_state_final_state_json = {"project_id": project_data["project_id"], "state_id": project_data["published_state_id"]}
+    update_project_state_approved_state_response = client.post("/admin/projects/state", json=update_project_state_final_state_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    admin_copy_search_to_project_json = {
+                "filtersetId": id_1_requests,
+                "projectId": project_data["project_id"]
+    }
+
+    admin_copy_search_to_project_response = client.post("admin/copy-search-to-project", json=admin_copy_search_to_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_copy_search_to_project_response.status_code == 400
+
+    
+    #move project back to approved
+
+    update_project_state_approved_state_json = {"project_id": project_data["project_id"], "state_id": project_data["approved_state_id"]}
+    update_project_state_approved_state_response = client.post("/admin/project/force-state-change", json=update_project_state_approved_state_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert update_project_state_approved_state_response.status_code == 200
+    assert get_request_states(session, request_id=INSTRUCT.id, latest=True, many=False).state.code == "APPROVED"
+    assert get_request_states(session, request_id=INRG.id, latest=True, many=False).state.code == "APPROVED"
+    assert get_request_states(session, request_id=MAGIC.id, latest=True, many=False).state.code == "APPROVED"
+
+
+
+
 @pytest.mark.order(6)
 def test_admin_upload_and_download_data(session, s3, client, login, project_data, mock_requests_post): 
     #admins can add add approved_url through put admin/projects (DEPRECATE) or admin/upload-data (REPLACE)
@@ -696,8 +830,6 @@ def test_get_projects(session, client, login, project_data, mock_requests_post):
     assert len(user_1_get_projects_response.json) == 1
 
 
-
-
     
 @pytest.mark.order(8)
 def test_delete_filter_set(session, client, login, project_data):
@@ -729,4 +861,127 @@ def test_delete_filter_set(session, client, login, project_data):
     assert filter_set_get_delete_search_response.status_code == 200
     assert len(filter_set_get_delete_search_response.json["filter_sets"]) == 0
 
-        
+
+
+@pytest.mark.order(9)
+def test_notification_system(session, client, login, project_data):
+    session.query(Notification).delete()
+    session.query(NotificationLog).delete()
+    
+    session.commit() 
+
+    # Original date
+    expire_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
+    dont_expire_date = (datetime.now() + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S.%f")
+
+    #TEST BAD datetime format
+    bad_notification = client.post('/admin/create-notification', json={
+        "message": "test notification 1",
+        "expire_date": "2024-11-12 177:5:31.06723"
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert bad_notification.status_code == 400
+
+
+    notification_1 = client.post('/admin/create-notification', json={
+        "message": "test notification 1",
+        "expire_date": dont_expire_date
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert notification_1.status_code == 200
+
+    notification_1_query = session.query(NotificationLog).filter(NotificationLog.message == "test notification 1").all()
+    assert len(notification_1_query) == 1
+
+    login(project_data['user_id'], project_data['user_email'])
+
+    user_1_sees_notification = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_sees_notification.status_code == 200
+
+    user_1_sees_notification_query = session.query(Notification).filter(Notification.user_id == project_data['user_id']).all()
+
+    assert len(user_1_sees_notification_query) == 1
+
+
+    notification_2 = client.post('/admin/create-notification', json={
+        "message": "test notification 2",
+        "expire_date": dont_expire_date
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert notification_2.status_code == 200
+
+    user_1_sees_notification_2 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_sees_notification_2.status_code == 200
+    assert len(user_1_sees_notification_2.json) == 1
+
+    user_1_sees_notification_2_query = session.query(Notification).filter(Notification.user_id == project_data['user_id']).all()
+    assert len(user_1_sees_notification_2_query) == 2
+
+    login(project_data['user_2_id'], project_data['user_2_email'])
+    user_2_sees_notification = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_2_id"]}'})
+
+    assert user_2_sees_notification.status_code == 200
+    assert len(user_2_sees_notification.json) == 2
+
+    notification_3 = client.post('/admin/create-notification', json={
+        "message": "test notification 3",
+        "expire_date": dont_expire_date
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert notification_3.status_code == 200
+
+    delete_notification_1 = client.delete(f'/admin/update-notification', json={"notification_log_id": [notification_3.json["id"]]}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert delete_notification_1.status_code == 200
+
+    login(project_data['user_id'], project_data['user_email'])
+    user_1_doesnt_see_notification_3 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_doesnt_see_notification_3.status_code == 200
+    assert len(user_1_doesnt_see_notification_3.json) == 0
+
+    #Test users dont see expired notifications
+    notification_4 = client.post('/admin/create-notification', json={
+        "message": "test notification 4",
+        "expire_date": expire_date
+    }, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert notification_4.status_code == 200
+
+    login(project_data['user_id'], project_data['user_email'])
+    user_1_doesnt_see_notification_4 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_doesnt_see_notification_4.status_code == 200
+    assert len(user_1_doesnt_see_notification_4.json) == 0
+    
+
+    update_user_1_notifcation_1_to_seen = client.put(f'/admin/update-notification', json={"notification_log_id": notification_1.json["id"], "user_id": project_data['user_id'], "seen": True}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert update_user_1_notifcation_1_to_seen.status_code == 200
+
+    #get notifications for user_1 where seen is true
+
+    admin_get_route_filter_by_seen = client.get(f'/admin/notifications?user_id={project_data["user_id"]}&seen=True', headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert admin_get_route_filter_by_seen.status_code == 200
+    assert len(admin_get_route_filter_by_seen.json) == 1
+
+    get_all_notifications = client.get('/admin/notifications', headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert get_all_notifications.status_code == 200
+    assert len(get_all_notifications.json) == 3
+
+
+    #update expiration date on notification 4
+
+    update_notification_4 = client.put(f'/admin/update-notification', json={"notification_log_id": notification_4.json["id"], "expire_date": dont_expire_date}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+
+    assert update_notification_4.status_code == 200
+
+    login(project_data['user_id'], project_data['user_email'])
+    user_1_sees_notification_4 = client.get('/notifications', headers={"Authorization": f'bearer {project_data["user_id"]}'})
+
+    assert user_1_sees_notification_4.status_code == 200
+    assert len(user_1_sees_notification_4.json) == 1
+

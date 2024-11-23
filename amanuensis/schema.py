@@ -13,7 +13,9 @@ from userportaldatamodel.schemas.schemas import (
     AssociatedUserSchema,
     RequestStateSchema,
     SearchIsSharedSchema,
-    ProjectAssociatedUserSchema
+    ProjectAssociatedUserSchema, 
+    AssociatedUserRolesSchema,
+    NotificationSchema,
+    NotificationLogSchema
 )
-#TODO fix this in userdataportalmodel
-from userportaldatamodel.schemas.associated_user_roles_schema import AssociatedUserRolesSchema
+

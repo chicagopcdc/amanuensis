@@ -8,7 +8,7 @@ Create Date: 2022-10-20 08:49:09.830257
 from alembic import op
 from sqlalchemy.orm.session import Session
 import json
-
+from sqlalchemy import text
 from userportaldatamodel.models import (Search)
 
 import sqlalchemy as sa
@@ -31,7 +31,7 @@ def upgrade() -> None:
     #     Search.filter_object.astext_type.like("%molecular_analysis.molecular_abnormality_result%")
     # )
     # searches = query.all()
-    search_ids_raw = session.execute("SELECT id from search where filter_object::text like '%molecular_analysis.molecular_abnormality_result%'").fetchall()
+    search_ids_raw = session.execute(text("SELECT id from search where filter_object::text like '%molecular_analysis.molecular_abnormality_result%'")).fetchall()
     search_ids = [value for value, in search_ids_raw]
 
     query = session.query(Search).filter(
@@ -128,7 +128,7 @@ def downgrade() -> None:
     # Attach a sqlalchemy Session to the env connection
     session = Session(bind=conn)
 
-    search_ids_raw = session.execute("SELECT id from search where filter_object::text like '%molecular_analysis.molecular_abnormality_result%'").fetchall()
+    search_ids_raw = session.execute(text("SELECT id from search where filter_object::text like '%molecular_analysis.molecular_abnormality_result%'")).fetchall()
     search_ids = [value for value, in search_ids_raw]
 
     query = session.query(Search).filter(

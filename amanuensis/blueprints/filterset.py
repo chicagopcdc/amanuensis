@@ -123,6 +123,8 @@ def update_search(filter_set_id):
                                     graphql_object=graphql_object,
                                     delete= True if flask.request.method == "DELETE" else False
                                 )
+        
+        session.commit()
     
         return search_schema.dump(updated_filter_set)
 
@@ -147,6 +149,8 @@ def create_snapshot_from_filter_set():
     
     with flask.current_app.db.session as session:
         snapshot = create_filter_set_snapshot(session, logged_user_id, filter_set_id, users_list)
+
+        session.commit()
 
         return flask.jsonify(snapshot)
 

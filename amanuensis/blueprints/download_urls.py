@@ -61,6 +61,7 @@ def download_data(project_id):
         #check if project is in fianl state or in Data Download state before attempting to change state
         change_request_state(session, project_id, state_code="DATA_DOWNLOADED")
             
+        session.commit()
 
         # Create pre-signed URL for downalod
         s3_info = get_s3_key_and_bucket(storage_url)
