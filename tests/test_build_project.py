@@ -861,6 +861,20 @@ def test_delete_filter_set(session, client, login, project_data):
     assert filter_set_get_delete_search_response.status_code == 200
     assert len(filter_set_get_delete_search_response.json["filter_sets"]) == 0
 
+    #use admin endpoint to get deleted filter set
+    login(project_data["admin_id"], project_data["admin_email"])
+    admin_get_filter_set_response = client.get(f'/admin/filter-sets/user', json={"user_id": project_data["user_id"]}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_get_filter_set_response.status_code == 200
+    assert len(admin_get_filter_set_response.json["filter_sets"]) == 0
+
+    admin_get_filter_set_response = client.get(f'/admin/filter-sets/user', json={"user_id": project_data["user_id"], "include_deleted": False}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_get_filter_set_response.status_code == 200
+    assert len(admin_get_filter_set_response.json["filter_sets"]) == 0
+
+    admin_get_filter_set_response = client.get(f'/admin/filter-sets/user', json={"user_id": project_data["user_id"], "include_deleted": True}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_get_filter_set_response.status_code == 200
+    assert len(admin_get_filter_set_response.json["filter_sets"]) == 1
+
 
 
 @pytest.mark.order(9)
