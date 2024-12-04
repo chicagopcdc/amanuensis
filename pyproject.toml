@@ -50,6 +50,7 @@ pytest-order = "^1.0"
 
 [tool.poetry.scripts]
 fence-create = 'amanuensis.scripting.fence_create:main'
+clear-old-filter-sets = 'amanuensis.scripting.clear_old_filter_sets:main'
 
 
 [build-system]
