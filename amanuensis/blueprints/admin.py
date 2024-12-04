@@ -255,6 +255,7 @@ def get_search_by_user_id():
     Returns a json object
     """
     user_id = request.get_json().get("user_id", None)
+    include_deleted = request.get_json().get("include_deleted", False)
     if not user_id:
         raise UserError("Missing user_id in the payload")
     # name = request.get_json().get("name", None)
@@ -268,7 +269,7 @@ def get_search_by_user_id():
                 "description": s.description, 
                 "filters": s.filter_object, 
                 "ids": s.ids_list
-            } for s in get_filter_sets(session, user_id=user_id, filter_by_source_type=False)
+            } for s in get_filter_sets(session, user_id=user_id, filter_by_source_type=False, filter_by_active=(not include_deleted))
         ]
 
 
