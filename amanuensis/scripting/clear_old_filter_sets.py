@@ -5,7 +5,7 @@ from amanuensis.models import Search, ProjectSearch, SearchIsShared
 from amanuensis.settings import CONFIG_SEARCH_FOLDERS
 from amanuensis.config import config
 from sqlalchemy import and_, not_, exists
-logger = get_logger(__name__)
+logger = get_logger(__name__, log_level="info")
 
 
 
@@ -34,6 +34,7 @@ def main():
             logger.info(f"Deleting search {result.id} {result.name}")
         query.delete()
         session.commit()
+        logger.info("Done, Job succefully completed.")
 
 if __name__ == "__main__":
     main()
