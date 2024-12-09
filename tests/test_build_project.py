@@ -861,6 +861,31 @@ def test_delete_filter_set(session, client, login, project_data):
     assert filter_set_get_delete_search_response.status_code == 200
     assert len(filter_set_get_delete_search_response.json["filter_sets"]) == 0
 
+    #add a new filter set for user 1 thats active
+    login(project_data["user_id"], project_data["user_email"])
+
+    create_filter_set_json = {
+        "name": "new_name_2",
+        "description": "new_description_2",
+        "filters": "new_filter_object_2",
+    }
+    create_filter_set_response = client.post('/filter-sets', json=create_filter_set_json, headers={"Authorization": f'bearer {project_data["user_id"]}'})
+    assert create_filter_set_response.status_code == 200
+
+    #use admin endpoint to get deleted filter set
+    login(project_data["admin_id"], project_data["admin_email"])
+    admin_get_filter_set_response = client.get(f'/admin/filter-sets/user', json={"user_id": project_data["user_id"]}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_get_filter_set_response.status_code == 200
+    assert len(admin_get_filter_set_response.json["filter_sets"]) == 1
+
+    admin_get_filter_set_response = client.get(f'/admin/filter-sets/user', json={"user_id": project_data["user_id"], "include_deleted": False}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_get_filter_set_response.status_code == 200
+    assert len(admin_get_filter_set_response.json["filter_sets"]) == 1
+
+    admin_get_filter_set_response = client.get(f'/admin/filter-sets/user', json={"user_id": project_data["user_id"], "include_deleted": True}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_get_filter_set_response.status_code == 200
+    assert len(admin_get_filter_set_response.json["filter_sets"]) == 2
+
 
 
 @pytest.mark.order(9)
