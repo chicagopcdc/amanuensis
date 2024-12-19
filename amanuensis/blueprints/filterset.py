@@ -114,9 +114,10 @@ def update_search(filter_set_id):
         
         updated_filter_set = update_filter_set(
                                     session, 
-                                    logged_user_id, 
-                                    filter_set_id, 
-                                    explorer_id, 
+                                    filter_set=None,
+                                    logged_user_id=logged_user_id, 
+                                    filter_set_id=filter_set_id, 
+                                    explorer_id=explorer_id, 
                                     name=name, 
                                     description=description, 
                                     filter_object=filter_object, 
