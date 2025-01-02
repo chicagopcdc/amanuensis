@@ -121,8 +121,6 @@ APPLICATION_ROOT: '/amanuensis'
 
 GET_CONSORTIUMS_URL: 'http://pcdcanalysistools-service/tools/stats/consortiums'
 
-DATA_DICTIONARY_URL: 'http://sheepdog-service/api/v0/submission/_dictionary/_all'
-
 ########################################################################################
 #                               OPTIONAL CONFIGURATIONS                                #
 ########################################################################################

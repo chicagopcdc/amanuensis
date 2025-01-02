@@ -32,15 +32,6 @@ def _load_data_files(file_name):
 
     return data
 
-def _retrieve_data_dictionary():
-    try:
-        response = requests.get(config['DATA_DICTIONARY_URL'])
-        response.raise_for_status()
-        data = response.json()
-    except requests.exceptions.RequestException as e:
-        raise InternalError(e)
-    return data
-
 
 def _get_explorer_selectable_values(portal_config):
     selectable_values = {}
@@ -82,7 +73,7 @@ def _check_portal_config(filter_set, selectable_values):
         
 
 
-def _check_es_to_dd_map(filter_set, es_to_dd_map, data_dictionary):
+def _check_es_to_dd_map(filter_set, es_to_dd_map):
     #first want to check if selected value exists in mapping keys
     #look in DD to look for value type
     #if the type is enum check if 
@@ -100,15 +91,9 @@ def _check_es_to_dd_map(filter_set, es_to_dd_map, data_dictionary):
             logger.info(f"The filter {filter_set_name} contains the element {key} which is not a valid element in elasticsearch")
             return False
         
-        if not es_to_dd_map[key]:
+        if not es_to_dd_map[key]["pointer"] and "type" not in es_to_dd_map[key] and "enum" not in es_to_dd_map[key]:
             logger.info(f"The filter {filter_set_name} contains the element {key} which is not a valid element in the data dictionary")
             return False
-        
-        try:
-            valid_selections = data_dictionary[es_to_dd_map[key][0]]["properties"][es_to_dd_map[key][1]]
-        except Exception as e:
-            logger.error(f"There is an error with the Elastic Search to Data Dictionary mapping {e}")
-            raise InternalError(f"There is an error with the Elastic Search to Data Dictionary mapping {e}")
         
         try: 
             selected_type = selected_value["__type"]
@@ -119,12 +104,12 @@ def _check_es_to_dd_map(filter_set, es_to_dd_map, data_dictionary):
             return False
 
         if selected_type == "OPTION":
-            if "enum" in valid_selections:
+            if "enum" in es_to_dd_map[key]:
                 for value in selected_values:
-                    if value not in valid_selections["enum"]:
+                    if value not in es_to_dd_map[key]["enum"]:
                         logger.info(f"The filter {filter_set_name} has a selected value {value} for the filter {key} which is not a valid element in the data dictionary")
                         return False
-        
+                    
         elif selected_type != "RANGE":
             logger.info(f"The filter {filter_set_name} has a selected filter {key} which is not a valid format {selected_value}")
             return False
@@ -134,8 +119,6 @@ def _check_es_to_dd_map(filter_set, es_to_dd_map, data_dictionary):
 
 
 def check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", portal_config_file_name="gitops.json"):
-    
-    data_dictionary = _retrieve_data_dictionary()
 
     es_to_dd_map = _load_data_files(es_to_dd_map_file_name)
     
@@ -153,7 +136,7 @@ def check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", porta
 
             if is_valid:
 
-                is_valid = _check_es_to_dd_map(filter_set, es_to_dd_map, data_dictionary)
+                is_valid = _check_es_to_dd_map(filter_set, es_to_dd_map)
         else:
             is_valid = False
 

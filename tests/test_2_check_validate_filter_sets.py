@@ -1,5 +1,5 @@
 import pytest
-from amanuensis.resources.filter_sets import _load_data_files, _retrieve_data_dictionary, _get_explorer_selectable_values, _check_es_to_dd_map, _check_portal_config, check_filter_sets 
+from amanuensis.resources.filter_sets import _load_data_files, _get_explorer_selectable_values, _check_es_to_dd_map, _check_portal_config, check_filter_sets 
 from amanuensis.errors import NotFound, InternalError
 from amanuensis.models import Search
 from amanuensis.scripting.validate_filter_sets import main
@@ -15,11 +15,6 @@ def portal_config():
     portal_config = _load_data_files("gitops.json")
     yield portal_config
 
-@pytest.fixture(scope="module")
-def data_dictionary():
-    data_dictionary = _retrieve_data_dictionary()
-    yield data_dictionary
-
 
 
 pytest.mark.order(1)
@@ -28,10 +23,6 @@ def test__load_data_files():
     assert _load_data_files("gitops.json")
     with pytest.raises(NotFound):
         _load_data_files("not_real.json")
-
-pytest.mark.order(2)
-def test__retrieve_data_dictionary():
-    assert _retrieve_data_dictionary()
 
 pytest.mark.order(3)
 def test__get_explorer_selectable_values(portal_config):
@@ -73,9 +64,9 @@ def test_check_portal_config(portal_config):
     assert not _check_portal_config(invalid_filter_set, selectable_values)
 
 pytest.mark.order(5)
-def test_check_es_to_dd_map(es_to_dd_map, data_dictionary):
+def test_check_es_to_dd_map(es_to_dd_map):
     valid_filter_set = Search(
-        name="In_valid", 
+        name="Is_valid", 
         filter_object={
             "value": {
                 "sex": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["Male"]}, 
@@ -88,10 +79,12 @@ def test_check_es_to_dd_map(es_to_dd_map, data_dictionary):
         }
     )
 
-    assert _check_es_to_dd_map(valid_filter_set, es_to_dd_map, data_dictionary)
+    assert _check_es_to_dd_map(valid_filter_set, es_to_dd_map)
 
+
+    #contains value not in elastic search
     invalid_filter_set_doesnt_exist_in_elastic_search = Search(
-        name="In_valid", 
+        name="Is_not_valid", 
         filter_object={
             "value": {
                 "sex": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["Male"]}, 
@@ -105,10 +98,11 @@ def test_check_es_to_dd_map(es_to_dd_map, data_dictionary):
         }
     )
 
-    assert not _check_es_to_dd_map(invalid_filter_set_doesnt_exist_in_elastic_search, es_to_dd_map, data_dictionary)
+    assert not _check_es_to_dd_map(invalid_filter_set_doesnt_exist_in_elastic_search, es_to_dd_map)
 
+    #value from elastic search but not in data dictionary
     invalid_filter_set_doesnt_exist_in_dictionary = Search(
-        name="In_valid", 
+        name="Is_not_valid", 
         filter_object={
             "value": {
                 "sex": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["Male"]}, 
@@ -122,26 +116,15 @@ def test_check_es_to_dd_map(es_to_dd_map, data_dictionary):
         }
     )
 
-    assert not _check_es_to_dd_map(invalid_filter_set_doesnt_exist_in_dictionary, es_to_dd_map, data_dictionary)
-
-
-    consortium = data_dictionary["subject"]["properties"]["consortium"]
-
-    data_dictionary.pop("subject")
-
-    with pytest.raises(InternalError):
-        _check_es_to_dd_map(invalid_filter_set_doesnt_exist_in_dictionary, es_to_dd_map, data_dictionary)
-
-
-    data_dictionary["subject"] = consortium
+    assert not _check_es_to_dd_map(invalid_filter_set_doesnt_exist_in_dictionary, es_to_dd_map)
 
 
     #test filter is improperly formatted
     invalid_filter_set = Search(
-        name="In_valid", 
+        name="Is_not_valid", 
         filter_object={
             "value": {
-                "sex": {"isExclusion": False, "selectedValues": ["Male"]}, 
+                "sex": {"isExclusion": False, "selectedValues": ["Male"]}, # no "__type": "OPTION"
                 "consortium": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["INRG"]}, #enum
                 "studies.treatment_arm": {"__type": "OPTION", "selectedValues": ["some study"], "isExclusion": False}, #array
                 "tumor_assessments.longest_diam_dim1": {"__type": "RANGE", "lowerBound": 20, "upperBound": 76},
@@ -151,14 +134,14 @@ def test_check_es_to_dd_map(es_to_dd_map, data_dictionary):
         }
     )
 
-    assert not _check_es_to_dd_map(invalid_filter_set, es_to_dd_map, data_dictionary)
+    assert not _check_es_to_dd_map(invalid_filter_set, es_to_dd_map)
 
     #test filter is improperly formatted
     invalid_filter_set = Search(
-        name="In_valid", 
+        name="Is_not_valid", 
         filter_object={
             "value": {
-                "sex": {"__type": "OPTION", "isExclusion": False}, 
+                "sex": {"__type": "OPTION", "isExclusion": False}, # no "selectedValues": ["Male"]
                 "consortium": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["INRG"]}, #enum
                 "studies.treatment_arm": {"__type": "OPTION", "selectedValues": ["some study"], "isExclusion": False}, #array
                 "tumor_assessments.longest_diam_dim1": {"__type": "RANGE", "lowerBound": 20, "upperBound": 76},
@@ -168,13 +151,13 @@ def test_check_es_to_dd_map(es_to_dd_map, data_dictionary):
         }
     )
 
-    assert not _check_es_to_dd_map(invalid_filter_set, es_to_dd_map, data_dictionary)
+    assert not _check_es_to_dd_map(invalid_filter_set, es_to_dd_map)
 
 
     #test filter has enum no longer supported 
 
     invalid_filter_set = Search(
-        name="In_valid", 
+        name="Is_not_valid", 
         filter_object={
             "value": {
                 "sex": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["Male", "NOT_REAL_VALUE"]}, 
@@ -187,10 +170,24 @@ def test_check_es_to_dd_map(es_to_dd_map, data_dictionary):
         }
     )
 
-    assert not _check_es_to_dd_map(invalid_filter_set, es_to_dd_map, data_dictionary)
+    assert not _check_es_to_dd_map(invalid_filter_set, es_to_dd_map)
+
+
+    # test "biospecimen_status" case
+
+    is_valid_filter_set = Search(
+        name="Is_valid", 
+        filter_object={
+            "value": {
+                "biospecimen_status": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["Absent"]},
+            }
+        }
+    )
+
+    assert _check_es_to_dd_map(is_valid_filter_set, es_to_dd_map)
 
 pytest.mark.order(6)
-def test_check_filter_sets(session, data_dictionary, es_to_dd_map):
+def test_check_filter_sets(session, es_to_dd_map):
 
     session.add_all([
         Search(
