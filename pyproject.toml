@@ -34,7 +34,7 @@ html2text = "^2020.1.16"
 pcdcutils = {git = "https://github.com/chicagopcdc/pcdcutils.git", rev = "0.1.3"}
 hubspotclient = {git = "https://github.com/chicagopcdc/hubspotclient.git", rev = "1.0.2"}
 pcdc-aws-client = {git = "https://github.com/chicagopcdc/pcdc-aws-client.git", rev = "1.2.6"}
-userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "1.8.1"}
+userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "is_valid-filter-set"}
 psycopg2 = "^2.9.10"
 
 [tool.poetry.dev-dependencies]
@@ -51,6 +51,7 @@ pytest-order = "^1.0"
 [tool.poetry.scripts]
 fence-create = 'amanuensis.scripting.fence_create:main'
 clear-old-filter-sets = 'amanuensis.scripting.clear_old_filter_sets:main'
+validate-filter-sets = 'amanuensis.scripting.validate_filter_sets:main'
 
 
 [build-system]
