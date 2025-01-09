@@ -150,7 +150,13 @@ SUPPORT_EMAIL_FOR_ERRORS: null
 #   - Support `/data` endpoints
 # //////////////////////////////////////////////////////////////////////////////////////
 AWS_CREDENTIALS:
-  'DATA_DELIVERY_S3_BUCKET':
+  AWS_SES:
+    SENDER: ""
+    RECIPIENT: ""
+    AWS_REGION: "us-east-1"
+    aws_access_key_id: ""
+    aws_secret_access_key: ""
+  DATA_DELIVERY_S3_BUCKET:
     aws_access_key_id: 'DATA_DELIVERY_S3_BUCKET_ACCESS_KEY'
     aws_secret_access_key: 'DATA_DELIVERY_S3_BUCKET_PRIVATE_KEY'
 # NOTE: Remove the {} and supply creds if needed. Example in comments below
@@ -220,12 +226,7 @@ FENCE: 'http://fence-service'
 # Simple Email Service (for sending emails from fence)
 #
 # NOTE: Example in comments below
-AWS_SES:
-  SENDER: ""
-  RECIPIENT: ""
-  AWS_REGION: "us-east-1"
-  AWS_ACCESS_KEY: ""
-  AWS_SECRET_KEY: ""
+
 
 HUBSPOT:
   API_KEY: "DEV_KEY"

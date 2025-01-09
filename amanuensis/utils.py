@@ -279,7 +279,7 @@ def send_email_ses(body, to_emails, subject):
         #     self._format = 'text'
         #     body = self._text
 
-    flask.current_app.boto.send_email(sender, to_emails, subject, body, body_text, 'UTF-8', config)
+    flask.current_app.ses_boto.send_email(sender, to_emails, subject, body, body_text, 'UTF-8', config)
     # logging.debug(json.dumps(response))
     # return response
 

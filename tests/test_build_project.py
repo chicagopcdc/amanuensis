@@ -807,6 +807,7 @@ def test_get_projects(session, client, login, project_data, mock_requests_post):
 
     login(project_data["user_2_id"], project_data["user_2_email"])
     user_2_get_projects_response = client.get("/projects", headers={"Authorization": f'bearer {project_data["user_2_id"]}'})
+    print(user_2_get_projects_response.json)
     assert len(user_2_get_projects_response.json) == 1
 
 
