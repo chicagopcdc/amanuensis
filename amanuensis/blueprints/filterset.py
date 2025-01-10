@@ -99,7 +99,7 @@ def update_search(filter_set_id):
         name = flask.request.get_json().get("name", None)
         description = flask.request.get_json().get("description", None)
         filter_object = flask.request.get_json().get("filters", None)
-        graphql_object = flask.request.get_json().get("gqlFilter", {})
+        graphql_object = flask.request.get_json().get("gqlFilter", None)
     
     else:
         name = None 

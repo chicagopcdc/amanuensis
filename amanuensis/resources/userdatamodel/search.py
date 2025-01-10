@@ -115,6 +115,8 @@ def update_filter_set(
         delete=False
     ):
     
+    
+
     if filter_set is not None:
         if not isinstance(filter_set, Search):
             raise InternalError("filter_set must be a Search object")
@@ -122,12 +124,18 @@ def update_filter_set(
     else:
         filter_set = get_filter_sets(current_session, id=filter_set_id, explorer_id=explorer_id, user_id=logged_user_id, many=False, throw_not_found=True)
 
+    
+    if is_valid is not None:
+        filter_set.is_valid = is_valid
+    
+    elif filter_object is not None or graphql_object is not None:
+        filter_set.is_valid = True
+
     filter_set.name = name if name is not None else filter_set.name
     filter_set.description = description if description is not None else filter_set.description
     filter_set.filter_object = filter_object if filter_object is not None else filter_set.filter_object
     filter_set.graphql_object = graphql_object if graphql_object is not None else filter_set.graphql_object
     filter_set.active = True if not delete else False
-    filter_set.is_valid = True if filter_object is not None or graphql_object is not None else is_valid
 
     current_session.flush()
 

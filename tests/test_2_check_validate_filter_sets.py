@@ -279,3 +279,40 @@ def test_using_script(session):
     update_valid_state = session.query(Search).filter(Search.name == "In_valid").first()
 
     assert update_valid_state.is_valid
+
+pytest.mark.order(8)
+def test_manual_change_to_filter_set_auto_updates_is_valid(session, register_user, client, login):
+    user_id, user_email = register_user(email=f"user_1@{__name__}.com", name=__name__)
+    
+    search = Search(
+                filter_object={
+                    "value": {
+                        "sex": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["NOT_REAL"]}, 
+                        "consortium": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["INRG"]}, #enum
+                        "studies.treatment_arm": {"__type": "OPTION", "selectedValues": ["some study"], "isExclusion": False}, #array
+                        "tumor_assessments.longest_diam_dim1": {"__type": "RANGE", "lowerBound": 20, "upperBound": 76},
+                    }, 
+                    "__type": "STANDARD", 
+                    "__combineMode": "AND"
+                },
+                filter_source_internal_id=1,
+                user_id=user_id,
+                is_valid=False,
+                filter_source="explorer"
+            )
+    session.add(
+        search
+    )
+
+    session.commit()
+    assert search.is_valid == False
+    login(user_id, user_email)
+    filter_set_update_json = {
+        "name": "new_name",
+        "description": "new_description",
+    }
+    filter_set_put_response = client.put(f'/filter-sets/{search.id}', json=filter_set_update_json, headers={"Authorization": f'bearer {user_id}'})
+    assert filter_set_put_response.status_code == 200
+
+    session.refresh(search)
+    assert search.is_valid == False
