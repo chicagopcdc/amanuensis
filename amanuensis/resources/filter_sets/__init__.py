@@ -41,7 +41,7 @@ def _get_explorer_selectable_values(portal_config):
         selectable_values_by_tab = set()
         for tab in explorer['filters']['tabs']:
             selectable_values_by_tab.update(tab["fields"])
-        selectable_values[explorer["label"]] = selectable_values_by_tab
+        selectable_values[explorer["id"]] = selectable_values_by_tab
 
     return selectable_values
 
@@ -54,22 +54,15 @@ def _check_portal_config(filter_set, selectable_values):
     """
     selected_keys = filter_set.filter_object["value"].keys()
     filter_name = filter_set.name
+    tab = filter_set.filter_source_internal_id
+    for key in selected_keys:
+        if key not in selectable_values[tab]:
+            logger.info(f"The filter {filter_name} in the section {tab} contains a selected value {key} which is not a valid selectable value in the data portal's selectable values")
+            return False
 
-    for section, selectable_keys in selectable_values.items():
-        selected_keys_copy = set(selected_keys)
-        for key in selected_keys:
-            if key not in selectable_keys:
-                logger.info(f"The filter {filter_name} which contains the element {key} is not a valid selectable value in the section {section} of the data portal's selectable values")
-                break
-            else:
-                selected_keys_copy.remove(key)
-
-        if len(selected_keys_copy) == 0:
-            logger.info(f"The filter {filter_name} is valid for the section {section} of the data portal's selectable values")
-            return True
-    
-    logger.info(f"The filter {filter_name} is not valid for any section of the data portal's selectable values")
-    return False
+       
+    logger.info(f"The filter {filter_name} is valid for the section {tab} of the data portal's selectable values")
+    return True
         
 
 

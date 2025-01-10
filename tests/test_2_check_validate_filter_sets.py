@@ -42,12 +42,14 @@ def test_check_portal_config(portal_config):
             }, 
             "__type": "STANDARD", 
             "__combineMode": "AND"
-        }
+        },
+        filter_source_internal_id=1
     )
+
 
     assert _check_portal_config(valid_filter_set, selectable_values)
 
-    #test that the selected value "invalid" is not valid
+    #test that the selected value "invalid" is not valid, checks agaist tab 1
     invalid_filter_set = Search(
             name="invalid", 
             filter_object={
@@ -58,10 +60,28 @@ def test_check_portal_config(portal_config):
                 }, 
                 "__type": "STANDARD", 
                 "__combineMode": "AND"
-            }
+            },
+            filter_source_internal_id=1
         )
 
     assert not _check_portal_config(invalid_filter_set, selectable_values)
+
+    #check a filter-set valid in tab 1 is not valid in tab 2
+    valid_filter_set = Search(
+        name="valid", 
+        filter_object={
+            "value": {
+                "sex": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["Male"]}, 
+                "consortium": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["INRG"]},
+                "subject_responses.tx_prior_response": {"__type": "OPTION", "isExclusion": False, "selectedValues": ["Chemoradiotherapy"]}
+            }, 
+            "__type": "STANDARD", 
+            "__combineMode": "AND"
+        },
+        filter_source_internal_id=2
+    )
+
+    assert not _check_portal_config(valid_filter_set, selectable_values)
 
 pytest.mark.order(5)
 def test_check_es_to_dd_map(es_to_dd_map):
@@ -201,7 +221,8 @@ def test_check_filter_sets(session, es_to_dd_map):
                 }, 
                 "__type": "STANDARD", 
                 "__combineMode": "AND"
-            }
+            },
+            filter_source_internal_id=1
         ), 
         Search(
             name="valid",
@@ -214,7 +235,8 @@ def test_check_filter_sets(session, es_to_dd_map):
                 }, 
                 "__type": "STANDARD", 
                 "__combineMode": "AND"
-            }
+            },
+            filter_source_internal_id=1
         )
     ])
 
