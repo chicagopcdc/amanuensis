@@ -157,6 +157,7 @@ AWS_CREDENTIALS:
     aws_access_key_id: ""
     aws_secret_access_key: ""
   DATA_DELIVERY_S3_BUCKET:
+    bucket_name: ""
     aws_access_key_id: 'DATA_DELIVERY_S3_BUCKET_ACCESS_KEY'
     aws_secret_access_key: 'DATA_DELIVERY_S3_BUCKET_PRIVATE_KEY'
 # NOTE: Remove the {} and supply creds if needed. Example in comments below

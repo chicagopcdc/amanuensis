@@ -45,13 +45,13 @@ def create(current_session, logged_user_id, is_amanuensis_admin, name, descripti
 def upload_file(session, key, project_id, expires=None):
 
     try:
-        presigned_url = flask.current_app.s3_boto.presigned_url(config["DATA_DOWNLOAD_BUCKET"], key, expires, {}, method="put_object")
+        presigned_url = flask.current_app.s3_boto.presigned_url(config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"]["bucket_name"], key, expires, {}, method="put_object")
 
     except Exception as e:
         logger.error(f"Failed to generate presigned url: {e}")
         raise InternalError("Failed to generate presigned url")
     
-    update_project(session, project_id, approved_url=f"https://{config['DATA_DOWNLOAD_BUCKET']}.s3.amazonaws.com/{key}")
+    update_project(session, project_id, approved_url=f'https://{config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"]["bucket_name"]}.s3.amazonaws.com/{key}')
 
     return presigned_url
 

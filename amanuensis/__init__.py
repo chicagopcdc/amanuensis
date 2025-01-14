@@ -133,8 +133,10 @@ def app_config(
 
 def _setup_data_endpoint_and_boto(app):
     try:
+        aws_creds = config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"]
+        del aws_creds["bucket_name"]
         app.s3_boto = BotoManager(
-            config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"], logger=logger
+            aws_creds, logger=logger
         )
     except Exception as e:
         logger.error(f"Could not initialize data delivery BotoManager.")
