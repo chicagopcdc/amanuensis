@@ -9,10 +9,22 @@ from cdislogging import get_logger
 from pcdcutils.signature import SignatureManager
 import json
 from amanuensis.errors import AuthError
-app_init(app, config_file_name="amanuensis-config.yaml")
 
 logger = get_logger(logger_name=__name__)
 from amanuensis.models import ConsortiumDataContributor
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--configuration-file",  # The CLI argument
+        action="store",   # Stores the value passed to this argument
+        default="amanuensis-config.yaml",  # The default value
+        help="Path to the config file"
+    )
+
+@pytest.fixture(scope="session", autouse=True)
+def initiate_app(pytestconfig):
+    app_init(app, config_file_name=pytestconfig.getoption("--configuration-file"))
+
 
 @pytest.fixture(scope="session")
 def app_instance():

@@ -255,7 +255,7 @@ def test_check_filter_sets(session, es_to_dd_map):
             assert search.is_valid == True
 
 pytest.mark.order(7)
-def test_using_script(session):
+def test_using_script(session, pytestconfig):
     session.query(Search)\
         .filter(Search.name == "In_valid")\
         .update({
@@ -273,7 +273,7 @@ def test_using_script(session):
         })
     session.commit()
     
-    main()
+    main(pytestconfig.getoption("--configuration-file"))
 
 
     update_valid_state = session.query(Search).filter(Search.name == "In_valid").first()

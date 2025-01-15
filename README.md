@@ -65,7 +65,11 @@ alembic revision -m "add_save"
 
 2) activate the virtual env
 
-3) pytest --order-scope=module
+3) pytest --order-scope=module --disable-warnings --configuration-file="<config-file.yaml>" 
+    --order-scope (required) some tests need to clear DB tables
+    --disable-warnings (optional) mutes warnings
+    --configuration-file (required/optional) required if multiple config files exist in search folders, optional if only 1 exists 
+                                              
 
 ## Mocking
 
