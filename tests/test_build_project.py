@@ -815,6 +815,10 @@ def test_get_projects(session, client, login, project_data, mock_requests_post):
     user_1_get_projects_response = client.get("/projects", headers={"Authorization": f'bearer {project_data["user_id"]}'})
     assert len(user_1_get_projects_response.json) == 2
 
+    login(project_data["admin_id"], project_data["admin_email"])
+    user_1_get_projects_response = client.get(f"/admin/projects_by_users/{project_data['user_id']}/{project_data['user_email']}", headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert user_1_get_projects_response.status_code == 200
+    assert len(user_1_get_projects_response.json) == 2
     #Test deleting project
     login(project_data["admin_id"], project_data["admin_email"])
     delete_project_response = client.delete(f"/admin/delete-project/", json={"project_id": create_project_response.json['id']}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})

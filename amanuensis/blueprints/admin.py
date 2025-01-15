@@ -513,7 +513,7 @@ def get_projetcs_by_user_id(user_id, user_email):
     project_schema = ProjectSchema(many=True)
     with current_app.db.session as session:
         projects = get_projects(session, associated_user_email=user_email, many=True)
-    return jsonify(project_schema.dump(projects))
+        return jsonify(project_schema.dump(projects))
 
 
 @blueprint.route("/copy-search-to-user", methods=["POST"])
