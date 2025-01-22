@@ -8,7 +8,7 @@ import json
 from cdislogging import get_logger
 from amanuensis.config import config
 
-logger = get_logger(__name__)
+logger = get_logger(__name__, log_level="info")
 
 
 def _load_data_files(file_name):
@@ -57,6 +57,10 @@ def _extract_selected_values_from_filter_set(graphql_object, selected_filters=No
 
     if selected_filters is None:
         selected_filters = {}
+
+    if graphql_object == {}:
+        return {}
+
     try:
         key, value = graphql_object.popitem()
         
@@ -199,6 +203,7 @@ def check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", porta
         logger.info("*" * separator_length)
         logger.info(f"graphql_object: {graphql_object}")
 
+     
         extracted_values_from_filter_set = _extract_selected_values_from_filter_set(graphql_object)
         
         if extracted_values_from_filter_set is not False:

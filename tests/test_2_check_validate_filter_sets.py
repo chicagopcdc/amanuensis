@@ -421,7 +421,7 @@ def test_using_script(session, pytestconfig):
         })
     session.commit()
     
-    main(pytestconfig.getoption("--configuration-file"))
+    main(["--file_name", pytestconfig.getoption("--configuration-file")])
 
 
     update_valid_state = session.query(Search).filter(Search.name == "invalid_1").first()

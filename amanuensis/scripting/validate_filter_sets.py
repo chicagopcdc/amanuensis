@@ -8,8 +8,20 @@ from amanuensis.resources.filter_sets import check_filter_sets
 logger = get_logger(__name__, log_level="info")
 
 
+def parse_args(args=None):
+    parser = argparse.ArgumentParser(description="Run the filter sets checker.")
+    parser.add_argument(
+        "--file_name",
+        help="Optional configuration file name to load.",
+        default=None
+    )
+    return parser.parse_args(args)
 
-def main(config_file_name=None):
+
+def main(args=None):
+
+    config_file_name = parse_args(args).file_name
+
     config.load(
         search_folders=CONFIG_SEARCH_FOLDERS,
         file_name=config_file_name
@@ -24,12 +36,5 @@ def main(config_file_name=None):
 
 
 if __name__ == "__main__":
-    # Set up command-line argument parsing
-    parser = argparse.ArgumentParser(description="Run the filter sets checker.")
-    parser.add_argument(
-        "--file_name",
-        help="Optional configuration file name to load.",
-        default=None
-    )
-    args = parser.parse_args()
-    main(config_file_name=args.file_name)
+    import sys
+    main(sys.argv[1:])
