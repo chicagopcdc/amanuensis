@@ -6,7 +6,7 @@ from cdislogging import get_logger
 from amanuensis.resources.project import create
 from amanuensis.resources.fence import fence_get_users
 from amanuensis.auth.auth import current_user, has_arborist_access
-from amanuensis.errors import AuthError, InternalError
+from amanuensis.errors import AuthError, InternalError, UserError
 from amanuensis.schema import ProjectSchema
 from amanuensis.config import config
 from datetime import datetime
@@ -137,26 +137,43 @@ def create_project():
     #     raise UserError("You can't create a Project without specifying the associated_users that will access the data")
 
     name = flask.request.get_json().get("name", None)
+
+    if not name:
+        raise UserError("name is a required field")
+    
     description = flask.request.get_json().get("description", None)
+
+    if not description:
+        raise UserError("description is a required field")
+    
     institution = flask.request.get_json().get("institution", None)
+
+    if not institution:
+        raise UserError("institution is a required field")
 
     filter_set_ids = flask.request.get_json().get("filter_set_ids", None)
 
+    if not filter_set_ids:
+        raise UserError("a filter-set id is required field")
+    
     # get the explorer_id from the querystring ex: https://portal-dev.pedscommons.org/explorer?id=1
     explorer_id = flask.request.args.get('explorer', default=1, type=int)
 
     project_schema = ProjectSchema()
-    return flask.jsonify(
-        project_schema.dump(
-            create(
-                logged_user_id,
-                False,
-                name,
-                description,
-                filter_set_ids,
-                explorer_id,
-                institution,
-                associated_users_emails
+
+    with flask.current_app.db.session as session:
+        return flask.jsonify(
+            project_schema.dump(
+                create(
+                    session,
+                    logged_user_id,
+                    False,
+                    name,
+                    description,
+                    filter_set_ids,
+                    explorer_id,
+                    institution,
+                    associated_users_emails
+                )
             )
         )
-    )
