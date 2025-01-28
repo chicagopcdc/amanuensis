@@ -791,7 +791,7 @@ def test_get_projects(session, client, login, project_data, mock_requests_post):
             "description": "This is an endpoint test project",
             "institution": "test university",
             "filter_set_ids": [project_data["filter_set_id"]],
-            "associated_users_emails": [project_data["user_email"]]
+            "associated_users_emails": [project_data["user_email"], project_data["admin_email"]]
 
     }
     create_project_response = client.post('/admin/projects', json=create_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
@@ -807,6 +807,7 @@ def test_get_projects(session, client, login, project_data, mock_requests_post):
 
     login(project_data["user_2_id"], project_data["user_2_email"])
     user_2_get_projects_response = client.get("/projects", headers={"Authorization": f'bearer {project_data["user_2_id"]}'})
+    print(user_2_get_projects_response.json)
     assert len(user_2_get_projects_response.json) == 1
 
 
@@ -818,6 +819,31 @@ def test_get_projects(session, client, login, project_data, mock_requests_post):
     user_1_get_projects_response = client.get(f"/admin/projects_by_users/{project_data['user_id']}/{project_data['user_email']}", headers={"Authorization": f'bearer {project_data["admin_id"]}'})
     assert user_1_get_projects_response.status_code == 200
     assert len(user_1_get_projects_response.json) == 2
+
+    #test remove admin from project who had data_access role and test that has_access = False in admin get projects
+    login(project_data["admin_id"], project_data["admin_email"])
+    give_admin_data_access_json = {
+        "project_id": project_id,
+        "email": project_data["admin_email"],
+        "role":"DATA_ACCESS"
+    }
+    admin_get_pojects_response = client.put("/admin/associated_user_role", json=give_admin_data_access_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_get_pojects_response.status_code == 200
+    admin_get_pojects_response = client.get("/projects?special_user=admin", headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    for project in admin_get_pojects_response.json:
+        if project['id'] == project_id:
+            assert project['has_access']
+    remove_admin_from_project_json = {
+        "project_id": project_id,
+        "email": project_data["admin_email"],
+    }
+    admin_remove_admin_response = client.delete("/admin/remove_associated_user_from_project", json=remove_admin_from_project_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    assert admin_remove_admin_response.status_code == 200
+    admin_get_pojects_response = client.get("/projects?special_user=admin", headers={"Authorization": f'bearer {project_data["admin_id"]}'})
+    for project in admin_get_pojects_response.json:
+        if project['id'] == project_id:
+            assert not project['has_access']
+
     #Test deleting project
     login(project_data["admin_id"], project_data["admin_email"])
     delete_project_response = client.delete(f"/admin/delete-project/", json={"project_id": create_project_response.json['id']}, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
