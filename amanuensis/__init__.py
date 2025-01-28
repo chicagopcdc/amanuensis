@@ -19,6 +19,7 @@ import amanuensis.blueprints.project
 import amanuensis.blueprints.admin
 import amanuensis.blueprints.download_urls
 import amanuensis.blueprints.notification
+from copy import deepcopy
 
 
 # Can't read config yet. Just set to debug for now, else no handlers.
@@ -133,7 +134,7 @@ def app_config(
 
 def _setup_data_endpoint_and_boto(app):
     try:
-        aws_creds = config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"]
+        aws_creds = deepcopy(config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"])
         del aws_creds["bucket_name"]
         app.s3_boto = BotoManager(
             aws_creds, logger=logger
