@@ -32,7 +32,7 @@ def download_data(project_id):
             "Unable to load or find the user, check your token"
         )
 
-    if not flask.current_app.boto:
+    if not flask.current_app.s3_boto:
         raise InternalError("BotoManager not found. Check the AWS credentials are set in the config and have the correct permissions.")
 
     # Check param is present
@@ -68,7 +68,7 @@ def download_data(project_id):
         if s3_info is None:
             raise NotFound("The S3 bucket and key information cannot be extracted from the URL {}".format(storage_url))
 
-        result = flask.current_app.boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
+        result = flask.current_app.s3_boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
         return flask.jsonify({"download_url": result})
 
 

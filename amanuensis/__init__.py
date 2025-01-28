@@ -19,6 +19,7 @@ import amanuensis.blueprints.project
 import amanuensis.blueprints.admin
 import amanuensis.blueprints.download_urls
 import amanuensis.blueprints.notification
+from copy import deepcopy
 
 
 # Can't read config yet. Just set to debug for now, else no handlers.
@@ -132,13 +133,23 @@ def app_config(
 
 
 def _setup_data_endpoint_and_boto(app):
-    if "AWS_CREDENTIALS" in config and len(config["AWS_CREDENTIALS"]) > 0:
-        #TODO why does it need to be the first one? (use the key value in the object instead of making it a list)
-        value = list(config["AWS_CREDENTIALS"].values())[0]
-        app.boto = BotoManager(value, logger=logger)
-        logger.info("BotoManager initialized")
-    else:
-        logger.warning("Missing credentials for BotoManager, delivery of data will fail.")
+    try:
+        aws_creds = deepcopy(config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"])
+        del aws_creds["bucket_name"]
+        app.s3_boto = BotoManager(
+            aws_creds, logger=logger
+        )
+    except Exception as e:
+        logger.error(f"Could not initialize data delivery BotoManager.")
+        app.s3_boto = None
+    
+    try:
+        app.ses_boto = BotoManager(
+            config["AWS_CREDENTIALS"]["SES"], logger=logger
+        )
+    except Exception as e:
+        logger.error(f"Could not initialize SES BotoManager.")
+        app.ses_boto = None
 
 def _setup_arborist_client(app):
     if app.config.get("ARBORIST"):

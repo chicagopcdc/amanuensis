@@ -260,9 +260,12 @@ def login(request, find_fence_user):
 
 @pytest.fixture(scope="module", autouse=True)
 def s3(app_instance):
+
+    s3 = None
+
     try: 
 
-        s3 = app_instance.boto.s3_client
+        s3 = app_instance.s3_boto.s3_client
         bucket_name = 'amanuensis-upload-file-test-bucket'
 
         # Check if the bucket exists
@@ -288,18 +291,17 @@ def s3(app_instance):
     
     except Exception as e:
         logger.error(f"Failed to set up s3 bucket, tests will fail {e}")
-        yield None
 
     yield s3
-
-    response = s3.list_objects_v2(Bucket=bucket_name)
-    if 'Contents' in response:
-        for obj in response['Contents']:
-            s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
-            logger.info(f"deleted {obj['Key']}")
-    
-    s3.delete_bucket(Bucket=bucket_name)
-    logger.info(f"delete bucket {bucket_name}")
+    if s3:
+        response = s3.list_objects_v2(Bucket=bucket_name)
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
+                logger.info(f"deleted {obj['Key']}")
+        
+        s3.delete_bucket(Bucket=bucket_name)
+        logger.info(f"delete bucket {bucket_name}")
 
 # Helper fixtures to make tests easier to follow along with and create
 # these should handle calling the server 
