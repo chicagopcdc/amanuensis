@@ -108,7 +108,7 @@ def get_projetcs():
 
             tmp_project["has_access"] = False
             for user in project.associated_users_roles:
-                if user.role and user.role.code == "DATA_ACCESS" and (user.associated_user.user_id == logged_user_id or user.associated_user.email == logged_user_email):
+                if user.role and user.role.code == "DATA_ACCESS" and user.active and (user.associated_user.user_id == logged_user_id or user.associated_user.email == logged_user_email):
                     tmp_project["has_access"] = True
                     break
             tmp_project["consortia"] = list(consortiums)
