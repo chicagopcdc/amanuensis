@@ -123,8 +123,8 @@ def send_admin_message(project, consortiums, subject, body):
             logger.debug(f"send_message emails (debug mode): {str(requesters)}")
         elif receivers:
             # Send the Message via AWS SES
-            flask.current_app.boto.send_email_ses(body, receivers, subject)
-            flask.current_app.boto.send_email_ses(body, requesters, subject)
+            flask.current_app.ses_boto.send_email_ses(body, receivers, subject)
+            flask.current_app.ses_boto.send_email_ses(body, requesters, subject)
 
 
 def notify_user_project_status_update(current_session, project_id, consortiums):

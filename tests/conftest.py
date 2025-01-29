@@ -8,6 +8,7 @@ from amanuensis.config import config
 from cdislogging import get_logger
 from pcdcutils.signature import SignatureManager
 import json
+from sqlalchemy import or_
 from amanuensis.errors import AuthError
 
 logger = get_logger(logger_name=__name__)
@@ -271,9 +272,12 @@ def login(request, find_fence_user):
 
 @pytest.fixture(scope="module", autouse=True)
 def s3(app_instance):
+
+    s3 = None
+
     try: 
 
-        s3 = app_instance.boto.s3_client
+        s3 = app_instance.s3_boto.s3_client
         bucket_name = 'amanuensis-upload-file-test-bucket'
 
         # Check if the bucket exists
@@ -299,18 +303,284 @@ def s3(app_instance):
     
     except Exception as e:
         logger.error(f"Failed to set up s3 bucket, tests will fail {e}")
-        yield None
 
     yield s3
+    if s3:
+        response = s3.list_objects_v2(Bucket=bucket_name)
+        if 'Contents' in response:
+            for obj in response['Contents']:
+                s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
+                logger.info(f"deleted {obj['Key']}")
+        
+        s3.delete_bucket(Bucket=bucket_name)
+        logger.info(f"delete bucket {bucket_name}")
 
-    response = s3.list_objects_v2(Bucket=bucket_name)
-    if 'Contents' in response:
-        for obj in response['Contents']:
-            s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
-            logger.info(f"deleted {obj['Key']}")
+# Helper fixtures to make tests easier to follow along with and create
+# these should handle calling the server 
+#then validate the DB that the data was correctly stored
+
+@pytest.fixture(scope="session", autouse=True)
+def project_get(client):
+
+    def route_project_get(authorization_token, 
+                          special_user_admin=False, 
+                          status_code=200
+                          ):
+        
+        url = "/projects" + ("?special_user=admin" if special_user_admin else "")
+        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        #here we should validate based on the DB and inputs that the response is correct 
+        return response
+
+    yield route_project_get
+
+@pytest.fixture(scope="function")
+def project_post(session, client, mock_requests_post, find_fence_user):
+
+    def route_project_post(authorization_token,
+                           consortiums_to_be_returned_from_pcdc_analysis_tools=[],
+                           associated_users_emails=None,
+                           name="",
+                           description=None,
+                           institution=None,
+                           filter_set_ids=None,
+                           explorer_id=None,
+                           status_code=200):
+        
+        mock_requests_post(consortiums=consortiums_to_be_returned_from_pcdc_analysis_tools)
+
+        current_users = session.query(AssociatedUser).filter(
+                or_(AssociatedUser.user_id == authorization_token,
+                    AssociatedUser.email.in_(associated_users_emails))
+            ).all()
+
+        current_filters = session.query(Search).filter(
+                                Search.id.in_(filter_set_ids)
+                         ).all()        
+        
+        
+        json = {}
+        if associated_users_emails is not None:
+            json["associated_users_emails"] = associated_users_emails
+        if name:
+            json["name"] = name
+        if description is not None:
+            json["description"] = description
+        if institution is not None:
+            json["institution"] = institution
+        if filter_set_ids is not None:
+            json["filter_set_ids"] = filter_set_ids
+        if explorer_id is not None:
+            json["explorer_id"] = explorer_id
+
+        response = client.post("/projects", json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        project_id = response.json.get("id") if response.status_code == 200 else None
+
+        project = session.query(Project).filter(Project.id == project_id).first()
+        
+        #fetch data for new filter sets and project filter sets
+
+        new_filter_sets = session.query(Search).filter(
+                            Search.name.in_(
+                                [name + "_" + user_gen_filter.name for user_gen_filter in current_filters]
+                            )
+                        ).all()
+        
+        project_filter_sets = session.query(ProjectSearch).filter(
+                            ProjectSearch.project_id == project_id
+                        ).all()
+        
+        #fetch data for new requests and states
+
+        project_requests = session.query(Request).filter(
+                            Request.project_id == project_id
+                        ).all()
+        
+        project_requests_states = session.query(RequestState).filter(
+                                    RequestState.request_id.in_(
+                                        [request.id for request in project_requests]
+                                    )
+                                ).all()
+
+        #fetch data for new associated users and project associated users
+
+        project_associated_users = session.query(ProjectAssociatedUser).filter(
+                            ProjectAssociatedUser.project_id == project_id
+                        ).all()
+        
+        updated_associated_users = session.query(AssociatedUser).filter(
+                            or_(
+                                AssociatedUser.user_id == authorization_token,
+                                AssociatedUser.email.in_(associated_users_emails)
+                            )
+                        ).all()
+        
+        if status_code == 200:
+
+            assert project.name == name
+            assert project.first_name == None
+            assert project.last_name == None
+            assert project.user_id == authorization_token
+            assert project.user_source == "fence"
+            assert project.institution == institution
+            assert project.description == description
+            assert project.approved_url == None
+            assert project.active == True
+
+            #check filter-sets and searches connected to the project
+
+            assert len(new_filter_sets) == len(current_filters)
+
+            for new_filter_set in new_filter_sets:
+                
+                #get the filter set created by the user
+                #the test suite will just assume that all the filters have unique names to make this easier
+                user_gen_filter = [user_gen_filter for user_gen_filter in current_filters if user_gen_filter.name in new_filter_set.name][0]
+
+
+                assert new_filter_set.user_id == None
+                assert new_filter_set.user_source == ""
+                assert new_filter_set.name == project.name + "_" + user_gen_filter.name
+                assert new_filter_set.description == user_gen_filter.description
+                assert new_filter_set.filter_object == user_gen_filter.filter_object
+                assert new_filter_set.filter_source == "manual"
+                assert new_filter_set.filter_source_internal_id == user_gen_filter.filter_source_internal_id
+                assert new_filter_set.ids_list == user_gen_filter.ids_list
+                assert new_filter_set.graphql_object == user_gen_filter.graphql_object
+                assert new_filter_set.es_index == user_gen_filter.es_index
+                assert new_filter_set.dataset_version == user_gen_filter.dataset_version
+                assert new_filter_set.is_superseded_by == user_gen_filter.is_superseded_by
+                assert new_filter_set.active == True
+                assert new_filter_set.is_valid == True
+
+            assert [filter_set.search_id for filter_set in project_filter_sets] == [search.id for search in new_filter_sets]
+
+
+            #check requests their consortiums and states
+
+            assert sorted([request.consortium_data_contributor.code for request in project_requests]) == sorted(consortiums_to_be_returned_from_pcdc_analysis_tools)
+
+            assert len(project_requests_states) == len(project_requests)
+            assert any(request_state.state.code == "IN_REVIEW" for request_state in project_requests_states)
+
+
+            #check associated users and project associated users
+            associated_users_in_fence = [find_fence_user({"ids":[authorization_token]})["users"][0]["name"]]
+            associated_users_not_in_fence = []
+
+            for associated_user in associated_users_emails:
+                fence_user = find_fence_user({"usernames":[associated_user]})["users"]
+
+                if not fence_user:
+                    associated_users_not_in_fence.append(associated_user)
+
+                elif fence_user[0]["id"] == authorization_token:
+                    continue
+
+                else:
+                    associated_users_in_fence.append(fence_user[0]["name"])
+
+            assert len(updated_associated_users) == len(associated_users_in_fence + associated_users_not_in_fence)
+
+            for updated_associated_user in updated_associated_users:
+
+                if not updated_associated_user.user_id:
+
+                    assert updated_associated_user.email in associated_users_not_in_fence
+
+                else:
+
+                    assert updated_associated_user.email in associated_users_in_fence
+
+                assert updated_associated_user.user_source == "fence"
+                assert updated_associated_user.active == True
+
+
+            assert len(project_associated_users) == len(associated_users_in_fence + associated_users_not_in_fence)
+            for project_associated_user in project_associated_users:
+                assert project_associated_user.active == True
+                assert project_associated_user.project_id == project_id
+                assert project_associated_user.role.code == "METADATA_ACCESS"
+            
+
+        else:
+
+            assert project == None
+            assert new_filter_sets == []
+            assert project_filter_sets == []
+            assert project_requests == []
+            assert project_requests_states == []
+            assert project_associated_users == []
+            assert len(current_users) == len(updated_associated_users)
+
+        return response
     
-    s3.delete_bucket(Bucket=bucket_name)
-    logger.info(f"delete bucket {bucket_name}")
+    yield route_project_post
+
+@pytest.fixture(scope="session", autouse=True)
+def filter_set_post(session, client):
+
+    def route_filter_set_get(authorization_token, 
+                             explorer_id=None,
+                             name=None,
+                             filter_object=None,
+                             graphql_object=None,
+                             description=None,
+                             ids_list=None, 
+                             status_code=200
+                             ):
+        
+        json = {}
+        if name is not None:
+            json["name"] = name
+        if filter_object is not None:
+            json["filters"] = filter_object
+        if graphql_object is not None:
+            json["gqlFilter"] = graphql_object
+        if description is not None:
+            json["description"] = description
+        if ids_list is not None:
+            json["ids_list"] = ids_list
+
+        url = "/filter-sets" + ("?explorer_id=" + str(explorer_id) if explorer_id is not None else "")
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
+        
+        if status_code == 200:
+
+            assert filter_set.name == name
+            assert filter_set.filter_object == filter_object
+            assert filter_set.graphql_object == graphql_object
+            assert filter_set.description == description
+            assert filter_set.filter_source_internal_id == explorer_id if explorer_id is not None else 1
+            assert filter_set.ids_list == ids_list
+            assert filter_set.filter_source == "explorer"
+            assert filter_set.user_id == authorization_token
+            assert filter_set.user_source == "fence"
+            assert filter_set.es_index == None
+            assert filter_set.dataset_version == None
+            assert filter_set.is_superseded_by == None
+            assert filter_set.active == True
+            assert filter_set.is_valid == True
+        
+        else:
+
+            assert filter_set == None
+
+
+        return response
+    
+    yield route_filter_set_get
+
 
 # Add a finalizer to ensure proper teardown
 @pytest.fixture(scope="session", autouse=True)
@@ -321,5 +591,4 @@ def teardown(request, app_instance, session):
         #app_instance.app_context().pop()
 
     request.addfinalizer(cleanup)
-
 

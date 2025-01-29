@@ -50,6 +50,6 @@ def send_message(
         logger.debug(f"send_message emails (debug mode): {str(emails)}")
     elif emails:
         # Send the Message via AWS SES
-        return current_app.boto.send_email_ses(body, emails, subject)
+        return current_app.ses_boto.send_email_ses(body, emails, subject)
 
     return new_message

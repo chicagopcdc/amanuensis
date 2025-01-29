@@ -304,6 +304,10 @@ def screen_institution():
 @blueprint.route("/projects", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 # @debug_log
+#TODO if we are releasing the other project create endpoint then we should deprecate this
+#and check the auth in the other endpoint similar to project get endpoint
+#since the code in both endpoints is practically the same
+#the only difference is an admin can create a project for any user
 def create_project():
     """
     Create a search on the userportaldatamodel database
@@ -323,10 +327,24 @@ def create_project():
     #     raise UserError("You can't create a Project without specifying the associated_users that will access the data")
 
     name = request.get_json().get("name", None)
+
+    if not name:
+        raise UserError("name is a required field")
+    
     description = request.get_json().get("description", None)
+
+    if not description:
+        raise UserError("description is a required field")
+    
     institution = request.get_json().get("institution", None)
 
+    if not institution:
+        raise UserError("institution is a required field")
+
     filter_set_ids = request.get_json().get("filter_set_ids", None)
+
+    if not filter_set_ids:
+        raise UserError("a filter-set is required to create a project")
 
     with current_app.db.session as session:
 
