@@ -99,7 +99,7 @@ def update_search(filter_set_id):
         name = flask.request.get_json().get("name", None)
         description = flask.request.get_json().get("description", None)
         filter_object = flask.request.get_json().get("filters", None)
-        graphql_object = flask.request.get_json().get("gqlFilter", {})
+        graphql_object = flask.request.get_json().get("gqlFilter", None)
     
     else:
         name = None 
@@ -114,9 +114,10 @@ def update_search(filter_set_id):
         
         updated_filter_set = update_filter_set(
                                     session, 
-                                    logged_user_id, 
-                                    filter_set_id, 
-                                    explorer_id, 
+                                    filter_set=None,
+                                    logged_user_id=logged_user_id, 
+                                    filter_set_id=filter_set_id, 
+                                    explorer_id=explorer_id, 
                                     name=name, 
                                     description=description, 
                                     filter_object=filter_object, 
