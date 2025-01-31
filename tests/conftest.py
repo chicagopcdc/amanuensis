@@ -28,7 +28,7 @@ def initiate_app(pytestconfig):
 
 
 @pytest.fixture(scope="session")
-def app_instance():
+def app_instance(initiate_app):
     with app.app_context():
         yield app
 
@@ -341,7 +341,7 @@ def project_post(session, client, mock_requests_post, find_fence_user):
 
     def route_project_post(authorization_token,
                            consortiums_to_be_returned_from_pcdc_analysis_tools=[],
-                           associated_users_emails=None,
+                           associated_users_emails=[],
                            name="",
                            description=None,
                            institution=None,
@@ -585,6 +585,99 @@ def filter_set_post(session, client):
 
 
 @pytest.fixture(scope="session", autouse=True)
+def filter_set_put(session, client):
+    def route_filter_set_put(authorization_token, 
+                             filter_set_id=None,
+                             explorer_id=1,
+                             name=None,
+                             filter_object=None,
+                             graphql_object=None,
+                             description=None,
+                             ids_list=None, 
+                             status_code=200
+                             ):
+        
+        json = {}
+        if name is not None:
+            json["name"] = name
+        if filter_object is not None:
+            json["filters"] = filter_object
+        if graphql_object is not None:
+            json["gqlFilter"] = graphql_object
+        if description is not None:
+            json["description"] = description
+        if ids_list is not None:
+            json["ids_list"] = ids_list
+
+        filter_set = session.query(Search).filter(Search.id == filter_set_id, Search.user_id == authorization_token, Search.filter_source_internal_id == explorer_id).first()
+        filter_set_count = session.query(Search).count()
+
+        
+        url = "/filter-sets/" + str(filter_set_id)
+
+        response = client.put(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        filter_set_after_url = session.query(Search).filter(Search.id == filter_set_id, Search.user_id == authorization_token).first()
+        session.refresh(filter_set_after_url)
+
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+            
+            #properties that can change
+            assert filter_set_after_url.name == name if name is not None else filter_set.name
+            assert filter_set_after_url.filter_object == filter_object if filter_object is not None else filter_set.filter_object
+            assert filter_set_after_url.graphql_object == graphql_object if graphql_object is not None else filter_set.graphql_object
+            assert filter_set_after_url.description == description if description is not None else filter_set.description
+            print(True if filter_object is not None or graphql_object is not None else filter_set.is_valid)
+            print(filter_set_after_url.is_valid)
+            assert filter_set_after_url.is_valid == (True if filter_object is not None or graphql_object is not None else filter_set.is_valid)    
+
+            #properties that should not change
+            assert filter_set_after_url.filter_source_internal_id == filter_set.filter_source_internal_id 
+            assert filter_set_after_url.ids_list == filter_set_after_url.ids_list
+            assert filter_set_after_url.filter_source == filter_set_after_url.filter_source
+            assert filter_set_after_url.user_id == authorization_token
+            assert filter_set_after_url.user_source == filter_set.user_source
+            assert filter_set_after_url.es_index == filter_set.es_index
+            assert filter_set_after_url.dataset_version == filter_set.dataset_version
+            assert filter_set_after_url.is_superseded_by == filter_set.is_superseded_by
+            assert filter_set_after_url.active == True  
+            
+        
+        elif status_code == 404:
+            assert filter_set == None
+        
+        else:
+
+            assert filter_set.id == filter_set_after_url.id
+            assert filter_set.name == filter_set_after_url.name
+            assert filter_set.filter_object == filter_set_after_url.filter_object
+            assert filter_set.graphql_object == filter_set_after_url.graphql_object
+            assert filter_set.description == filter_set_after_url.description
+            assert filter_set.filter_source_internal_id == filter_set_after_url.filter_source_internal_id
+            assert filter_set.ids_list == filter_set_after_url.ids_list
+            assert filter_set.filter_source == filter_set_after_url.filter_source
+            assert filter_set.user_id == filter_set_after_url.user_id
+            assert filter_set.user_source == filter_set_after_url.user_source
+            assert filter_set.es_index == filter_set_after_url.es_index
+            assert filter_set.dataset_version == filter_set_after_url.dataset_version
+            assert filter_set.is_superseded_by == filter_set_after_url.is_superseded_by
+            assert filter_set.active == filter_set_after_url.active
+            assert filter_set.is_valid == filter_set_after_url.is_valid
+        
+        
+        assert session.query(Search).count() == filter_set_count
+
+
+        return response
+    
+    yield route_filter_set_put
+
+    
+
+@pytest.fixture(scope="session", autouse=True)
 def admin_filter_set_post(session, client):
 
     def route_admin_filter_set_post(authorization_token, 
@@ -786,7 +879,6 @@ def filter_set_snapshot_get(session, client):
         return response
 
     yield route_filter_set_snapshot_get
-
 
 # Add a finalizer to ensure proper teardown
 @pytest.fixture(scope="session", autouse=True)

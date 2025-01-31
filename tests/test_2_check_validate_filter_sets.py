@@ -1,7 +1,7 @@
 import pytest
 from amanuensis.resources.filter_sets import _load_data_files, _get_selectable_filters_from_data_portal, _check_es_to_dd_map, _check_portal_config, check_filter_sets, _extract_selected_values_from_filter_set
 from amanuensis.errors import NotFound, InternalError
-from amanuensis.models import Search
+from amanuensis.models import Search, SearchIsShared, Project
 from amanuensis.scripting.validate_filter_sets import main
 
 
@@ -220,247 +220,193 @@ def test_check_es_to_dd_map(es_to_dd_map):
     assert _check_es_to_dd_map({"tumor_assessments.longest_diam_dim1": [76, 91.0]}, "test_invalid_filter_set", es_to_dd_map)
 
 pytest.mark.order(7)
-def test_check_filter_sets(session, es_to_dd_map):
+def test_check_filter_sets(session,  
+                           pytestconfig,
+                           filter_set_post, 
+                           admin_filter_set_post, 
+                           project_post, 
+                           admin_copy_search_to_user_post,
+                           filter_set_snapshot_post,
+                           register_user,
+                           login,
+                           ):
+    user_id, user_email = register_user(email=f"user_1@{test_check_filter_sets}.com", name=test_check_filter_sets)
+    user_2_id, user_2_email = register_user(email=f"user_2@{test_check_filter_sets}.com", name=test_check_filter_sets)
+    admin_id, admin_email = register_user(email=f"admin@{test_check_filter_sets}.com", name=test_check_filter_sets, role="admin")
 
-    session.add_all([
-        Search(
-            name="valid_1", 
-            graphql_object={"AND":[{"IN":{"consortium":["INRG"]}}]},
-            filter_source_internal_id=1
-        ), 
-        Search(
-            name="valid_2",
-            graphql_object={
-                            "OR": [
-                                {
-                                    "IN": {
-                                        "consortium": [
-                                        "INRG"
-                                        ]
-                                    }
-                                },
-                                {
-                                    "nested": {
-                                        "path": "histologies",
-                                        "OR": [
-                                        {
-                                            "IN": {
-                                            "histology": [
-                                                "Ganglioneuroblastoma, Intermixed (Schwannian Stroma-Rich)"
-                                            ]
-                                            }
-                                        },
-                                        {
-                                            "IN": {
-                                            "histology_grade": [
-                                                "Differentiating",
-                                                "Unknown"
-                                            ]
-                                            }
-                                        }
-                                        ]
-                                    }
-                                },
-                            ]
-                        },
-            filter_source_internal_id=1
-        ),
-        Search(
-            name="valid_3",
-            graphql_object={
-                "OR": [
-                        {
-                            "nested": {
-                                "path": "tumor_assessments",
-                                "OR": [
-                                    {
-                                        "AND": [
-                                        {
-                                            "GTE": {
-                                            "age_at_tumor_assessment": 2261
-                                            }
-                                        },
-                                        {
-                                            "LTE": {
-                                            "age_at_tumor_assessment": 7503
-                                            }
-                                        }
-                                        ]
-                                    },
-                                    {
-                                        "AND": [
-                                        {
-                                            "!=": {
-                                            "tumor_classification": "Metastatic"
-                                            }
-                                        }
-                                        ]
-                                    }
-                                ]
-                            }
-                        }
-                ]
-            },
-            filter_source_internal_id=1
-        ),
-        Search(
-            name="valid_4",
-            graphql_object= {
-                "OR": [
-                    {
-                        "nested": {
-                            "path": "tumor_assessments",
-                            "OR": [
-                                {
-                                    "AND": [
-                                    {
-                                        "GTE": {
-                                        "age_at_tumor_assessment": 2261
-                                        }
-                                    },
-                                    {
-                                        "LTE": {
-                                        "age_at_tumor_assessment": 7503
-                                        }
-                                    }
-                                    ]
-                                },
-                                {
-                                    "AND": [
-                                    {
-                                        "!=": {
-                                        "tumor_classification": "Metastatic"
-                                        }
-                                    }
-                                    ]
-                                }
-                            ]
-                        }
-                    }
-                ]
-            },
-            filter_source_internal_id=1
-        ),
-        Search(
-            name="invalid_1",
-            graphql_object={"AND":[{"NOT_REAL":{"consortium":["INRG"]}}]},
-            filter_source_internal_id=1
-        ),
-        Search(
-            name="invalid_2",
-            graphql_object={
-                "OR": [
-                    {
-                        "nested": {
-                            "OR": [
-                                {
-                                    "AND": [
-                                    {
-                                        "GTE": {
-                                        "age_at_tumor_assessment": 2261
-                                        }
-                                    },
-                                    {
-                                        "LTE": {
-                                        "age_at_tumor_assessment": 7503
-                                        }
-                                    }
-                                    ]
-                                },
-                                {
-                                    "AND": [
-                                    {
-                                        "!=": {
-                                        "tumor_classification": "Metastatic"
-                                        }
-                                    }
-                                    ]
-                                }
-                            ]
-                        }
-                    }
-                ]
-            },
-            filter_source_internal_id=1
-        ),
+    fake_graphql_object = {"AND":[{"NOT_REAL":{"consortium":["INRG"]}}]}
+    real_graphql_object = {"AND":[{"IN":{"consortium":["INRG"]}}]}
 
-    ])
+    login(user_id, user_email)
 
-    session.commit()
+    filter_set_post_real = filter_set_post(
+        user_id,
+        name="valid_filter_set_from_filter_set_post",
+        filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+        graphql_object=real_graphql_object,
+        description="valid_filter_set_from_filter_set_post",
+        )
 
-    check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", portal_config_file_name="gitops.json")
+    filter_set_post_invalid = filter_set_post(
+        user_id,
+        name="invalid_filter_set_from_filter_set_post",
+        filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+        graphql_object=fake_graphql_object,
+        description="invalid_filter_set_from_filter_set_post",
+        )
 
-    session.commit()
+    login(admin_id, admin_email)
 
-    for search in session.query(Search).all():
+    admin_filter_set_post_real = admin_filter_set_post(
+        admin_id,
+        user_id=user_id,
+        name="valid_filter_set_from_admin_filter_set_post",
+        graphql_object=real_graphql_object,
+        description="valid_filter_set_from_admin_filter_set_post",
+        )
+    admin_filter_set_post_invalid = admin_filter_set_post(
+        admin_id,
+        user_id=user_id,
+        name="invalid_filter_set_from_admin_filter_set_post",
+        graphql_object=fake_graphql_object,
+        description="invalid_filter_set_from_admin_filter_set_post",
+        )
+    
+    login(user_id, user_email)
 
-        if search.name == "valid_1":
-            assert search.is_valid == True
-        
-        if search.name == "valid_2":
-            assert search.is_valid == True
-        
-        if search.name == "valid_3":
-            assert search.is_valid == True
-        
-        if search.name == "valid_4":
-            assert search.is_valid == True
-        
-        if search.name == "invalid_1":
-            assert search.is_valid == False
-        
-        if search.name == "invalid_2":
-            assert search.is_valid == False
+    project_post_real = project_post(
+        user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INRG"],
+        name="valid_filter_set_from_project_post",
+        filter_set_ids=[filter_set_post_real.json["id"]],
+        description="valid_filter_set_from_project_post",
+        institution="valid_filter_set_from_project_post",
+        explorer_id=1,
+        )
+    
+    project_post_invalid = project_post(
+        user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INRG"],
+        name="invalid_filter_set_from_project_post",
+        filter_set_ids=[filter_set_post_invalid.json["id"]],
+        description="invalid_filter_set_from_project_post",
+        institution="invalid_filter_set_from_project_post",
+        explorer_id=1,
+        )
+    
+    login(admin_id, admin_email)
 
-pytest.mark.order(8)
-def test_using_script(session, pytestconfig):
-    session.query(Search)\
-        .filter(Search.name == "invalid_1")\
-        .update({
-            Search.graphql_object: {"AND":[{"IN":{"consortium":["INRG"]}}]}
-        })
-    session.commit()
+    admin_copy_search_to_user_post_real = admin_copy_search_to_user_post(
+        admin_id,
+        user_id=user_2_id,
+        filter_set_id=filter_set_post_real.json["id"],
+        )
+    
+    admin_copy_search_to_user_post_invalid = admin_copy_search_to_user_post(
+        admin_id,
+        user_id=user_2_id,
+        filter_set_id=filter_set_post_invalid.json["id"],
+        )
+    
+    login(user_id, user_email)
+    
+    filter_set_snapshot_post_real = filter_set_snapshot_post(
+        user_id,
+        filter_set_id=filter_set_post_real.json["id"],
+        )
+    
+    filter_set_snapshot_post_invalid = filter_set_snapshot_post(
+        user_id,
+        filter_set_id=filter_set_post_invalid.json["id"],
+        )
+
+
+    main(["--file_name", pytestconfig.getoption("--configuration-file")])
+
+    assert session.query(Search).filter(Search.id==filter_set_post_real.json["id"]).first().is_valid
+    assert session.query(Search).filter(Search.id==filter_set_post_invalid.json["id"]).first().is_valid == False
+    assert session.query(Search).filter(Search.id==admin_filter_set_post_real.json["id"]).first().is_valid
+    assert session.query(Search).filter(Search.id==admin_filter_set_post_invalid.json["id"]).first().is_valid == False
+    assert session.query(Search).filter(Search.id==admin_copy_search_to_user_post_real.json["id"]).first().is_valid
+    assert session.query(Search).filter(Search.id==admin_copy_search_to_user_post_invalid.json["id"]).first().is_valid == False
+    
+    assert session.query(SearchIsShared).filter(SearchIsShared.shareable_token == filter_set_snapshot_post_real.json).first().search.is_valid
+    assert session.query(SearchIsShared).filter(SearchIsShared.shareable_token == filter_set_snapshot_post_invalid.json).first().search.is_valid == False
+
+    assert session.query(Project).filter(Project.id==project_post_real.json["id"]).first().searches[0].is_valid
+    assert session.query(Project).filter(Project.id==project_post_invalid.json["id"]).first().searches[0].is_valid == False
+
+ 
+pytest.mark.order(9)
+def test_manual_change_to_filter_set_auto_updates_is_valid(session, register_user, login, filter_set_post, filter_set_put, pytestconfig):
+    user_id, user_email = register_user(email=f"user_1@test_manual_change_to_filter_set_auto_updates_is_valid.com", name="test_manual_change_to_filter_set_auto_updates_is_valid")
+    
+    fake_graphql_object = {"AND":[{"NOT_REAL":{"consortium":["INRG"]}}]}
+    real_graphql_object = {"AND":[{"IN":{"consortium":["INRG"]}}]}
+
+    login(user_id, user_email)
+    filter_set_post_invalid_1 = filter_set_post(
+        user_id,
+        name="invalid_filter_set_from_filter_set_post",
+        filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+        graphql_object=fake_graphql_object,
+        description="invalid_filter_set_from_filter_set_post",
+    )
+    
+    filter_set_post_invalid_2 = filter_set_post(
+        user_id,
+        name="invalid_filter_set_from_filter_set_post",
+        filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+        graphql_object=fake_graphql_object,
+        description="invalid_filter_set_from_filter_set_post",
+    )
     
     main(["--file_name", pytestconfig.getoption("--configuration-file")])
 
+    assert session.query(Search).filter(Search.id==filter_set_post_invalid_1.json["id"]).first().is_valid == False
+    assert session.query(Search).filter(Search.id==filter_set_post_invalid_2.json["id"]).first().is_valid == False
 
-    update_valid_state = session.query(Search).filter(Search.name == "invalid_1").first()
-
-    assert update_valid_state.is_valid
-
-pytest.mark.order(9)
-def test_manual_change_to_filter_set_auto_updates_is_valid(session, register_user, client, login):
-    user_id, user_email = register_user(email=f"user_1@{__name__}.com", name=__name__)
-    
-    search = Search(
-                graphql_object={"AND":[{"NOT_REAL":{"consortium":["INRG"]}}]},
-                filter_source_internal_id=1,
-                user_id=user_id,
-                is_valid=False,
-                filter_source="explorer"
-            )
-    session.add(
-        search
+    filter_set_put(
+        user_id,
+        filter_set_id=filter_set_post_invalid_1.json["id"],
+        graphql_object=real_graphql_object,
     )
-    session.commit()
 
-    assert search.is_valid == False
+    filter_set_put(
+        user_id,
+        filter_set_id=filter_set_post_invalid_2.json["id"],
+        filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+    )
+
+    assert session.query(Search).filter(Search.id==filter_set_post_invalid_1.json["id"]).first().is_valid
+    assert session.query(Search).filter(Search.id==filter_set_post_invalid_2.json["id"]).first().is_valid
+
+
+pytest.mark.order(10)
+def test_manual_change_to_filter_set_does_not_update_is_valid(session, register_user, login, filter_set_post, filter_set_put, pytestconfig):
+    user_id, user_email = register_user(email=f"user_1@test_manual_change_to_filter_set_does_not_update_is_valid.com", name="test_manual_change_to_filter_set_does_not_update_is_valid")
+    
+    fake_graphql_object = {"AND":[{"NOT_REAL":{"consortium":["INRG"]}}]}
+    real_graphql_object = {"AND":[{"IN":{"consortium":["INRG"]}}]}
+
     login(user_id, user_email)
-    filter_set_update_json = {
-        "name": "new_name",
-        "description": "new_description",
-    }
-    filter_set_put_response = client.put(f'/filter-sets/{search.id}', json=filter_set_update_json, headers={"Authorization": f'bearer {user_id}'})
-    assert filter_set_put_response.status_code == 200
 
-    session.refresh(search)
-    assert search.is_valid == False
+    filter_set_post_invalid_1 = filter_set_post(
+        user_id,
+        name="invalid_filter_set_from_filter_set_post",
+        filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+        graphql_object=fake_graphql_object,
+        description="invalid_filter_set_from_filter_set_post",
+    )
+    
+    main(["--file_name", pytestconfig.getoption("--configuration-file")])
 
-    filter_set_update_json = {
-        "gqlFilter": {"AND":[{"IN":{"consortium":["INRG"]}}]},
-    }
-    filter_set_put_response = client.put(f'/filter-sets/{search.id}', json=filter_set_update_json, headers={"Authorization": f'bearer {user_id}'})
-    assert filter_set_put_response.status_code == 200
+    assert session.query(Search).filter(Search.id==filter_set_post_invalid_1.json["id"]).first().is_valid == False
 
-    session.refresh(search)
-    assert search.is_valid
+    filter_set_put(
+        user_id,
+        filter_set_id=filter_set_post_invalid_1.json["id"],
+        description="new description",
+    )
+
+    assert session.query(Search).filter(Search.id==filter_set_post_invalid_1.json["id"]).first().is_valid == False

@@ -196,6 +196,7 @@ def check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", porta
         graphql_object = filter_set.graphql_object
         filter_set_name = filter_set.name
         filter_source_internal_id = filter_set.filter_source_internal_id
+        filter_source = filter_set.filter_source
 
         separator_length = len(f"CHECKING FILTER SET: {filter_set_name} id: {filter_set.id}")
         logger.info("*" * separator_length)
@@ -203,20 +204,36 @@ def check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", porta
         logger.info("*" * separator_length)
         logger.info(f"graphql_object: {graphql_object}")
 
-     
-        extracted_values_from_filter_set = _extract_selected_values_from_filter_set(graphql_object)
-        
-        if extracted_values_from_filter_set is not False:
-            is_valid = (
-                _check_portal_config(set(extracted_values_from_filter_set.keys()), filter_set_name, explorer_selectable_values[filter_source_internal_id]) 
-                and 
-                _check_es_to_dd_map(extracted_values_from_filter_set, filter_set_name, es_to_dd_map)
-            )
-        else:
-            is_valid = False
+        is_valid = False
+            
+        if graphql_object is None:
 
+            logger.info(f"Filter-set {filter_set_name} has no graphql_object, marking invalid")
+        
+        else:
+            
+            extracted_values_from_filter_set = _extract_selected_values_from_filter_set(graphql_object)
+        
+            if extracted_values_from_filter_set is not False:
+                
+                if not filter_source_internal_id and filter_source == "manual":
+                    logger.info(f"Filter-set {filter_set_name} is a manual filter-set, skipping validation against data portal explorer values")
+                
+                else:
+                    is_valid = (
+                        _check_portal_config(set(extracted_values_from_filter_set.keys()), filter_set_name, explorer_selectable_values[filter_source_internal_id])
+                    )
+
+                is_valid = _check_es_to_dd_map(extracted_values_from_filter_set, filter_set_name, es_to_dd_map)
+
+        
+        
+        
+        
+        
         message = f"name: {filter_set.name} id: {filter_set.id}, is_valid was evaluated to {is_valid}, "
 
+        
         if not is_valid:
 
             if filter_set.is_valid == True:
