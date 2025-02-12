@@ -547,7 +547,7 @@ def filter_set_post(session, client):
         if ids_list is not None:
             json["ids_list"] = ids_list
 
-        url = "/filter-sets" + ("?explorer_id=" + str(explorer_id) if explorer_id is not None else "")
+        url = "/filter-sets" + ("?explorerId=" + str(explorer_id) if explorer_id is not None else "")
 
         response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
 

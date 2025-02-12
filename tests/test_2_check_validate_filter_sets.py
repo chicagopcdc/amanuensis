@@ -234,8 +234,10 @@ def test_check_filter_sets(session,
     user_2_id, user_2_email = register_user(email=f"user_2@{test_check_filter_sets}.com", name=test_check_filter_sets)
     admin_id, admin_email = register_user(email=f"admin@{test_check_filter_sets}.com", name=test_check_filter_sets, role="admin")
 
-    fake_graphql_object = {"AND":[{"NOT_REAL":{"consortium":["INRG"]}}]}
+    fake_graphql_object = {"AND":[{"IN":{"consortium":["NOT_REAL"]}}]}
     real_graphql_object = {"AND":[{"IN":{"consortium":["INRG"]}}]}
+    invalid_for_portal_valid_for_data_dictionary = {"AND":[{"IN":{"subject_responses.tx_prior_response":["Chemotherapy"]}}]}
+    malformed_graphql_object = {"AND":[{"NOT_REAL":{"consortium":["INRG"]}}]} 
 
     login(user_id, user_email)
 
@@ -254,6 +256,34 @@ def test_check_filter_sets(session,
         graphql_object=fake_graphql_object,
         description="invalid_filter_set_from_filter_set_post",
         )
+    
+    filter_set_post_invalid_for_portal_valid_for_data_dictionary = filter_set_post(
+        user_id,
+        name="invalid_for_portal_valid_for_data_dictionary",
+        explorer_id=2,
+        filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"subject_responses.tx_prior_response":{"__type":"OPTION","selectedValues":["Chemotherapy"],"isExclusion":False}}},
+        graphql_object=invalid_for_portal_valid_for_data_dictionary,
+        description="invalid_for_portal_valid_for_data_dictionary",
+        )
+
+    filter_set_post_malformed = filter_set_post(
+        user_id,
+        name="malformed_filter_set_from_filter_set_post",
+        filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+        graphql_object=malformed_graphql_object,
+        description="malformed_filter_set_from_filter_set_post",
+        )
+    
+    filter_set_no_graphql_object = filter_set_post(
+        user_id,
+        name="no_graphql_object_filter_set_from_filter_set_post",
+        filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+        description="no_graphql_object_filter_set_from_filter_set_post",
+        graphql_object={},
+        )
+
+    session.query(Search).filter(Search.id==filter_set_no_graphql_object.json["id"]).update({"graphql_object": None})
+    session.commit()
 
     login(admin_id, admin_email)
 
@@ -329,6 +359,9 @@ def test_check_filter_sets(session,
     assert session.query(Search).filter(Search.id==admin_filter_set_post_invalid.json["id"]).first().is_valid == False
     assert session.query(Search).filter(Search.id==admin_copy_search_to_user_post_real.json["id"]).first().is_valid
     assert session.query(Search).filter(Search.id==admin_copy_search_to_user_post_invalid.json["id"]).first().is_valid == False
+    assert session.query(Search).filter(Search.id==filter_set_post_invalid_for_portal_valid_for_data_dictionary.json["id"]).first().is_valid == False
+    assert session.query(Search).filter(Search.id==filter_set_post_malformed.json["id"]).first().is_valid == False
+    assert session.query(Search).filter(Search.id==filter_set_no_graphql_object.json["id"]).first().is_valid == False
     
     assert session.query(SearchIsShared).filter(SearchIsShared.shareable_token == filter_set_snapshot_post_real.json).first().search.is_valid
     assert session.query(SearchIsShared).filter(SearchIsShared.shareable_token == filter_set_snapshot_post_invalid.json).first().search.is_valid == False
@@ -336,7 +369,6 @@ def test_check_filter_sets(session,
     assert session.query(Project).filter(Project.id==project_post_real.json["id"]).first().searches[0].is_valid
     assert session.query(Project).filter(Project.id==project_post_invalid.json["id"]).first().searches[0].is_valid == False
 
- 
 pytest.mark.order(9)
 def test_manual_change_to_filter_set_auto_updates_is_valid(session, register_user, login, filter_set_post, filter_set_put, pytestconfig):
     user_id, user_email = register_user(email=f"user_1@test_manual_change_to_filter_set_auto_updates_is_valid.com", name="test_manual_change_to_filter_set_auto_updates_is_valid")
