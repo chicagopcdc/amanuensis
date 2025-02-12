@@ -9,9 +9,10 @@ logger = get_logger(__name__, log_level="info")
 
 
 
-def main():
+def main(file_name=None):
     config.load(
-        search_folders=CONFIG_SEARCH_FOLDERS
+        search_folders=CONFIG_SEARCH_FOLDERS,
+        file_name=file_name
     )
     SQLAlchemyDriver.setup_db = lambda _: None
     db = SQLAlchemyDriver(config["DB"])

@@ -6,7 +6,7 @@ from amanuensis.scripting.clear_old_filter_sets import main
 
 
 
-def test_clear_unused_filter_sets(session, client, register_user, login, mock_requests_post):
+def test_clear_unused_filter_sets(session, client, register_user, login, mock_requests_post, pytestconfig):
     # Validate initial state
     # User creates filter-set via UI and has user_id
     # User creates project, and a new search without a user_id is created and added to project_has_search
@@ -75,7 +75,7 @@ def test_clear_unused_filter_sets(session, client, register_user, login, mock_re
     assert session.query(ProjectSearch).count() == 1
 
     # Run main function
-    main()
+    main(pytestconfig.getoption("--configuration-file"))
 
     # Validate post-main state
     assert session.query(Search).count() == 5
@@ -94,7 +94,7 @@ def test_clear_unused_filter_sets(session, client, register_user, login, mock_re
     assert session.query(SearchIsShared).count() == 1
     assert session.query(ProjectSearch).count() == 1
 
-    main()
+    main(pytestconfig.getoption("--configuration-file"))
 
     assert session.query(Search).count() == 5
     assert session.query(Search).filter(Search.user_id.is_(None)).count() == 2

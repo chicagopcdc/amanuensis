@@ -8,15 +8,27 @@ from amanuensis.config import config
 from cdislogging import get_logger
 from pcdcutils.signature import SignatureManager
 import json
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from amanuensis.errors import AuthError
-app_init(app, config_file_name="amanuensis-config.yaml")
 
 logger = get_logger(logger_name=__name__)
 from amanuensis.models import ConsortiumDataContributor
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--configuration-file",  # The CLI argument
+        action="store",   # Stores the value passed to this argument
+        default="amanuensis-config.yaml",  # The default value
+        help="Path to the config file"
+    )
+
+@pytest.fixture(scope="session", autouse=True)
+def initiate_app(pytestconfig):
+    app_init(app, config_file_name=pytestconfig.getoption("--configuration-file"))
+
+
 @pytest.fixture(scope="session")
-def app_instance():
+def app_instance(initiate_app):
     with app.app_context():
         yield app
 
@@ -329,7 +341,7 @@ def project_post(session, client, mock_requests_post, find_fence_user):
 
     def route_project_post(authorization_token,
                            consortiums_to_be_returned_from_pcdc_analysis_tools=[],
-                           associated_users_emails=None,
+                           associated_users_emails=[],
                            name="",
                            description=None,
                            institution=None,
@@ -513,7 +525,7 @@ def project_post(session, client, mock_requests_post, find_fence_user):
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_post(session, client):
 
-    def route_filter_set_get(authorization_token, 
+    def route_filter_set_post(authorization_token, 
                              explorer_id=None,
                              name=None,
                              filter_object=None,
@@ -535,15 +547,17 @@ def filter_set_post(session, client):
         if ids_list is not None:
             json["ids_list"] = ids_list
 
-        url = "/filter-sets" + ("?explorer_id=" + str(explorer_id) if explorer_id is not None else "")
+        url = "/filter-sets" + ("?explorerId=" + str(explorer_id) if explorer_id is not None else "")
 
         response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
 
         assert response.status_code == status_code
 
-        filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
+        filter_set_count = session.query(Search).count()
         
         if status_code == 200:
+
+            filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
 
             assert filter_set.name == name
             assert filter_set.filter_object == filter_object
@@ -562,13 +576,309 @@ def filter_set_post(session, client):
         
         else:
 
-            assert filter_set == None
+            assert session.query(Search).count() == filter_set_count
 
 
         return response
     
-    yield route_filter_set_get
+    yield route_filter_set_post
 
+
+@pytest.fixture(scope="session", autouse=True)
+def filter_set_put(session, client):
+    def route_filter_set_put(authorization_token, 
+                             filter_set_id=None,
+                             explorer_id=1,
+                             name=None,
+                             filter_object=None,
+                             graphql_object=None,
+                             description=None,
+                             ids_list=None, 
+                             status_code=200
+                             ):
+        
+        json = {}
+        if name is not None:
+            json["name"] = name
+        if filter_object is not None:
+            json["filters"] = filter_object
+        if graphql_object is not None:
+            json["gqlFilter"] = graphql_object
+        if description is not None:
+            json["description"] = description
+        if ids_list is not None:
+            json["ids_list"] = ids_list
+
+        filter_set = session.query(Search).filter(Search.id == filter_set_id, Search.user_id == authorization_token, Search.filter_source_internal_id == explorer_id).first()
+        filter_set_count = session.query(Search).count()
+
+        
+        url = "/filter-sets/" + str(filter_set_id)
+
+        response = client.put(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        filter_set_after_url = session.query(Search).filter(Search.id == filter_set_id, Search.user_id == authorization_token).first()
+        session.refresh(filter_set_after_url)
+
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+            
+            #properties that can change
+            assert filter_set_after_url.name == name if name is not None else filter_set.name
+            assert filter_set_after_url.filter_object == filter_object if filter_object is not None else filter_set.filter_object
+            assert filter_set_after_url.graphql_object == graphql_object if graphql_object is not None else filter_set.graphql_object
+            assert filter_set_after_url.description == description if description is not None else filter_set.description
+            print(True if filter_object is not None or graphql_object is not None else filter_set.is_valid)
+            print(filter_set_after_url.is_valid)
+            assert filter_set_after_url.is_valid == (True if filter_object is not None or graphql_object is not None else filter_set.is_valid)    
+
+            #properties that should not change
+            assert filter_set_after_url.filter_source_internal_id == filter_set.filter_source_internal_id 
+            assert filter_set_after_url.ids_list == filter_set_after_url.ids_list
+            assert filter_set_after_url.filter_source == filter_set_after_url.filter_source
+            assert filter_set_after_url.user_id == authorization_token
+            assert filter_set_after_url.user_source == filter_set.user_source
+            assert filter_set_after_url.es_index == filter_set.es_index
+            assert filter_set_after_url.dataset_version == filter_set.dataset_version
+            assert filter_set_after_url.is_superseded_by == filter_set.is_superseded_by
+            assert filter_set_after_url.active == True  
+            
+        
+        elif status_code == 404:
+            assert filter_set == None
+        
+        else:
+
+            assert filter_set.id == filter_set_after_url.id
+            assert filter_set.name == filter_set_after_url.name
+            assert filter_set.filter_object == filter_set_after_url.filter_object
+            assert filter_set.graphql_object == filter_set_after_url.graphql_object
+            assert filter_set.description == filter_set_after_url.description
+            assert filter_set.filter_source_internal_id == filter_set_after_url.filter_source_internal_id
+            assert filter_set.ids_list == filter_set_after_url.ids_list
+            assert filter_set.filter_source == filter_set_after_url.filter_source
+            assert filter_set.user_id == filter_set_after_url.user_id
+            assert filter_set.user_source == filter_set_after_url.user_source
+            assert filter_set.es_index == filter_set_after_url.es_index
+            assert filter_set.dataset_version == filter_set_after_url.dataset_version
+            assert filter_set.is_superseded_by == filter_set_after_url.is_superseded_by
+            assert filter_set.active == filter_set_after_url.active
+            assert filter_set.is_valid == filter_set_after_url.is_valid
+        
+        
+        assert session.query(Search).count() == filter_set_count
+
+
+        return response
+    
+    yield route_filter_set_put
+
+    
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_filter_set_post(session, client):
+
+    def route_admin_filter_set_post(authorization_token, 
+                             user_id=None,
+                             name=None,
+                             graphql_object=None,
+                             description=None,
+                             ids_list=None, 
+                             status_code=200
+                             ):
+        
+        json = {}
+        if user_id is not None:
+            json["user_id"] = user_id
+        if name is not None:
+            json["name"] = name
+        if graphql_object is not None:
+            json["filters"] = graphql_object
+        if description is not None:
+            json["description"] = description
+        if ids_list is not None:
+            json["ids_list"] = ids_list
+
+        url = "/admin/filter-sets"
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        total_filter_sets = session.query(Search).count()
+        
+        if status_code == 200:
+
+            filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
+
+            assert filter_set.name == name
+            assert filter_set.filter_object == None
+            assert filter_set.graphql_object == graphql_object
+            assert filter_set.description == description
+            assert filter_set.filter_source_internal_id == None
+            assert filter_set.ids_list == ids_list
+            assert filter_set.filter_source == "manual"
+            assert filter_set.user_id == user_id
+            assert filter_set.user_source == "fence"
+            assert filter_set.es_index == None
+            assert filter_set.dataset_version == None
+            assert filter_set.is_superseded_by == None
+            assert filter_set.active == True    
+            assert filter_set.is_valid == True
+        
+        else:
+
+            assert session.query(Search).count() == total_filter_sets
+
+
+        return response
+    
+    yield route_admin_filter_set_post
+
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_copy_search_to_user_post(session, client):
+
+    def route_admin_copy_search_to_user_post(authorization_token, 
+                             user_id=None,
+                             filter_set_id=None,
+                             status_code=200
+                             ):
+        
+        json = {}
+        if user_id is not None:
+            json["userId"] = user_id
+        if filter_set_id is not None:
+            json["filtersetId"] = filter_set_id
+
+        url = "/admin/copy-search-to-user"
+
+        total_filter_sets = session.query(Search).count()
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            original_filter_set = session.query(Search).filter(Search.id == filter_set_id).first()
+
+            filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
+
+            assert filter_set.name == original_filter_set.name
+            assert filter_set.filter_object == original_filter_set.filter_object
+            assert filter_set.graphql_object == original_filter_set.graphql_object
+            assert filter_set.description == original_filter_set.description
+            assert filter_set.filter_source_internal_id == original_filter_set.filter_source_internal_id
+            assert filter_set.ids_list == original_filter_set.ids_list
+            assert filter_set.filter_source == "manual"
+            assert filter_set.user_id == user_id
+            assert filter_set.user_source == "fence"
+            assert filter_set.es_index == None
+            assert filter_set.dataset_version == None
+            assert filter_set.is_superseded_by == None
+            assert filter_set.active == True    
+            assert filter_set.is_valid == True
+        
+        else:   
+            assert session.query(Search).count() == total_filter_sets
+
+
+
+        return response
+    
+    yield route_admin_copy_search_to_user_post
+
+
+@pytest.fixture(scope="session", autouse=True)
+def filter_set_snapshot_post(session, client):
+    def route_filter_set_snapshot_post(authorization_token, 
+                             filter_set_id=None,
+                             users_list=None,
+                             status_code=200
+                             ):
+        
+        json = {}
+        if filter_set_id is not None:
+            json["filterSetId"] = filter_set_id
+        if users_list is not None:
+            json["users_list"] = users_list
+
+        url = "/filter-sets/snapshot"
+
+        total_filter_sets = session.query(Search).count()
+        total_search_is_shared = session.query(SearchIsShared).count()
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+            original_filter_set = session.query(Search).filter(Search.id == filter_set_id).first()
+            new_filter_set = session.query(Search).join(SearchIsShared, and_(
+                Search.id == SearchIsShared.search_id,
+                SearchIsShared.shareable_token == response.json
+            )).first()
+            snapshot = session.query(SearchIsShared).filter(SearchIsShared.search_id == new_filter_set.id).first()
+
+            assert new_filter_set.name == original_filter_set.name
+            assert new_filter_set.filter_object == original_filter_set.filter_object
+            assert new_filter_set.graphql_object == original_filter_set.graphql_object
+            assert new_filter_set.description == original_filter_set.description
+            assert new_filter_set.filter_source_internal_id == original_filter_set.filter_source_internal_id
+            assert new_filter_set.ids_list == original_filter_set.ids_list
+            assert new_filter_set.filter_source == "explorer"
+            assert new_filter_set.user_id == None
+            assert new_filter_set.user_source == "fence"
+            assert new_filter_set.es_index == None
+            assert new_filter_set.dataset_version == None
+            assert new_filter_set.is_superseded_by == None
+            assert new_filter_set.active == True    
+            assert new_filter_set.is_valid == True
+
+            assert snapshot.search_id == new_filter_set.id
+            assert snapshot.user_id == users_list
+            assert snapshot.access_role == "READ"
+            assert snapshot.shareable_token != None
+
+        
+        else:   
+            assert session.query(Search).count() == total_filter_sets
+            assert session.query(SearchIsShared).count() == total_search_is_shared
+
+        return response
+    
+    yield route_filter_set_snapshot_post
+
+
+@pytest.fixture(scope="session", autouse=True)
+def filter_set_snapshot_get(session, client):
+    def route_filter_set_snapshot_get(authorization_token, 
+                             token=None,
+                             status_code=200
+                             ):
+        
+        url = "/filter-sets/snapshot/" + token
+
+        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            snapshot = session.query(SearchIsShared).filter(SearchIsShared.shareable_token == token).first()
+
+            assert response.json["id"] == snapshot.search_id
+            assert response.json["name"] == snapshot.search.name
+            assert response.json["explorer_id"] == snapshot.search.filter_source_internal_id
+            assert response.json["description"] == snapshot.search.description
+            assert response.json["filters"] == snapshot.search.filter_object
+        
+        return response
+
+    yield route_filter_set_snapshot_get
 
 # Add a finalizer to ensure proper teardown
 @pytest.fixture(scope="session", autouse=True)
