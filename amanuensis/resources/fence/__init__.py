@@ -9,6 +9,7 @@ from pcdcutils.signature import SignatureManager
 from pcdcutils.errors import NoKeyError
 from pcdcutils.helpers import encode_str
 from amanuensis.config import config
+from amanuensis.errors import InternalError, Unauthorized
 
 logger = get_logger(__name__)
 
@@ -66,3 +67,39 @@ def fence_get_users(usernames=None, ids=None):
         logger.error(e.message)
 
     return{}
+
+def fence_get_all_users():
+    '''
+    amanuensis sends a request to fence for a list of all users 
+    '''
+    
+    try:
+        # sending request to Fence
+        url = config['FENCE'] + "/admin/users"  
+        headers = {'Content-Type': 'application/json'}
+        body = json.dumps({"dummy": "data"})
+        jwt = get_jwt_from_header()
+        sm = SignatureManager(key=config["RSA_PRIVATE_KEY"])
+        
+        headers['Authorization'] = 'bearer ' + jwt
+        headers['Signature'] = b'signature ' + sm.sign(body)
+        headers['Gen3-Service'] = encode_str(config.get('SERVICE_NAME'))
+ 
+        r = requests.get(
+            url, data=body, headers=headers
+        )
+
+        if r.status_code == 200:
+            return r.json()
+        
+        elif r.status_code == 401:
+            logger.error(r.json())
+            raise InternalError("Fence rejected request for all users from amanuensis")
+        
+        else: 
+            logger.error(r.json())
+            raise InternalError("Fence returned unexpected status code for all users request")
+
+    except Exception as e:
+        logger.error(e.message)
+        raise InternalError(e.message)
