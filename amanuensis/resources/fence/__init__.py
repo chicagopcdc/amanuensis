@@ -101,5 +101,5 @@ def fence_get_all_users():
             raise InternalError("Fence returned unexpected status code for all users request")
 
     except Exception as e:
-        logger.error(e.message)
-        raise InternalError(e.message)
+        logger.error(e)
+        raise InternalError("Something went wrong when trying to fetch all users")
