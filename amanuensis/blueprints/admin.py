@@ -747,7 +747,6 @@ def edit_notification():
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def fence_get_all_users_info():
     return_value = fence_get_all_users()
-    print(return_value)
     return return_value
 
 

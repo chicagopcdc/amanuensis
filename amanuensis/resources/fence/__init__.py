@@ -93,11 +93,9 @@ def fence_get_all_users():
             return r.json()
         
         elif r.status_code == 401:
-            logger.error(r.json())
             raise InternalError("Fence rejected request for all users from amanuensis")
         
         else: 
-            logger.error(r.json())
             raise InternalError("Fence returned unexpected status code for all users request")
 
     except Exception as e:
