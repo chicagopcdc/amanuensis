@@ -2,10 +2,13 @@ import flask
 from cdislogging import get_logger
 from amanuensis.config import config
 from amanuensis.resources.fence import fence_get_users
-from amanuensis.resources.userdatamodel.project import update_project, create_project
+from amanuensis.resources.userdatamodel.project import update_project, create_project, get_projects
 from amanuensis.resources.userdatamodel.search import get_filter_sets
 from amanuensis.resources.request import project_requests_from_filter_sets
 from amanuensis.resources.associated_user import add_associated_users
+from amanuensis.resources.request import change_request_state
+from amanuensis.resources.message import send_email
+from amanuensis.resources.userdatamodel.project_has_associated_user import get_project_associated_users 
 from amanuensis.errors import UserError, InternalError
 
 
@@ -40,8 +43,6 @@ def create(current_session, logged_user_id, is_amanuensis_admin, name, descripti
     
     return project
 
-
-
 def upload_file(session, key, project_id, expires=None):
 
     try:
@@ -52,6 +53,35 @@ def upload_file(session, key, project_id, expires=None):
         raise InternalError("Failed to generate presigned url")
     
     update_project(session, project_id, approved_url=f'https://{config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"]["bucket_name"]}.s3.amazonaws.com/{key}')
+
+    change_request_state(session, project_id, state_code="DATA_AVAILABLE")
+    
+    #send email to all active project users with role DATA_ACCESS and have signed into portal before
+    project_users_with_data_access = [project_user.associated_user.email for project_user in get_project_associated_users(session, project_id=project_id, role_code="DATA_ACCESS", many=True)]
+    project_info = get_projects(session, id=project_id, many=False, throw_not_found=True)
+    
+    try:
+        project_users_logged_into_fence = fence_get_users(usernames=project_users_with_data_access)["users"]
+        recipients = []
+        first_names = ""
+        
+        for i in range(len(project_users_logged_into_fence)):
+            
+            if i == len(project_users_logged_into_fence) - 1 and len(project_users_logged_into_fence) > 1:
+                #remove the last commma from first names before adding last name
+                first_names = first_names[:-2]
+                first_names += " and " + project_users_logged_into_fence[i]["first_name"] + ","
+            
+            else:
+                
+                first_names += project_users_logged_into_fence[i]["first_name"] + ", "
+            
+            recipients.append(project_users_logged_into_fence[i]["name"])
+            
+        email_body = config["DATA_AVAILABLE_NOTIFICATION"]["EMAIL_BODY"].format(users=first_names, project_name=project_info.name, project_description=project_info.description)
+        send_email(config["DATA_AVAILABLE_NOTIFICATION"]["EMAIL_SUBJECT"], email_body, recipients=recipients)
+    except Exception as e:
+        logger.error(f"Failed to send email to {project_users_with_data_access}: {e}")
 
     return presigned_url
 

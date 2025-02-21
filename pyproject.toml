@@ -37,6 +37,8 @@ pcdc-aws-client = {git = "https://github.com/chicagopcdc/pcdc-aws-client.git", r
 userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "is_valid-filter-set"}
 psycopg2 = "^2.9.10"
 
+hubspot-api-client = "^10.0.0"
+
 [tool.poetry.dev-dependencies]
 addict = "^2.2.1"
 cdisutilstest = {git = "https://github.com/uc-cdis/cdisutils-test", rev = "1.0.0"}

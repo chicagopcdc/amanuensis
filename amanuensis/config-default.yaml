@@ -133,7 +133,7 @@ ASSOCIATED_USER_ROLE_DEFAULT: 'METADATA_ACCESS'
 # //////////////////////////////////////////////////////////////////////////////////////
 # ASSOCIATED USER DEFAULT ROLE
 # //////////////////////////////////////////////////////////////////////////////////////
-NOTIFY_STATE: ["DATA_DOWNLOADED"]
+NOTIFY_STATE: ["DATA_AVAILABLE"]
 
 # //////////////////////////////////////////////////////////////////////////////////////
 # SUPPORT INFO
@@ -149,15 +149,27 @@ SUPPORT_EMAIL_FOR_ERRORS: null
 # //////////////////////////////////////////////////////////////////////////////////////
 AWS_CREDENTIALS:
   AWS_SES:
-    SENDER: ""
+    SENDER: "pcdc_help@lists.uchicago.edu"
+    CC_RECIPIENTS: ["lgraglia@bsd.uchicago.edu", "bfurner@bsd.uchicago.edu"]
     RECIPIENT: ""
-    AWS_REGION: "us-east-1"
+    region_name: "us-east-1"
     aws_access_key_id: ""
     aws_secret_access_key: ""
   DATA_DELIVERY_S3_BUCKET:
     bucket_name: ""
-    aws_access_key_id: 'DATA_DELIVERY_S3_BUCKET_ACCESS_KEY'
-    aws_secret_access_key: 'DATA_DELIVERY_S3_BUCKET_PRIVATE_KEY'
+    aws_access_key_id: ""
+    aws_secret_access_key: ""
+  
+DATA_AVAILABLE_NOTIFICATION:
+  EMAIL_SUBJECT: "Pediatric Cancer Data Common - Your data is ready!"
+  EMAIL_BODY: |
+   <p>Dear {users}</p>
+   <p>The data for the project request <strong>{project_name}</strong> (<strong>{project_id}</strong>) is ready to be downloaded. To download
+      your data you will need to login to <a href="https://portal.pedscommons.org/">https://portal.pedscommons.org/</a>.</p>
+   <p>Follow the instructions on this page - <a href="https://docs.pedscommons.org/DataPortalUserGuide/#user-menu">https://docs.pedscommons.org/DataPortalUserGuide/#user-menu</a> to access the request and download your data.</p>
+   <p>Please respond to this email if you have any issues or questions.</p>
+   <p>Best,<br>Luca</p>
+
 # NOTE: Remove the {} and supply creds if needed. Example in comments below
 #   'CRED1':
 #     aws_access_key_id: ''
@@ -228,7 +240,7 @@ FENCE: 'http://fence-service'
 
 
 HUBSPOT:
-  API_KEY: "DEV_KEY"
+  ACCESS_TOKEN: "DEV_KEY"
   
 DB_MIGRATION_POSTGRES_LOCK_KEY: 100
 # //////////////////////////////////////////////////////////////////////////////////////

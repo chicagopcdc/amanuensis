@@ -10,9 +10,9 @@ from pcdcutils.signature import SignatureManager
 import json
 from sqlalchemy import or_, and_
 from amanuensis.errors import AuthError
+from amanuensis.resources.request import calculate_overall_project_state
 
 logger = get_logger(logger_name=__name__)
-from amanuensis.models import ConsortiumDataContributor
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -20,6 +20,12 @@ def pytest_addoption(parser):
         action="store",   # Stores the value passed to this argument
         default="amanuensis-config.yaml",  # The default value
         help="Path to the config file"
+    )
+    parser.addoption(
+        "--test-emails-to-send-notifications",  # The CLI argument
+        action="store",   # Stores the value passed to this argument
+        default=[],
+        help="The email addresses to send notifications to for AWS SES"
     )
 
 @pytest.fixture(scope="session", autouse=True)
@@ -48,6 +54,8 @@ def session(app_instance):
         session.query(ProjectAssociatedUser).delete()
         session.query(ProjectSearch).delete()
         session.query(AssociatedUser).delete()
+        session.query(Receiver).delete()
+        session.query(Message).delete()
         session.query(Request).delete()
         session.query(Project).delete()
         session.query(ConsortiumDataContributor).delete()
@@ -88,17 +96,30 @@ def session(app_instance):
     
 
 @pytest.fixture(scope='function')
-def patch_boto(app_instance):
-    # Create the patch object
-    patch_obj = patch.object(app_instance.boto, "presigned_url", return_value="aws_url_to_data")
-    # Start the patch
-    patch_context = patch_obj.start()
+def patch_s3_client(request, app_instance):
+    def do_patch(return_value="This_is_a_presigned_url"):
+        # Create the patch object
+        patch_obj = patch.object(app_instance.boto, "presigned_url", return_value=return_value)
+        # Start the patch
+        patch_context = patch_obj.start()
+        
+        # Add a finalizer to stop the patch
+        request.addfinalizer(patch_obj.stop)
     
-    # Yield the patch object if you want to use it in the test
-    yield patch_context
+    return do_patch
 
-    # Stop the patch after the test finishes
-    patch_obj.stop()
+@pytest.fixture(scope='function')
+def patch_ses_client(request, app_instance):
+    def do_patch(return_value="this_is_an_email_response"):
+        # Create the patch object
+        patch_obj = patch.object(app_instance.ses_boto, "send_email", return_value=return_value)
+        # Start the patch
+        patch_obj.start()
+        
+        # Add a finalizer to stop the patch
+        request.addfinalizer(patch_obj.stop)
+    
+    return do_patch
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_signature_manager():
@@ -142,7 +163,6 @@ def find_fence_user(fence_users):
         if isinstance(queryBody, str):
             queryBody = json.loads(queryBody)
         return_users = {"users": []}
-        print(queryBody)
         for user in fence_users:
             if 'ids' in queryBody:
                 if user['id'] in queryBody['ids']:
@@ -150,7 +170,6 @@ def find_fence_user(fence_users):
             else:
                 if user['name'] in queryBody['usernames']:
                     return_users['users'].append(user)
-        print(return_users)
         return return_users
     yield get_fence_user
 
@@ -630,8 +649,6 @@ def filter_set_put(session, client):
             assert filter_set_after_url.filter_object == filter_object if filter_object is not None else filter_set.filter_object
             assert filter_set_after_url.graphql_object == graphql_object if graphql_object is not None else filter_set.graphql_object
             assert filter_set_after_url.description == description if description is not None else filter_set.description
-            print(True if filter_object is not None or graphql_object is not None else filter_set.is_valid)
-            print(filter_set_after_url.is_valid)
             assert filter_set_after_url.is_valid == (True if filter_object is not None or graphql_object is not None else filter_set.is_valid)    
 
             #properties that should not change
@@ -675,7 +692,6 @@ def filter_set_put(session, client):
     
     yield route_filter_set_put
 
-    
 
 @pytest.fixture(scope="session", autouse=True)
 def admin_filter_set_post(session, client):
@@ -791,6 +807,135 @@ def admin_copy_search_to_user_post(session, client):
     
     yield route_admin_copy_search_to_user_post
 
+@pytest.fixture(scope="function", autouse=True)
+def admin_upload_file(session, client, mock_requests_post):
+    def route_admin_upload_file(authorization_token, 
+                             key=None,
+                             project_id=None,
+                             expires=None,
+                             status_code=200
+                             ):
+        
+        mock_requests_post()
+
+        url = "/admin/upload-file"
+        json = {}
+        if key is not None:
+            json["key"] = key
+        if project_id is not None:
+            json["project_id"] = project_id
+        if expires is not None:
+            json["expires"] = expires
+
+        if project_id:
+            project_before_request = session.query(Project).filter(Project.id == project_id).first()
+            if project_before_request:
+                project_status_before_request = calculate_overall_project_state(session, project_id)["status"]
+        
+        else:
+            project_before_request = None
+            project_status_before_request = None
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if project_id:
+            project_after_request = session.query(Project).filter(Project.id == project_id).first()
+            
+            if project_after_request:
+                session.refresh(project_after_request)
+        else:
+            project_after_request = None
+
+        if status_code == 200:
+            assert project_after_request.approved_url == f'https://{config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"]["bucket_name"]}.s3.amazonaws.com/{key}' 
+
+            calculate_overall_project_state(session, project_id)["status"] == "DATA_AVAILABLE"
+
+
+        else:
+            if project_before_request:
+                assert project_before_request.approved_url == project_after_request.approved_url
+                assert project_status_before_request == calculate_overall_project_state(session, project_id)["status"]
+            
+
+        return response
+
+    yield route_admin_upload_file
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_update_associated_user_role(session, client):
+    def route_admin_update_associated_user_role(authorization_token, 
+                             user_id=None,
+                             email=None,
+                             role=None,
+                             project_id=None,
+                             status_code=200
+                             ):
+        
+        json = {}
+        if user_id is not None:
+            json["user_id"] = user_id
+        if email is not None:
+            json["email"] = email
+        if project_id is not None:
+            json["project_id"] = project_id
+        if role is not None:
+            json["role"] = role
+
+        url = "/admin/associated_user_role"
+
+        if user_id:
+            associated_user_role_before = session.query(ProjectAssociatedUser).filter(
+                ProjectAssociatedUser.project_id == project_id
+                ).join(
+                AssociatedUser, ProjectAssociatedUser.associated_user
+                ).filter(
+                    AssociatedUser.user_id == user_id
+                ).first()
+        else:
+            associated_user_role_before = session.query(ProjectAssociatedUser).filter(
+                ProjectAssociatedUser.project_id == project_id
+                ).join(
+                AssociatedUser, ProjectAssociatedUser.associated_user
+                ).filter(
+                    AssociatedUser.email == email
+                ).first()
+        response = client.put(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if user_id:
+            associated_user_role_after = session.query(ProjectAssociatedUser).filter(
+                ProjectAssociatedUser.project_id == project_id
+                ).join(
+                AssociatedUser, ProjectAssociatedUser.associated_user
+                ).filter(
+                    AssociatedUser.user_id == user_id
+                ).first()
+        else:
+            associated_user_role_after = session.query(ProjectAssociatedUser).filter(
+                ProjectAssociatedUser.project_id == project_id
+                ).join(
+                AssociatedUser, ProjectAssociatedUser.associated_user
+                ).filter(
+                    AssociatedUser.email == email
+                ).first()
+        
+        session.refresh(associated_user_role_after)
+
+        print(associated_user_role_after.role.code)
+        
+        if status_code == 200:
+            assert associated_user_role_after.role.code == role
+        
+        else:
+            associated_user_role_before.role.code == associated_user_role_after.role.code
+        
+        return response
+    
+    yield route_admin_update_associated_user_role
 
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_snapshot_post(session, client):
@@ -852,7 +997,6 @@ def filter_set_snapshot_post(session, client):
     
     yield route_filter_set_snapshot_post
 
-
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_snapshot_get(session, client):
     def route_filter_set_snapshot_get(authorization_token, 
@@ -879,6 +1023,33 @@ def filter_set_snapshot_get(session, client):
         return response
 
     yield route_filter_set_snapshot_get
+
+@pytest.fixture(scope="session", autouse=True)
+def download_urls_get(session, client):
+    def route_download_urls_post(authorization_token, 
+                             project_id=None,
+                             status_code=200
+                             ):
+
+        url = "/download-urls" + (str(project_id) if project_id is not None else "")
+
+        overall_status_before_request = calculate_overall_project_state(session, project_id)["status"]
+
+        response = client.post(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            assert calculate_overall_project_state(session, project_id)["status"] == "DATA_DOWNLOADED"
+        else:
+
+            assert overall_status_before_request == calculate_overall_project_state(session, project_id)["status"]
+        
+        return response
+
+    yield route_download_urls_post
+
 
 # Add a finalizer to ensure proper teardown
 @pytest.fixture(scope="session", autouse=True)
