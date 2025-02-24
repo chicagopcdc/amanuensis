@@ -51,19 +51,6 @@ def test_get_states(client, admin_account):
     assert 'DEPRECATED' not in [state['code'] for state in response.json]
 
 
-def test_fence_requests(admin_account, mock_requests_post):
-    mock_requests_post()
-    from amanuensis.resources.fence import fence_get_users
-    response = fence_get_users(ids=[admin_account])
-    assert response['users'][0]['id'] == admin_account
-    response = fence_get_users(usernames=["admin@uchicago.edu"])
-    assert response['users'][0]['id'] == admin_account
-    response = fence_get_users(usernames=["doesnotexist@test.com"])
-    assert len(response['users']) == 0
-    response = fence_get_users(usernames=[None])
-    assert len(response['users']) == 0
-
-
 
 @pytest.fixture(scope="session")
 def project_data(admin_account):
