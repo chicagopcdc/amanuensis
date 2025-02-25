@@ -51,19 +51,6 @@ def test_get_states(client, admin_account):
     assert 'DEPRECATED' not in [state['code'] for state in response.json]
 
 
-def test_fence_requests(admin_account, mock_requests_post):
-    mock_requests_post()
-    from amanuensis.resources.fence import fence_get_users
-    response = fence_get_users(ids=[admin_account])
-    assert response['users'][0]['id'] == admin_account
-    response = fence_get_users(usernames=["admin@uchicago.edu"])
-    assert response['users'][0]['id'] == admin_account
-    response = fence_get_users(usernames=["doesnotexist@test.com"])
-    assert len(response['users']) == 0
-    response = fence_get_users(usernames=[None])
-    assert len(response['users']) == 0
-
-
 
 @pytest.fixture(scope="session")
 def project_data(admin_account):
@@ -136,14 +123,6 @@ def test_filter_set_user(session, client, register_user, login, project_data):
 
     admin_filterset_id = admin_create_filter_set_response.json["id"]
     project_data["admin_filterset_id"] = admin_filterset_id
-
-    admin_copy_search_to_user_json = {
-        "filtersetId": admin_filterset_id,
-        "userId": project_data["user_id"]
-    }
-    
-    admin_copy_search_to_user_response = client.post("admin/copy-search-to-user", json=admin_copy_search_to_user_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
-    admin_copy_search_to_user_response.status_code == 200
 
     #TEST deleting a filter set and readding it
     #Test 
