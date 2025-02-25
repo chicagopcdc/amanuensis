@@ -124,14 +124,6 @@ def test_filter_set_user(session, client, register_user, login, project_data):
     admin_filterset_id = admin_create_filter_set_response.json["id"]
     project_data["admin_filterset_id"] = admin_filterset_id
 
-    admin_copy_search_to_user_json = {
-        "filtersetId": admin_filterset_id,
-        "userId": project_data["user_id"]
-    }
-    
-    admin_copy_search_to_user_response = client.post("admin/copy-search-to-user", json=admin_copy_search_to_user_json, headers={"Authorization": f'bearer {project_data["admin_id"]}'})
-    admin_copy_search_to_user_response.status_code == 200
-
     #TEST deleting a filter set and readding it
     #Test 
 

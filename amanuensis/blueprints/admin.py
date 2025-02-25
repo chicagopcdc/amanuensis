@@ -551,19 +551,26 @@ def copy_search_to_user():
 
 
     filterset_id = request.get_json().get("filtersetId", None)
+
+    if filterset_id is None:
+        raise UserError("a filter-set id is required for this endpoint")
+    
     user_id = request.get_json().get("userId", None)
+    
+    if user_id is None:
+        raise UserError("a user id is required for this endpoint")
 
 
     search_schema = SearchSchema()
     # return flask.jsonify(search_schema.dump(filterset.copy_filter_set_to_user(filterset_id, logged_user_id, user_id)))
     with current_app.db.session as session:
-        filterset = get_filter_sets(session, id=filterset_id, user_id=user_id, filter_by_source_type=False, many=False, throw_not_found=True)
+        filterset = get_filter_sets(session, id=filterset_id, filter_by_source_type=False, many=False, throw_not_found=True)
 
         search_to_user = create_filter_set(
             session,
-            user_id=user_id,
+            logged_user_id=user_id,
             is_amanuensis_admin=True,
-            explorer_id=filterset.explorer_id,
+            explorer_id=filterset.filter_source_internal_id,
             name=filterset.name,
             description=filterset.description,
             filter_object=filterset.filter_object,
