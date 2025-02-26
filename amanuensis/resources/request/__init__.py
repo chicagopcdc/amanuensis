@@ -7,7 +7,6 @@ from amanuensis.resources.consortium_data_contributor import get_consortiums_fro
 from amanuensis.resources.userdatamodel.request_has_state import create_request_state, get_request_states
 from amanuensis.resources.userdatamodel.request import create_request
 from amanuensis.resources.userdatamodel.transition import get_transition_graph
-from amanuensis.resources.message import notify_user_project_status_update
 
 from amanuensis.config import config
 from amanuensis.errors import UserError, InternalError
@@ -36,15 +35,6 @@ def change_request_state(session, project_id, state_id=None, state_code=None, co
                 )
             )
         updated_requests.append(create_request_state(session, request_state.request.id, NEW_STATE.id).request)
-
-
-    if NEW_STATE.code in config["NOTIFY_STATE"] and updated_requests:
-        notify_user_project_status_update(
-            session,
-            project_id,
-            [updated_request.consortium_data_contributor.code for updated_request in updated_requests]
-        )
-
 
     return updated_requests
 
@@ -101,7 +91,6 @@ def calculate_overall_project_state(session, project_id=None, this_project_reque
 
     except Exception:
         raise InternalError("Unable to load or find the consortium status")
-
 
 
 def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=None, project=None, filter_sets=None):

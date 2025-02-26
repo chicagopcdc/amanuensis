@@ -1,55 +1,50 @@
-from flask import current_app
-from sqlalchemy import func
 from cdislogging import get_logger
-from amanuensis.errors import NotFound, UserError
 from amanuensis.models import (
     Message,
 )
-
-# do this until AWS-related requests is handled by it's own project
-from pcdcutils.environment import is_env_enabled
+from amanuensis.errors import NotFound, UserError
+from amanuensis.models import Message
 
 logger = get_logger(__name__)
 
-__all__ = [
-    "get_all_messages",
-    "get_messages_by_request",
-    "send_message",
-]
 
+def get_messages(current_session, sender_id=None, request_id=None, many=True, throw_not_found=False):
 
-def get_all_messages(current_session, logged_user_id):
-    messages = current_session.query(Message).filter_by(sender_id=logged_user_id).all()
+    logger.info(f"get_messages: {locals()}")
+
+    messages = current_session.query(Message)
+
+    if sender_id:
+        messages = messages.filter(Message.sender_id == sender_id)
+
+    if request_id:
+        messages = messages.filter(Message.request_id == request_id)
+
+    messages = messages.all()
+
+    if not messages and throw_not_found:
+        raise NotFound("No messages found")
+
+    if not many:
+        if len(messages) > 1:
+            raise UserError("Multiple messages found")
+        else:
+            messages = messages[0] if messages else None
+
     return messages
 
-def get_messages_by_request(current_session, logged_user_id, request_id):
-    # messages = current_session.query(Message).filter(Message.sender_id == logged_user_id, Message.request_id == request_id).all()
-    messages = (
-        current_session.query(Message).filter(Message.request_id == request_id).all()
+def create_message(current_session, sender_id, request_id, body, sender_source=None):
+    
+    message = Message(
+        sender_id=sender_id,
+        request_id=request_id,
+        body=body,
+        sender_source=sender_source,
     )
-    return messages
 
+    current_session.add(message)
 
-def send_message(
-    current_session, logged_user_id, request_id, subject, body, receivers, emails
-):
-    """store message in db and send message to emails via aws ses"""
-    new_message = Message(sender_id=logged_user_id, body=body, request_id=request_id)
-    if receivers:
-        new_message.receivers.extend(receivers)
+    current_session.flush()
 
-    if is_env_enabled("SEND_MESSAGE_DEBUG"):
-        # logger.debug(f"send_message receivers (debug mode): {str(receivers)}")
-        logger.debug(f"send_message receivers (debug mode)")
-    else:
-        if receivers:
-            current_session.add(new_message)
-            current_session.flush()
+    return message
 
-    if is_env_enabled("AWS_SES_DEBUG"):
-        logger.debug(f"send_message emails (debug mode): {str(emails)}")
-    elif emails:
-        # Send the Message via AWS SES
-        return current_app.ses_boto.send_email_ses(body, emails, subject)
-
-    return new_message

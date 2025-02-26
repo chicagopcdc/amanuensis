@@ -3,6 +3,7 @@ import flask
 from flask_cors import CORS
 from sqlalchemy.orm import scoped_session
 
+import hubspot
 from userportaldatamodel.driver import SQLAlchemyDriver
 from pcdcutils.signature import SignatureManager
 from pcdcutils.errors import KeyPathInvalidError, NoKeyError
@@ -107,9 +108,10 @@ def app_config(
     # directly from the amanuensis config singleton in the code though.
     app.config.update(**config._configs)
 
-    _setup_hubspot_key(app)
+    
     _setup_arborist_client(app)
     _setup_data_endpoint_and_boto(app)
+    _setup_hubspot_client(app)
 
     # app.storage_manager = StorageManager(config["STORAGE_CREDENTIALS"], logger=logger)
 
@@ -144,23 +146,32 @@ def _setup_data_endpoint_and_boto(app):
         app.s3_boto = None
     
     try:
+        aws_creds = deepcopy(config["AWS_CREDENTIALS"]["AWS_SES"])
+        del aws_creds["SENDER"]
+        del aws_creds["RECIPIENT"]
+        del aws_creds["CC_RECIPIENTS"]
         app.ses_boto = BotoManager(
-            config["AWS_CREDENTIALS"]["SES"], logger=logger
+            aws_creds, logger=logger
         )
     except Exception as e:
+        
         logger.error(f"Could not initialize SES BotoManager.")
+        logger.error(e)
         app.ses_boto = None
 
 def _setup_arborist_client(app):
     if app.config.get("ARBORIST"):
         app.arborist = ArboristClient(arborist_base_url=config["ARBORIST"])
 
-def _setup_hubspot_key(app):
-    if app.config.get("HUBSPOT"):
-        if "API_KEY" in config["HUBSPOT"]:
-            app.hubspot_api_key = config["HUBSPOT"]["API_KEY"]
-        # else:
-            #TODO throw error
+def _setup_hubspot_client(app):
+    try:
+        app.hubspot_client = hubspot.Client.create(
+            access_token=config["HUBSPOT"]["ACCESS_TOKEN"]
+        )
+
+    except Exception as e:
+        logger.error(f"Could not initialize Hubspot. Error: {e}")
+        app.hubspot_client = None
 
 @app.errorhandler(Exception)
 def handle_error(error):

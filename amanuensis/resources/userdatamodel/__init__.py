@@ -18,3 +18,4 @@ from .project_has_associated_user import *
 from .message import *
 from .notification import *
 from .notification_log import *
+from .receivers import *
