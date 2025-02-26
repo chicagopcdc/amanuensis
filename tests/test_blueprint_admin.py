@@ -198,7 +198,7 @@ def test_upload_file_to_project_success(register_user, login, admin_upload_file,
 def test_upload_file_to_project_and_then_send_email_success(register_user, login, admin_upload_file, project_post, filter_set_post, admin_user, pytestconfig, admin_update_associated_user_role, s3):
     
     if not pytestconfig.getoption("--test-emails-to-send-notifications"):
-        logger.warnings("Skipping test_upload_file_to_test_upload_file_to_project_and_then_send_email_successproject_success as no email to send notifications is provided will be marked as fail")
+        logger.warning("Skipping test_upload_file_to_test_upload_file_to_project_and_then_send_email_successproject_success as no email to send notifications is provided will be marked as fail")
         assert False
     
     else:
