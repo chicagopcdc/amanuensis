@@ -27,6 +27,7 @@ from amanuensis.resources.associated_user import add_associated_users
 from amanuensis.resources.userdatamodel.project import get_projects
 from amanuensis.resources.userdatamodel.notification import get_notifications, update_notification
 from amanuensis.resources.userdatamodel.notification_log import create_notification_log, update_notification_log, get_notification_logs
+from amanuensis.resources.fence import fence_get_all_users
 
 from amanuensis.schema import (
     ProjectSchema,
@@ -749,7 +750,11 @@ def edit_notification():
 
         return notification
 
-
+@blueprint.route("/get_users", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def fence_get_all_users_info():
+    return_value = fence_get_all_users()
+    return return_value
 
 
   

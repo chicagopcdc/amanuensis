@@ -11,6 +11,8 @@ import json
 from sqlalchemy import or_, and_
 from amanuensis.errors import AuthError
 from amanuensis.resources.request import calculate_overall_project_state
+from amanuensis.models import ConsortiumDataContributor
+from flask import request
 
 logger = get_logger(logger_name=__name__)
 
@@ -31,7 +33,6 @@ def pytest_addoption(parser):
 @pytest.fixture(scope="session", autouse=True)
 def initiate_app(pytestconfig):
     app_init(app, config_file_name=pytestconfig.getoption("--configuration-file"))
-
 
 @pytest.fixture(scope="session")
 def app_instance(initiate_app):
@@ -173,6 +174,18 @@ def find_fence_user(fence_users):
         return return_users
     yield get_fence_user
 
+
+
+@pytest.fixture(scope="function")
+def patch_auth_header(monkeypatch):
+    def _patch_auth_header(auth_header_value):
+        monkeypatch.setattr(
+            "amanuensis.resources.fence.get_jwt_from_header",
+            lambda: auth_header_value
+        )
+    return _patch_auth_header
+
+
 @pytest.fixture(scope="session", autouse=True)
 def patch_auth_request(app_instance, find_fence_user):
     # Mock the auth_request method to always return True
@@ -194,7 +207,7 @@ def mock_requests_post(request, find_fence_user):
         
         def response_for(url, *args, **kwargs):
             nonlocal urls
-            default_urls = {config["GET_CONSORTIUMS_URL"]: 200, "http://fence-service/admin/users/selected": 200}
+            default_urls = {config["GET_CONSORTIUMS_URL"]: 200, f"{config['FENCE']}/admin/users/selected": 200}
             default_urls.update(urls)
             urls = default_urls
 
@@ -239,6 +252,59 @@ def mock_requests_post(request, find_fence_user):
         request.addfinalizer(patch_method.stop)
     
     return do_patch
+
+
+@pytest.fixture(scope="function")
+def mock_requests_get(request, fence_users):
+
+
+    def do_patch(urls={}):
+        
+        def response_for(url, *args, **kwargs):
+            nonlocal urls
+            default_urls = {f"{config['FENCE']}/admin/users": 200}
+            default_urls.update(urls)
+            urls = default_urls
+            print(urls)
+
+            mocked_response = MagicMock(requests.get)
+
+            if url not in urls:
+                mocked_response.status_code = 404
+                mocked_response.text = "NOT FOUND"
+
+            elif urls[url] == 400:
+                mocked_response.status_code = 400
+                mocked_response.json = MagicMock(return_value="BAD REQUEST")
+            
+            elif urls[url] == 401:
+                print("here")
+                mocked_response.status_code = 401
+                mocked_response.text = "UNAUTHORIZED"
+            
+            elif urls[url] == 403:
+                mocked_response.status_code = 403
+                mocked_response.text = "FORBIDDEN"
+                mocked_response.json = MagicMock(return_value={})
+            
+            else:
+                mocked_response.json = MagicMock(return_value={"users": fence_users})
+                code = 200
+                mocked_response.status_code = code
+
+            return mocked_response
+        
+        patch_method = patch.multiple(
+            "amanuensis.resources.fence.requests",  # Patching requests in the fence module
+            get=MagicMock(side_effect=response_for)  # Both patches share the same side_effect
+        )
+
+        patch_method.start()
+
+        request.addfinalizer(patch_method.stop)
+    
+    return do_patch
+
 
 
 @pytest.fixture(scope="function")
