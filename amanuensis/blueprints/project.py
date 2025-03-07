@@ -114,6 +114,8 @@ def get_projetcs():
             tmp_project["consortia"] = list(consortiums)
             return_projects.append(tmp_project)
 
+        session.commit()
+
     return flask.jsonify(return_projects)
 
 
