@@ -28,6 +28,7 @@ from amanuensis.resources.userdatamodel.project import get_projects
 from amanuensis.resources.userdatamodel.notification import get_notifications, update_notification
 from amanuensis.resources.userdatamodel.notification_log import create_notification_log, update_notification_log, get_notification_logs
 from amanuensis.resources.fence import fence_get_all_users
+from amanuensis.resources.userdatamodel.project_has_search import get_project_searches
 
 from amanuensis.schema import (
     ProjectSchema,
@@ -756,5 +757,25 @@ def fence_get_all_users_info():
     return_value = fence_get_all_users()
     return return_value
 
+@blueprint.route("/project_filter_sets/<project_id>", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_project_filter_sets(project_id):
+    """
+    Get all filter sets for a project
+    """
+    
 
+    search_schema = SearchSchema(many=True)
+    project_searches = []
+    
+    with current_app.db.session as session:
+        
+        get_projects(session, id=project_id, many=False, throw_not_found=True)
+
+        project_searches = get_project_searches(session, project_id=project_id)
+        
+        if project_searches:
+            project_searches = [project_search.search for project_search in project_searches]
+            
+        return jsonify(search_schema.dump(project_searches))
   
