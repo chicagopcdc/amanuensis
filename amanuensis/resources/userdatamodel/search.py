@@ -1,4 +1,4 @@
-from amanuensis.errors import NotFound, UserError
+from amanuensis.errors import NotFound, UserError, InternalError
 from amanuensis.models import Search, FilterSourceType
 from cdislogging import get_logger
 logger = get_logger(__name__)
@@ -103,18 +103,33 @@ def create_filter_set(
 
 def update_filter_set(
         current_session, 
-        logged_user_id, 
-        filter_set_id, 
-        explorer_id, 
+        filter_set=None,
+        logged_user_id=None, 
+        filter_set_id=None, 
+        explorer_id=None, 
         name=None, 
         description=None, 
         filter_object=None, 
         graphql_object=None,
+        is_valid=None,
         delete=False
     ):
     
+    
 
-    filter_set = get_filter_sets(current_session, id=filter_set_id, explorer_id=explorer_id, user_id=logged_user_id, many=False, throw_not_found=True)
+    if filter_set is not None:
+        if not isinstance(filter_set, Search):
+            raise InternalError("filter_set must be a Search object")
+        
+    else:
+        filter_set = get_filter_sets(current_session, id=filter_set_id, explorer_id=explorer_id, user_id=logged_user_id, many=False, throw_not_found=True)
+
+    
+    if is_valid is not None:
+        filter_set.is_valid = is_valid
+    
+    elif filter_object is not None or graphql_object is not None:
+        filter_set.is_valid = True
 
     filter_set.name = name if name is not None else filter_set.name
     filter_set.description = description if description is not None else filter_set.description
