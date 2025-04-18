@@ -121,8 +121,6 @@ APPLICATION_ROOT: '/amanuensis'
 
 GET_CONSORTIUMS_URL: 'http://pcdcanalysistools-service/tools/stats/consortiums'
 
-
-
 ########################################################################################
 #                               OPTIONAL CONFIGURATIONS                                #
 ########################################################################################
