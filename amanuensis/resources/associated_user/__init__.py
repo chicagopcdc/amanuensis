@@ -37,7 +37,7 @@ def add_associated_users(session, users, role=None):
 
             if fence_user:
                 if id and id != fence_user[0]["id"]:
-                    raise UserError(f"The user id {id} does not exist in the commons")
+                    raise UserError(f"The user id {id} does not match the email {email} in the commons")
                 else:
                     id = fence_user[0]["id"]
             
