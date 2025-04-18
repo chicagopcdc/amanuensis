@@ -1091,6 +1091,230 @@ def filter_set_snapshot_get(session, client):
     yield route_filter_set_snapshot_get
 
 @pytest.fixture(scope="session", autouse=True)
+def admin_filter_set_by_project_id_get(session, client):
+    def route_admin_filter_set_get_by_project_id(authorization_token, 
+                             project_id=None,
+                             status_code=200
+                             ):
+        
+        url = "/admin/project_filter_sets/" + (str(project_id) if project_id is not None else "")
+
+        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            project_filter_sets = session.query(ProjectSearch).filter(ProjectSearch.project_id == project_id).all()
+
+            assert len(response.json) == len(project_filter_sets)
+            
+        
+        return response
+
+    yield route_admin_filter_set_get_by_project_id
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_copy_search_to_project(session, client, mock_requests_post): 
+    def route_admin_copy_search_to_project(authorization_token, 
+                             project_id=None,
+                             filter_set_id=None,
+                             status_code=200,
+                             consortiums_to_be_returned_from_pcdc_analysis_tools=[],
+                             state_code="IN_REVIEW"
+                             ):
+        mock_requests_post(consortiums=consortiums_to_be_returned_from_pcdc_analysis_tools)
+        json = {}
+        if project_id is not None:
+            json["projectId"] = project_id
+        if filter_set_id is not None:
+            json["filtersetId"] = filter_set_id
+
+        url = "/admin/copy-search-to-project"
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            filter_set_id = [filter_set_id] if isinstance(filter_set_id, int) else filter_set_id
+
+            project = session.query(Project).filter(Project.id == project_id).first()
+
+            assert project
+
+            assert len(filter_set_id) == session.query(ProjectSearch).filter(ProjectSearch.project_id == project.id).count()
+
+            for filter_set_id in filter_set_id:
+            
+                original_filter_set = session.query(Search).filter(Search.id == filter_set_id).first()
+                new_filter_set = session.query(Search).join(ProjectSearch, and_(
+                    ProjectSearch.project_id == project_id,
+                    Search.name == project.name + "_" + original_filter_set.name
+                )).first()
+
+                assert session.query(ProjectSearch).filter(
+                    and_(
+                        ProjectSearch.project_id == project_id,
+                        ProjectSearch.search_id == new_filter_set.id
+                    )
+                ).first()
+
+                #assert new_filter_set.name == original_filter_set.name
+                assert new_filter_set.filter_object == original_filter_set.filter_object
+                assert new_filter_set.graphql_object == original_filter_set.graphql_object
+                assert new_filter_set.description == original_filter_set.description
+                assert new_filter_set.filter_source_internal_id == original_filter_set.filter_source_internal_id
+                assert new_filter_set.ids_list == original_filter_set.ids_list
+                assert new_filter_set.filter_source == "manual"
+                assert new_filter_set.user_id == None
+                assert new_filter_set.user_source == ""
+                assert new_filter_set.es_index == None
+                assert new_filter_set.dataset_version == None
+                assert new_filter_set.is_superseded_by == None
+                assert new_filter_set.active == True    
+                assert new_filter_set.is_valid == True
+
+            requests = session.query(Request).filter(Request.project_id == project_id).all()
+
+            current_consortiums = set(consortiums_to_be_returned_from_pcdc_analysis_tools)
+
+            for request in requests:
+
+                current_state = session.query(RequestState).filter(
+                    and_(
+                        RequestState.request_id == request.id
+                    )
+                ).order_by(RequestState.update_date.desc()).first()
+
+                if request.consortium_data_contributor.code in consortiums_to_be_returned_from_pcdc_analysis_tools:
+                    assert current_state.state.code == state_code
+                    current_consortiums.remove(request.consortium_data_contributor.code)
+
+                else:
+                    assert current_state.state.code == "DEPRECATED"
+            
+            assert not current_consortiums
+
+
+        return response
+    
+    yield route_admin_copy_search_to_project
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_associated_user_post(session, client, mock_requests_post, find_fence_user):
+
+    def route_admin_associated_user_post(authorization_token, 
+                             users=None,
+                             role=None,
+                             status_code=200
+                             ):
+        
+        mock_requests_post()
+
+        json = {}
+        if users is not None:
+            json["users"] = users
+        if role is not None:
+            json["role"] = role
+
+        url = "/admin/associated_user"
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if status_code == 200:
+            for user in users:
+                if "email" in user:
+                    associated_user = session.query(AssociatedUser).filter(AssociatedUser.email == user["email"]).first()
+                    project_user = session.query(ProjectAssociatedUser).filter(
+                        ProjectAssociatedUser.associated_user_id == associated_user.id and
+                        ProjectAssociatedUser.project_id == user["project_id"]
+                    ).first()
+                    fence_user = find_fence_user({"usernames":user["email"]})["users"]
+                else:
+                    associated_user = session.query(AssociatedUser).filter(AssociatedUser.user_id == user["id"]).first()
+                    project_user = session.query(ProjectAssociatedUser).filter(
+                        ProjectAssociatedUser.associated_user_id == associated_user.id and
+                        ProjectAssociatedUser.project_id == user["project_id"]
+                    ).first()
+                    fence_user = find_fence_user({"ids":[user["id"]]})["users"]
+                
+                if "id" in user:
+                    assert associated_user.user_id == user["id"]
+                
+                if "email" in user:
+                    assert associated_user.email == user["email"]
+                
+                if fence_user:
+                    assert associated_user.user_id == fence_user[0]["id"]
+                    assert associated_user.email == fence_user[0]["name"]
+
+                assert associated_user.user_source == "fence"
+                assert associated_user.active == True
+
+                assert project_user.project_id == user["project_id"]
+                assert project_user.associated_user_id == associated_user.id
+                assert project_user.role.code == role if role else config["ASSOCIATED_USER_ROLE_DEFAULT"]
+                assert project_user.active == True
+        
+        return response
+
+
+    yield route_admin_associated_user_post
+
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_remove_associated_user_from_project_delete(session, client, mock_requests_post):
+
+    def route_admin_remove_associated_user_from_project_delete(authorization_token, 
+                             project_id=None,
+                             user_id=None,
+                             email=None,
+                             status_code=200
+                             ):
+        mock_requests_post()
+        url = f"/admin/remove_associated_user_from_project"
+
+        json = {}
+        if project_id is not None:
+            json["project_id"] = project_id
+        if user_id is not None:
+            json["user_id"] = user_id
+        if email is not None:
+            json["email"] = email
+
+        response = client.delete(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if status_code == 200:
+            # Use join to query both tables
+            query = session.query(ProjectAssociatedUser).join(
+                AssociatedUser, 
+                ProjectAssociatedUser.associated_user_id == AssociatedUser.id
+            ).filter(
+                ProjectAssociatedUser.project_id == project_id
+            )
+            
+            if email:
+                query = query.filter(AssociatedUser.email == email)
+            elif user_id:
+                query = query.filter(AssociatedUser.user_id == user_id)
+                
+            project_user = query.first()
+            
+            assert project_user.active == False
+
+
+        return response
+
+    yield route_admin_remove_associated_user_from_project_delete
+
+
+@pytest.fixture(scope="session", autouse=True)
 def download_urls_get(session, client):
     def route_download_urls_post(authorization_token, 
                              project_id=None,
