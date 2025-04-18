@@ -151,7 +151,6 @@ def find_fence_user(fence_users):
             else:
                 if user['name'] in queryBody['usernames']:
                     return_users['users'].append(user)
-        print(return_users)
         return return_users
     yield get_fence_user
 
@@ -1057,6 +1056,118 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
         return response
     
     yield route_admin_copy_search_to_project
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_associated_user_post(session, client, mock_requests_post, find_fence_user):
+
+    def route_admin_associated_user_post(authorization_token, 
+                             users=None,
+                             role=None,
+                             status_code=200
+                             ):
+        
+        mock_requests_post()
+
+        json = {}
+        if users is not None:
+            json["users"] = users
+        if role is not None:
+            json["role"] = role
+
+        url = "/admin/associated_user"
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if status_code == 200:
+            for user in users:
+                if "email" in user:
+                    associated_user = session.query(AssociatedUser).filter(AssociatedUser.email == user["email"]).first()
+                    project_user = session.query(ProjectAssociatedUser).filter(
+                        ProjectAssociatedUser.associated_user_id == associated_user.id and
+                        ProjectAssociatedUser.project_id == user["project_id"]
+                    ).first()
+                    fence_user = find_fence_user({"usernames":user["email"]})["users"]
+                else:
+                    associated_user = session.query(AssociatedUser).filter(AssociatedUser.user_id == user["id"]).first()
+                    project_user = session.query(ProjectAssociatedUser).filter(
+                        ProjectAssociatedUser.associated_user_id == associated_user.id and
+                        ProjectAssociatedUser.project_id == user["project_id"]
+                    ).first()
+                    fence_user = find_fence_user({"ids":[user["id"]]})["users"]
+                
+                if "id" in user:
+                    assert associated_user.user_id == user["id"]
+                
+                if "email" in user:
+                    assert associated_user.email == user["email"]
+                
+                if fence_user:
+                    assert associated_user.user_id == fence_user[0]["id"]
+                    assert associated_user.email == fence_user[0]["name"]
+
+                assert associated_user.user_source == "fence"
+                assert associated_user.active == True
+
+                assert project_user.project_id == user["project_id"]
+                assert project_user.associated_user_id == associated_user.id
+                assert project_user.role.code == role if role else config["ASSOCIATED_USER_ROLE_DEFAULT"]
+                assert project_user.active == True
+        
+        return response
+
+
+    yield route_admin_associated_user_post
+
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_remove_associated_user_from_project_delete(session, client, mock_requests_post):
+
+    def route_admin_remove_associated_user_from_project_delete(authorization_token, 
+                             project_id=None,
+                             user_id=None,
+                             email=None,
+                             status_code=200
+                             ):
+        mock_requests_post()
+        url = f"/admin/remove_associated_user_from_project"
+
+        json = {}
+        if project_id is not None:
+            json["project_id"] = project_id
+        if user_id is not None:
+            json["user_id"] = user_id
+        if email is not None:
+            json["email"] = email
+
+        response = client.delete(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if status_code == 200:
+            # Use join to query both tables
+            query = session.query(ProjectAssociatedUser).join(
+                AssociatedUser, 
+                ProjectAssociatedUser.associated_user_id == AssociatedUser.id
+            ).filter(
+                ProjectAssociatedUser.project_id == project_id
+            )
+            
+            if email:
+                query = query.filter(AssociatedUser.email == email)
+            elif user_id:
+                query = query.filter(AssociatedUser.user_id == user_id)
+                
+            project_user = query.first()
+            
+            assert project_user.active == False
+
+
+        return response
+
+    yield route_admin_remove_associated_user_from_project_delete
+
 
 # Add a finalizer to ensure proper teardown
 @pytest.fixture(scope="session", autouse=True)
