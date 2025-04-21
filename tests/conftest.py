@@ -51,6 +51,8 @@ def session(app_instance):
         session = app_instance.scoped_session
         
         session.query(RequestState).delete()
+        session.query(Receiver).delete()
+        session.query(Message).delete()
         session.query(SearchIsShared).delete()
         session.query(ProjectAssociatedUser).delete()
         session.query(ProjectSearch).delete()
@@ -88,7 +90,7 @@ def session(app_instance):
         session.query(Search).delete()
         session.query(Notification).delete()
         session.query(NotificationLog).delete()
-
+        
         session.commit()
 
         yield session

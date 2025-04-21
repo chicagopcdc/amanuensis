@@ -15,7 +15,6 @@ from amanuensis.models import (
 from amanuensis.resources.userdatamodel.project import get_projects
 from hubspot.crm.contacts import PublicObjectSearchRequest, ApiException
 
-
 logger = get_logger(__name__)
 
 def get_contacts_by_committee(committee, desired_properties=["email"]):
@@ -41,7 +40,7 @@ def get_contacts_by_committee(committee, desired_properties=["email"]):
     )
 
     try:
-        api_response = current_app.hubspot_client.crm.contacts.search_api.do_search(
+        api_response = flask.current_app.hubspot_client.crm.contacts.search_api.do_search(
             public_object_search_request=public_object_search_request
         )
 
@@ -65,12 +64,12 @@ def send_message(session, logged_user_id, request_id, subject, body):
     
     # The hubspot oAuth implementation is on the way, but not supported yet.
     hapikey =  config['HUBSPOT']['ACCESS_TOKEN']
-    hubspot = current_app.hubspot_client(hubspot_auth_token=hapikey)
+    # hubspot = current_app.hubspot_client(hubspot_auth_token=hapikey)
 
     # Get EC members emails
     # returns [ email, disease_group_executive_committee ]
     committee = f"{consortium_code} Executive Committee Member"
-    hubspot_response = hubspot.get_contacts_by_committee(committee=committee)
+    hubspot_response = get_contacts_by_committee(committee=committee)
     # logger.debug('Hubspot Response: ' + str(hubspot_response))
 
     # Connect to fence to get the user.id from the username(email)
@@ -108,7 +107,7 @@ def send_message(session, logged_user_id, request_id, subject, body):
 
     elif usernames:
         # Send the Message via AWS SES
-        return current_app.ses_boto.send_email_ses(body, usernames, subject)
+        return flask.current_app.ses_boto.send_email_ses(body, usernames, subject)
 
     return new_message
 
