@@ -33,9 +33,11 @@ html2text = "^2020.1.16"
 
 pcdcutils = {git = "https://github.com/chicagopcdc/pcdcutils.git", rev = "0.1.3"}
 hubspotclient = {git = "https://github.com/chicagopcdc/hubspotclient.git", rev = "1.0.2"}
-pcdc-aws-client = {git = "https://github.com/chicagopcdc/pcdc-aws-client.git", rev = "1.2.6"}
+pcdc-aws-client = {git = "https://github.com/chicagopcdc/pcdc-aws-client.git", rev = "1.3.2"}
 userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "1.9.0"}
 psycopg2 = "^2.9.10"
+
+hubspot-api-client = "^10.0.0"
 
 [tool.poetry.dev-dependencies]
 addict = "^2.2.1"
