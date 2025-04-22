@@ -286,7 +286,6 @@ def mock_requests_get(request, fence_users):
     return do_patch
 
 
-
 @pytest.fixture(scope="function")
 def login(request, find_fence_user):
     def patch_user(id, username):
@@ -334,6 +333,7 @@ def login(request, find_fence_user):
 
     
     return patch_user
+
 
 @pytest.fixture(scope="module", autouse=True)
 def s3(app_instance):
