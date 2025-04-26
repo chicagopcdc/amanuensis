@@ -15,11 +15,13 @@ logger = get_logger(__name__)
 
 def fence_get_users(usernames=None, ids=None):
     """
-    amanuensis sends a request to fence for a list of user ids 
+    amanuensis sends a request to fence for a list of user ids
     matching the supplied list of user email addresses
     """
     if ids and usernames:
-        logger.error("fence_get_users: Wrong params, only one among `ids` and `usernames` should be set.")
+        logger.error(
+            "fence_get_users: Wrong params, only one among `ids` and `usernames` should be set."
+        )
         return {}
 
     if usernames:
@@ -27,27 +29,32 @@ def fence_get_users(usernames=None, ids=None):
     elif ids:
         query_body = {"ids": ids}
     else:
-        logger.error("fence_get_users: Wrong params, at least one among `ids` and `usernames` should be set.")
+        logger.error(
+            "fence_get_users: Wrong params, at least one among `ids` and `usernames` should be set."
+        )
         return {}
 
     try:
-        # sending request to Fence
-        url = config['FENCE'] + "/admin/users/selected"
+        # Sending request to Fence.
+        url = config["FENCE"] + "/admin/users/selected"
         path = "/admin/users/selected"
         method = "POST"
-        service_name = config.get('SERVICE_NAME')
+        service_name = config.get("SERVICE_NAME")
         jwt = get_jwt_from_header()
-        sm = SignatureManager(key=config["RSA_PRIVATE_KEY"])
 
-        body = json.dumps(query_body)
-        standardized_payload = f"{method} {path}\nGen3-Service: {service_name}\n{body}"
-        signature = sm.sign(standardized_payload)
+        body = json.dumps(query_body, separators=(",", ":"))
+
+        g3rm = Gen3RequestManager(headers={"Gen3-Service": service_name})
+        signature = g3rm.make_gen3_signature(
+            SimpleNamespace(method=method, path=path, body=lambda: body.encode()),
+            config,
+        )
 
         headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'bearer {jwt}',
-            'Signature': b'signature ' + signature,
-            'Gen3-Service': encode_str(service_name),
+            "Content-Type": "application/json",
+            "Authorization": f"bearer {jwt}",
+            "Signature": b"signature " + signature,
+            "Gen3-Service": encode_str(service_name),
         }
 
         r = requests.post(url, data=body, headers=headers)
@@ -67,22 +74,23 @@ def fence_get_all_users():
     amanuensis sends a request to fence for a list of all users
     """
     try:
-        # sending request to Fence
-        url = config['FENCE'] + "/admin/users"
+        # Sending request to Fence.
+        url = config["FENCE"] + "/admin/users"
         path = "/admin/users"
         method = "GET"
-        service_name = config.get('SERVICE_NAME')
+        service_name = config.get("SERVICE_NAME")
         jwt = get_jwt_from_header()
-        sm = SignatureManager(key=config["RSA_PRIVATE_KEY"])
 
-        standardized_payload = f"{method} {path}\nGen3-Service: {service_name}"
-        signature = sm.sign(standardized_payload)
+        g3rm = Gen3RequestManager(headers={"Gen3-Service": service_name})
+        signature = g3rm.make_gen3_signature(
+            SimpleNamespace(method=method, path=path, body=lambda: ""), config
+        )
 
         headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'bearer {jwt}',
-            'Signature': b'signature ' + signature,
-            'Gen3-Service': encode_str(service_name),
+            "Content-Type": "application/json",
+            "Authorization": f"bearer {jwt}",
+            "Signature": b"signature " + signature,
+            "Gen3-Service": encode_str(service_name),
         }
 
         r = requests.get(url, headers=headers)
@@ -92,7 +100,9 @@ def fence_get_all_users():
         elif r.status_code == 401:
             raise InternalError("Fence rejected request for all users from amanuensis")
         else:
-            raise InternalError("Fence returned unexpected status code for all users request")
+            raise InternalError(
+                "Fence returned unexpected status code for all users request"
+            )
 
     except Exception as e:
         logger.error(e)
