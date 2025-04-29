@@ -1,0 +1,10 @@
+{
+    "python.testing.pytestArgs": [
+        "tests",
+        "--order-scope=module",
+        "--disable-warnings",
+        //"--test-emails-to-send-notifications '[\"pmurdoch@uchicago.edu\"]'"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+}

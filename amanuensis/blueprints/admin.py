@@ -23,7 +23,7 @@ from amanuensis.resources.request import change_request_state, project_requests_
 from amanuensis.resources.userdatamodel.associated_user_roles import get_associated_user_roles
 from amanuensis.resources.userdatamodel.project_has_associated_user import get_project_associated_users, update_project_associated_user
 from amanuensis.resources.userdatamodel.associated_users import get_associated_users
-from amanuensis.resources.associated_user import add_associated_users
+from amanuensis.resources.associated_user import add_associated_users, remove_associated_user
 from amanuensis.resources.userdatamodel.project import get_projects
 from amanuensis.resources.userdatamodel.notification import get_notifications, update_notification
 from amanuensis.resources.userdatamodel.notification_log import create_notification_log, update_notification_log, get_notification_logs
@@ -444,16 +444,10 @@ def delete_user_from_project():
         raise UserError("A project is nessary for this endpoint")
 
     with current_app.db.session as session:
+
+        project_user = remove_associated_user(session, project_id, user_id=associated_user_id, email=associated_user_email)
         project_associated_user_schema = ProjectAssociatedUserSchema()
-        project = get_projects(session, id=project_id, many=False, throw_not_found=True)
-        if project.user_id == associated_user_id:
-            raise UserError("You can't remove the owner from the project")
-        user = get_associated_users(session, email=associated_user_email, user_id=associated_user_id,  many=False, throw_not_found=True)
-
-        project_user = update_project_associated_user(session, project_id=project_id, associated_user_id=user.id, delete=True)
-
         session.commit()
-
         return project_associated_user_schema.dump(project_user)
 
 

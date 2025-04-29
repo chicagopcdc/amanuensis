@@ -10,14 +10,32 @@ from pcdcutils.signature import SignatureManager
 import json
 from sqlalchemy import or_, and_
 from amanuensis.errors import AuthError
-app_init(app, config_file_name="amanuensis-config.yaml")
-
-logger = get_logger(logger_name=__name__)
+from amanuensis.resources.request import calculate_overall_project_state
 from amanuensis.models import ConsortiumDataContributor
 from flask import request
 
+logger = get_logger(logger_name=__name__)
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--configuration-file",  # The CLI argument
+        action="store",   # Stores the value passed to this argument
+        default="amanuensis-config.yaml",  # The default value
+        help="Path to the config file"
+    )
+    parser.addoption(
+        "--test-emails-to-send-notifications",  # The CLI argument
+        action="store",   # Stores the value passed to this argument
+        default=[],
+        help="The email addresses to send notifications to for AWS SES"
+    )
+
+@pytest.fixture(scope="session", autouse=True)
+def initiate_app(pytestconfig):
+    app_init(app, config_file_name=pytestconfig.getoption("--configuration-file"))
+
 @pytest.fixture(scope="session")
-def app_instance():
+def app_instance(initiate_app):
     with app.app_context():
         yield app
 
@@ -33,10 +51,14 @@ def session(app_instance):
         session = app_instance.scoped_session
         
         session.query(RequestState).delete()
+        session.query(Receiver).delete()
+        session.query(Message).delete()
         session.query(SearchIsShared).delete()
         session.query(ProjectAssociatedUser).delete()
         session.query(ProjectSearch).delete()
         session.query(AssociatedUser).delete()
+        session.query(Receiver).delete()
+        session.query(Message).delete()
         session.query(Request).delete()
         session.query(Project).delete()
         session.query(ConsortiumDataContributor).delete()
@@ -68,7 +90,7 @@ def session(app_instance):
         session.query(Search).delete()
         session.query(Notification).delete()
         session.query(NotificationLog).delete()
-
+        
         session.commit()
 
         yield session
@@ -77,17 +99,30 @@ def session(app_instance):
     
 
 @pytest.fixture(scope='function')
-def patch_boto(app_instance):
-    # Create the patch object
-    patch_obj = patch.object(app_instance.boto, "presigned_url", return_value="aws_url_to_data")
-    # Start the patch
-    patch_context = patch_obj.start()
+def patch_s3_client(request, app_instance):
+    def do_patch(return_value="This_is_a_presigned_url"):
+        # Create the patch object
+        patch_obj = patch.object(app_instance.boto, "presigned_url", return_value=return_value)
+        # Start the patch
+        patch_context = patch_obj.start()
+        
+        # Add a finalizer to stop the patch
+        request.addfinalizer(patch_obj.stop)
     
-    # Yield the patch object if you want to use it in the test
-    yield patch_context
+    return do_patch
 
-    # Stop the patch after the test finishes
-    patch_obj.stop()
+@pytest.fixture(scope='function')
+def patch_ses_client(request, app_instance):
+    def do_patch(return_value="this_is_an_email_response"):
+        # Create the patch object
+        patch_obj = patch.object(app_instance.ses_boto, "send_email", return_value=return_value)
+        # Start the patch
+        patch_obj.start()
+        
+        # Add a finalizer to stop the patch
+        request.addfinalizer(patch_obj.stop)
+    
+    return do_patch
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_signature_manager():
@@ -131,7 +166,6 @@ def find_fence_user(fence_users):
         if isinstance(queryBody, str):
             queryBody = json.loads(queryBody)
         return_users = {"users": []}
-        print(queryBody)
         for user in fence_users:
             if 'ids' in queryBody:
                 if user['id'] in queryBody['ids']:
@@ -139,7 +173,6 @@ def find_fence_user(fence_users):
             else:
                 if user['name'] in queryBody['usernames']:
                     return_users['users'].append(user)
-        print(return_users)
         return return_users
     yield get_fence_user
 
@@ -395,7 +428,7 @@ def project_post(session, client, mock_requests_post, find_fence_user):
 
     def route_project_post(authorization_token,
                            consortiums_to_be_returned_from_pcdc_analysis_tools=[],
-                           associated_users_emails=None,
+                           associated_users_emails=[],
                            name="",
                            description=None,
                            institution=None,
@@ -601,7 +634,7 @@ def filter_set_post(session, client):
         if ids_list is not None:
             json["ids_list"] = ids_list
 
-        url = "/filter-sets" + ("?explorer_id=" + str(explorer_id) if explorer_id is not None else "")
+        url = "/filter-sets" + ("?explorerId=" + str(explorer_id) if explorer_id is not None else "")
 
         response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
 
@@ -636,6 +669,96 @@ def filter_set_post(session, client):
         return response
     
     yield route_filter_set_post
+
+
+@pytest.fixture(scope="session", autouse=True)
+def filter_set_put(session, client):
+    def route_filter_set_put(authorization_token, 
+                             filter_set_id=None,
+                             explorer_id=1,
+                             name=None,
+                             filter_object=None,
+                             graphql_object=None,
+                             description=None,
+                             ids_list=None, 
+                             status_code=200
+                             ):
+        
+        json = {}
+        if name is not None:
+            json["name"] = name
+        if filter_object is not None:
+            json["filters"] = filter_object
+        if graphql_object is not None:
+            json["gqlFilter"] = graphql_object
+        if description is not None:
+            json["description"] = description
+        if ids_list is not None:
+            json["ids_list"] = ids_list
+
+        filter_set = session.query(Search).filter(Search.id == filter_set_id, Search.user_id == authorization_token, Search.filter_source_internal_id == explorer_id).first()
+        filter_set_count = session.query(Search).count()
+
+        
+        url = "/filter-sets/" + str(filter_set_id)
+
+        response = client.put(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        filter_set_after_url = session.query(Search).filter(Search.id == filter_set_id, Search.user_id == authorization_token).first()
+        session.refresh(filter_set_after_url)
+
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+            
+            #properties that can change
+            assert filter_set_after_url.name == name if name is not None else filter_set.name
+            assert filter_set_after_url.filter_object == filter_object if filter_object is not None else filter_set.filter_object
+            assert filter_set_after_url.graphql_object == graphql_object if graphql_object is not None else filter_set.graphql_object
+            assert filter_set_after_url.description == description if description is not None else filter_set.description
+            assert filter_set_after_url.is_valid == (True if filter_object is not None or graphql_object is not None else filter_set.is_valid)    
+
+            #properties that should not change
+            assert filter_set_after_url.filter_source_internal_id == filter_set.filter_source_internal_id 
+            assert filter_set_after_url.ids_list == filter_set_after_url.ids_list
+            assert filter_set_after_url.filter_source == filter_set_after_url.filter_source
+            assert filter_set_after_url.user_id == authorization_token
+            assert filter_set_after_url.user_source == filter_set.user_source
+            assert filter_set_after_url.es_index == filter_set.es_index
+            assert filter_set_after_url.dataset_version == filter_set.dataset_version
+            assert filter_set_after_url.is_superseded_by == filter_set.is_superseded_by
+            assert filter_set_after_url.active == True  
+            
+        
+        elif status_code == 404:
+            assert filter_set == None
+        
+        else:
+
+            assert filter_set.id == filter_set_after_url.id
+            assert filter_set.name == filter_set_after_url.name
+            assert filter_set.filter_object == filter_set_after_url.filter_object
+            assert filter_set.graphql_object == filter_set_after_url.graphql_object
+            assert filter_set.description == filter_set_after_url.description
+            assert filter_set.filter_source_internal_id == filter_set_after_url.filter_source_internal_id
+            assert filter_set.ids_list == filter_set_after_url.ids_list
+            assert filter_set.filter_source == filter_set_after_url.filter_source
+            assert filter_set.user_id == filter_set_after_url.user_id
+            assert filter_set.user_source == filter_set_after_url.user_source
+            assert filter_set.es_index == filter_set_after_url.es_index
+            assert filter_set.dataset_version == filter_set_after_url.dataset_version
+            assert filter_set.is_superseded_by == filter_set_after_url.is_superseded_by
+            assert filter_set.active == filter_set_after_url.active
+            assert filter_set.is_valid == filter_set_after_url.is_valid
+        
+        
+        assert session.query(Search).count() == filter_set_count
+
+
+        return response
+    
+    yield route_filter_set_put
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -752,6 +875,135 @@ def admin_copy_search_to_user_post(session, client):
     
     yield route_admin_copy_search_to_user_post
 
+@pytest.fixture(scope="function", autouse=True)
+def admin_upload_file(session, client, mock_requests_post):
+    def route_admin_upload_file(authorization_token, 
+                             key=None,
+                             project_id=None,
+                             expires=None,
+                             status_code=200
+                             ):
+        
+        mock_requests_post()
+
+        url = "/admin/upload-file"
+        json = {}
+        if key is not None:
+            json["key"] = key
+        if project_id is not None:
+            json["project_id"] = project_id
+        if expires is not None:
+            json["expires"] = expires
+
+        if project_id:
+            project_before_request = session.query(Project).filter(Project.id == project_id).first()
+            if project_before_request:
+                project_status_before_request = calculate_overall_project_state(session, project_id)["status"]
+        
+        else:
+            project_before_request = None
+            project_status_before_request = None
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if project_id:
+            project_after_request = session.query(Project).filter(Project.id == project_id).first()
+            
+            if project_after_request:
+                session.refresh(project_after_request)
+        else:
+            project_after_request = None
+
+        if status_code == 200:
+            assert project_after_request.approved_url == f'https://{config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"]["bucket_name"]}.s3.amazonaws.com/{key}' 
+
+            calculate_overall_project_state(session, project_id)["status"] == "DATA_AVAILABLE"
+
+
+        else:
+            if project_before_request:
+                assert project_before_request.approved_url == project_after_request.approved_url
+                assert project_status_before_request == calculate_overall_project_state(session, project_id)["status"]
+            
+
+        return response
+
+    yield route_admin_upload_file
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_update_associated_user_role(session, client):
+    def route_admin_update_associated_user_role(authorization_token, 
+                             user_id=None,
+                             email=None,
+                             role=None,
+                             project_id=None,
+                             status_code=200
+                             ):
+        
+        json = {}
+        if user_id is not None:
+            json["user_id"] = user_id
+        if email is not None:
+            json["email"] = email
+        if project_id is not None:
+            json["project_id"] = project_id
+        if role is not None:
+            json["role"] = role
+
+        url = "/admin/associated_user_role"
+
+        if user_id:
+            associated_user_role_before = session.query(ProjectAssociatedUser).filter(
+                ProjectAssociatedUser.project_id == project_id
+                ).join(
+                AssociatedUser, ProjectAssociatedUser.associated_user
+                ).filter(
+                    AssociatedUser.user_id == user_id
+                ).first()
+        else:
+            associated_user_role_before = session.query(ProjectAssociatedUser).filter(
+                ProjectAssociatedUser.project_id == project_id
+                ).join(
+                AssociatedUser, ProjectAssociatedUser.associated_user
+                ).filter(
+                    AssociatedUser.email == email
+                ).first()
+        response = client.put(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if user_id:
+            associated_user_role_after = session.query(ProjectAssociatedUser).filter(
+                ProjectAssociatedUser.project_id == project_id
+                ).join(
+                AssociatedUser, ProjectAssociatedUser.associated_user
+                ).filter(
+                    AssociatedUser.user_id == user_id
+                ).first()
+        else:
+            associated_user_role_after = session.query(ProjectAssociatedUser).filter(
+                ProjectAssociatedUser.project_id == project_id
+                ).join(
+                AssociatedUser, ProjectAssociatedUser.associated_user
+                ).filter(
+                    AssociatedUser.email == email
+                ).first()
+        
+        session.refresh(associated_user_role_after)
+
+        print(associated_user_role_after.role.code)
+        
+        if status_code == 200:
+            assert associated_user_role_after.role.code == role
+        
+        else:
+            associated_user_role_before.role.code == associated_user_role_after.role.code
+        
+        return response
+    
+    yield route_admin_update_associated_user_role
 
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_snapshot_post(session, client):
@@ -812,7 +1064,6 @@ def filter_set_snapshot_post(session, client):
         return response
     
     yield route_filter_set_snapshot_post
-
 
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_snapshot_get(session, client):
@@ -952,6 +1203,145 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
         return response
     
     yield route_admin_copy_search_to_project
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_associated_user_post(session, client, mock_requests_post, find_fence_user):
+
+    def route_admin_associated_user_post(authorization_token, 
+                             users=None,
+                             role=None,
+                             status_code=200
+                             ):
+        
+        mock_requests_post()
+
+        json = {}
+        if users is not None:
+            json["users"] = users
+        if role is not None:
+            json["role"] = role
+
+        url = "/admin/associated_user"
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if status_code == 200:
+            for user in users:
+                if "email" in user:
+                    associated_user = session.query(AssociatedUser).filter(AssociatedUser.email == user["email"]).first()
+                    project_user = session.query(ProjectAssociatedUser).filter(
+                        ProjectAssociatedUser.associated_user_id == associated_user.id and
+                        ProjectAssociatedUser.project_id == user["project_id"]
+                    ).first()
+                    fence_user = find_fence_user({"usernames":user["email"]})["users"]
+                else:
+                    associated_user = session.query(AssociatedUser).filter(AssociatedUser.user_id == user["id"]).first()
+                    project_user = session.query(ProjectAssociatedUser).filter(
+                        ProjectAssociatedUser.associated_user_id == associated_user.id and
+                        ProjectAssociatedUser.project_id == user["project_id"]
+                    ).first()
+                    fence_user = find_fence_user({"ids":[user["id"]]})["users"]
+                
+                if "id" in user:
+                    assert associated_user.user_id == user["id"]
+                
+                if "email" in user:
+                    assert associated_user.email == user["email"]
+                
+                if fence_user:
+                    assert associated_user.user_id == fence_user[0]["id"]
+                    assert associated_user.email == fence_user[0]["name"]
+
+                assert associated_user.user_source == "fence"
+                assert associated_user.active == True
+
+                assert project_user.project_id == user["project_id"]
+                assert project_user.associated_user_id == associated_user.id
+                assert project_user.role.code == role if role else config["ASSOCIATED_USER_ROLE_DEFAULT"]
+                assert project_user.active == True
+        
+        return response
+
+
+    yield route_admin_associated_user_post
+
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_remove_associated_user_from_project_delete(session, client, mock_requests_post):
+
+    def route_admin_remove_associated_user_from_project_delete(authorization_token, 
+                             project_id=None,
+                             user_id=None,
+                             email=None,
+                             status_code=200
+                             ):
+        mock_requests_post()
+        url = f"/admin/remove_associated_user_from_project"
+
+        json = {}
+        if project_id is not None:
+            json["project_id"] = project_id
+        if user_id is not None:
+            json["user_id"] = user_id
+        if email is not None:
+            json["email"] = email
+
+        response = client.delete(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        if status_code == 200:
+            # Use join to query both tables
+            query = session.query(ProjectAssociatedUser).join(
+                AssociatedUser, 
+                ProjectAssociatedUser.associated_user_id == AssociatedUser.id
+            ).filter(
+                ProjectAssociatedUser.project_id == project_id
+            )
+            
+            if email:
+                query = query.filter(AssociatedUser.email == email)
+            elif user_id:
+                query = query.filter(AssociatedUser.user_id == user_id)
+                
+            project_user = query.first()
+            
+            assert project_user.active == False
+
+
+        return response
+
+    yield route_admin_remove_associated_user_from_project_delete
+
+
+@pytest.fixture(scope="session", autouse=True)
+def download_urls_get(session, client):
+    def route_download_urls_post(authorization_token, 
+                             project_id=None,
+                             status_code=200
+                             ):
+
+        url = "/download-urls" + (str(project_id) if project_id is not None else "")
+
+        overall_status_before_request = calculate_overall_project_state(session, project_id)["status"]
+
+        response = client.post(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            assert calculate_overall_project_state(session, project_id)["status"] == "DATA_DOWNLOADED"
+        else:
+
+            assert overall_status_before_request == calculate_overall_project_state(session, project_id)["status"]
+        
+        return response
+
+    yield route_download_urls_post
+
 
 # Add a finalizer to ensure proper teardown
 @pytest.fixture(scope="session", autouse=True)
