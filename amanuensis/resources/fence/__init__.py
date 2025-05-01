@@ -7,8 +7,10 @@ from amanuensis.auth.auth import get_jwt_from_header
 from pcdcutils.signature import SignatureManager
 from pcdcutils.errors import NoKeyError
 from pcdcutils.helpers import encode_str
+from pcdcutils.gen3 import Gen3RequestManager
 from amanuensis.config import config
 from amanuensis.errors import InternalError, Unauthorized
+from types import SimpleNamespace
 
 logger = get_logger(__name__)
 
@@ -53,8 +55,8 @@ def fence_get_users(usernames=None, ids=None):
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"bearer {jwt}",
-            "Signature": b"signature " + signature,
-            "Gen3-Service": encode_str(service_name),
+            "Signature": "signature " + signature.decode(),
+            "Gen3-Service": encode_str(service_name or ""),
         }
 
         r = requests.post(url, data=body, headers=headers)
@@ -89,8 +91,8 @@ def fence_get_all_users():
         headers = {
             "Content-Type": "application/json",
             "Authorization": f"bearer {jwt}",
-            "Signature": b"signature " + signature,
-            "Gen3-Service": encode_str(service_name),
+            "Signature": "signature " + signature.decode(),
+            "Gen3-Service": encode_str(service_name or ""),
         }
 
         r = requests.get(url, headers=headers)

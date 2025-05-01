@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add the project root to the Python path, just for local testing
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
 import pytest
 from mock import patch, MagicMock
 from amanuensis import app, app_init
@@ -15,13 +21,15 @@ logger = get_logger(logger_name=__name__)
 from amanuensis.models import ConsortiumDataContributor
 from flask import request
 
+
 def pytest_addoption(parser):
     parser.addoption(
         "--configuration-file",  # The CLI argument
-        action="store",   # Stores the value passed to this argument
+        action="store",  # Stores the value passed to this argument
         default="amanuensis-config.yaml",  # The default value
-        help="Path to the config file"
+        help="Path to the config file",
     )
+
 
 @pytest.fixture(scope="session", autouse=True)
 def initiate_app(pytestconfig):
@@ -33,17 +41,19 @@ def app_instance(initiate_app):
     with app.app_context():
         yield app
 
+
 @pytest.fixture(scope="session")
 def client(app_instance):
     with app_instance.test_client() as client:
         yield client
+
 
 @pytest.fixture(scope="session", autouse=True)
 def session(app_instance):
     with app_instance.app_context():
 
         session = app_instance.scoped_session
-        
+
         session.query(RequestState).delete()
         session.query(SearchIsShared).delete()
         session.query(ProjectAssociatedUser).delete()
@@ -53,30 +63,17 @@ def session(app_instance):
         session.query(Project).delete()
         session.query(ConsortiumDataContributor).delete()
         consortiums = []
-        consortiums.append(
-            ConsortiumDataContributor(
-                name="INRG", 
-                code ="INRG"
-            )
-        )
-        consortiums.append(
-                ConsortiumDataContributor(
-                    name="INSTRUCT", 
-                    code ="INSTRUCT"
-                    )
-        )
-        consortiums.append(
-            ConsortiumDataContributor(
-                name="INTERACT",
-                code ="INTERACT"
-            )
-        )
+        consortiums.append(ConsortiumDataContributor(name="INRG", code="INRG"))
+        consortiums.append(ConsortiumDataContributor(name="INSTRUCT", code="INSTRUCT"))
+        consortiums.append(ConsortiumDataContributor(name="INTERACT", code="INTERACT"))
 
         session.add_all(consortiums)
         session.query(State).filter(State.code == "STATE1").delete()
         session.query(State).filter(State.code == "STATE2").delete()
         session.query(State).filter(State.code == "ENDPOINT_TEST").delete()
-        session.query(AssociatedUserRoles).filter(AssociatedUserRoles.code == "TEST").delete()
+        session.query(AssociatedUserRoles).filter(
+            AssociatedUserRoles.code == "TEST"
+        ).delete()
         session.query(Search).delete()
         session.query(Notification).delete()
         session.query(NotificationLog).delete()
@@ -86,20 +83,23 @@ def session(app_instance):
         yield session
 
         session.commit()
-    
 
-@pytest.fixture(scope='function')
+
+@pytest.fixture(scope="function")
 def patch_boto(app_instance):
     # Create the patch object
-    patch_obj = patch.object(app_instance.boto, "presigned_url", return_value="aws_url_to_data")
+    patch_obj = patch.object(
+        app_instance.boto, "presigned_url", return_value="aws_url_to_data"
+    )
     # Start the patch
     patch_context = patch_obj.start()
-    
+
     # Yield the patch object if you want to use it in the test
     yield patch_context
 
     # Stop the patch after the test finishes
     patch_obj.stop()
+
 
 @pytest.fixture(scope="session", autouse=True)
 def mock_signature_manager():
@@ -108,18 +108,19 @@ def mock_signature_manager():
         mock_sm.return_value.sign.return_value = b"mock_signature"
         yield
 
+
 @pytest.fixture(scope="session", autouse=True)
 def fence_users():
     yield []
 
+
 @pytest.fixture(scope="session", autouse=True)
 def register_user(fence_users):
-    
 
     def add(email, name, role="user"):
 
         user_id = fence_users[-1]["id"] + 1 if fence_users else 1
-    
+
         user = {
             "first_name": f"{name}_first_{user_id}",
             "id": user_id,
@@ -127,13 +128,13 @@ def register_user(fence_users):
             "last_auth": "Fri, 19 Jan 2024 20:33:37 GMT",
             "last_name": f"{name}_last_{user_id}",
             "name": email,
-            "role": role
+            "role": role,
         }
 
         fence_users.append(user)
 
         return user["id"], user["name"]
-    
+
     yield add
 
 
@@ -145,24 +146,24 @@ def find_fence_user(fence_users):
         return_users = {"users": []}
         print(queryBody)
         for user in fence_users:
-            if 'ids' in queryBody:
-                if user['id'] in queryBody['ids']:
-                    return_users['users'].append(user)
+            if "ids" in queryBody:
+                if user["id"] in queryBody["ids"]:
+                    return_users["users"].append(user)
             else:
-                if user['name'] in queryBody['usernames']:
-                    return_users['users'].append(user)
+                if user["name"] in queryBody["usernames"]:
+                    return_users["users"].append(user)
         return return_users
-    yield get_fence_user
 
+    yield get_fence_user
 
 
 @pytest.fixture(scope="function")
 def patch_auth_header(monkeypatch):
     def _patch_auth_header(auth_header_value):
         monkeypatch.setattr(
-            "amanuensis.resources.fence.get_jwt_from_header",
-            lambda: auth_header_value
+            "amanuensis.resources.fence.get_jwt_from_header", lambda: auth_header_value
         )
+
     return _patch_auth_header
 
 
@@ -175,19 +176,24 @@ def patch_auth_request(app_instance, find_fence_user):
             return True
         else:
             return False
-    with patch.object(app_instance.arborist, 'auth_request', side_effect=mock_auth_request):
+
+    with patch.object(
+        app_instance.arborist, "auth_request", side_effect=mock_auth_request
+    ):
         yield
 
 
 @pytest.fixture(scope="function")
 def mock_requests_post(request, find_fence_user):
 
-
     def do_patch(consortiums=None, urls={}):
-        
+
         def response_for(url, *args, **kwargs):
             nonlocal urls
-            default_urls = {config["GET_CONSORTIUMS_URL"]: 200, f"{config['FENCE']}/admin/users/selected": 200}
+            default_urls = {
+                config["GET_CONSORTIUMS_URL"]: 200,
+                f"{config['FENCE']}/admin/users/selected": 200,
+            }
             default_urls.update(urls)
             urls = default_urls
 
@@ -197,49 +203,49 @@ def mock_requests_post(request, find_fence_user):
                 mocked_response.status_code = 404
                 mocked_response.text = "NOT FOUND"
 
-            elif 'data' not in kwargs or urls[url] == 400:
+            elif "data" not in kwargs or urls[url] == 400:
                 mocked_response.status_code = 400
                 mocked_response.json = MagicMock(return_value="BAD REQUEST")
-            
+
             elif urls[url] == 403:
                 mocked_response.status_code = 403
                 mocked_response.text = "FORBIDDEN"
 
-            
             else:
                 if isinstance(kwargs["data"], str):
-                    data = json.loads(kwargs["data"]) 
-                if 'ids' in data or 'usernames' in data:
-                    content = find_fence_user(kwargs['data'])
+                    data = json.loads(kwargs["data"])
+                if "ids" in data or "usernames" in data:
+                    content = find_fence_user(kwargs["data"])
                 else:
                     content = consortiums
-              
+
                 mocked_response.json = MagicMock(return_value=content)
 
                 code = 200
                 mocked_response.status_code = code
 
             return mocked_response
-        
+
         patch_method = patch.multiple(
             "amanuensis.resources.consortium_data_contributor.requests",  # Patching requests in the consortium module
             "amanuensis.resources.fence.requests",  # Patching requests in the fence module
-            post=MagicMock(side_effect=response_for)  # Both patches share the same side_effect
+            post=MagicMock(
+                side_effect=response_for
+            ),  # Both patches share the same side_effect
         )
 
         patch_method.start()
 
         request.addfinalizer(patch_method.stop)
-    
+
     return do_patch
 
 
 @pytest.fixture(scope="function")
 def mock_requests_get(request, fence_users):
 
-
     def do_patch(urls={}):
-        
+
         def response_for(url, *args, **kwargs):
             nonlocal urls
             default_urls = {f"{config['FENCE']}/admin/users": 200}
@@ -256,33 +262,35 @@ def mock_requests_get(request, fence_users):
             elif urls[url] == 400:
                 mocked_response.status_code = 400
                 mocked_response.json = MagicMock(return_value="BAD REQUEST")
-            
+
             elif urls[url] == 401:
                 print("here")
                 mocked_response.status_code = 401
                 mocked_response.text = "UNAUTHORIZED"
-            
+
             elif urls[url] == 403:
                 mocked_response.status_code = 403
                 mocked_response.text = "FORBIDDEN"
                 mocked_response.json = MagicMock(return_value={})
-            
+
             else:
                 mocked_response.json = MagicMock(return_value={"users": fence_users})
                 code = 200
                 mocked_response.status_code = code
 
             return mocked_response
-        
+
         patch_method = patch.multiple(
             "amanuensis.resources.fence.requests",  # Patching requests in the fence module
-            get=MagicMock(side_effect=response_for)  # Both patches share the same side_effect
+            get=MagicMock(
+                side_effect=response_for
+            ),  # Both patches share the same side_effect
         )
 
         patch_method.start()
 
         request.addfinalizer(patch_method.stop)
-    
+
     return do_patch
 
 
@@ -296,11 +304,13 @@ def login(request, find_fence_user):
             id = fence_user[0]["id"]
             username = fence_user[0]["name"]
         # Patch `current_user` in both modules: filterset and admin
-        patcher_filterset = patch('amanuensis.blueprints.filterset.current_user')
-        patcher_admin = patch('amanuensis.blueprints.admin.current_user')
-        patcher_download_urls = patch('amanuensis.blueprints.download_urls.current_user')
-        patcher_projects = patch('amanuensis.blueprints.project.current_user')
-        patcher_notifications = patch('amanuensis.blueprints.notification.current_user')
+        patcher_filterset = patch("amanuensis.blueprints.filterset.current_user")
+        patcher_admin = patch("amanuensis.blueprints.admin.current_user")
+        patcher_download_urls = patch(
+            "amanuensis.blueprints.download_urls.current_user"
+        )
+        patcher_projects = patch("amanuensis.blueprints.project.current_user")
+        patcher_notifications = patch("amanuensis.blueprints.notification.current_user")
 
         # Start both patches and set their attributes
         mock_current_user_filterset = patcher_filterset.start()
@@ -331,7 +341,6 @@ def login(request, find_fence_user):
         request.addfinalizer(patcher_projects.stop)
         request.addfinalizer(patcher_notifications.stop)
 
-    
     return patch_user
 
 
@@ -340,16 +349,16 @@ def s3(app_instance):
 
     s3 = None
 
-    try: 
+    try:
 
         s3 = app_instance.s3_boto.s3_client
-        bucket_name = 'amanuensis-upload-file-test-bucket'
+        bucket_name = "amanuensis-upload-file-test-bucket"
 
         # Check if the bucket exists
         def bucket_exists(bucket_name):
             response = s3.list_buckets()
-            for bucket in response['Buckets']:
-                if bucket['Name'] == bucket_name:
+            for bucket in response["Buckets"]:
+                if bucket["Name"] == bucket_name:
                     return True
             return False
 
@@ -360,72 +369,84 @@ def s3(app_instance):
 
         # Delete file if it exists
         try:
-            s3.delete_object(Bucket=bucket_name, Key='data_1')
+            s3.delete_object(Bucket=bucket_name, Key="data_1")
             logger.info("File 'data_1' deleted.")
         except s3.exceptions.NoSuchKey:
             logger.info("File 'data_1' does not exist.")
 
-    
     except Exception as e:
         logger.error(f"Failed to set up s3 bucket, tests will fail {e}")
 
     yield s3
     if s3:
         response = s3.list_objects_v2(Bucket=bucket_name)
-        if 'Contents' in response:
-            for obj in response['Contents']:
-                s3.delete_object(Bucket=bucket_name, Key=obj['Key'])
+        if "Contents" in response:
+            for obj in response["Contents"]:
+                s3.delete_object(Bucket=bucket_name, Key=obj["Key"])
                 logger.info(f"deleted {obj['Key']}")
-        
+
         s3.delete_bucket(Bucket=bucket_name)
         logger.info(f"delete bucket {bucket_name}")
 
+
 # Helper fixtures to make tests easier to follow along with and create
-# these should handle calling the server 
-#then validate the DB that the data was correctly stored
+# these should handle calling the server
+# then validate the DB that the data was correctly stored
+
 
 @pytest.fixture(scope="session", autouse=True)
 def project_get(client):
 
-    def route_project_get(authorization_token, 
-                          special_user_admin=False, 
-                          status_code=200
-                          ):
-        
+    def route_project_get(
+        authorization_token, special_user_admin=False, status_code=200
+    ):
+
         url = "/projects" + ("?special_user=admin" if special_user_admin else "")
-        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.get(
+            url, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
-        #here we should validate based on the DB and inputs that the response is correct 
+        # here we should validate based on the DB and inputs that the response is correct
         return response
 
     yield route_project_get
 
+
 @pytest.fixture(scope="function")
 def project_post(session, client, mock_requests_post, find_fence_user):
 
-    def route_project_post(authorization_token,
-                           consortiums_to_be_returned_from_pcdc_analysis_tools=[],
-                           associated_users_emails=[],
-                           name="",
-                           description=None,
-                           institution=None,
-                           filter_set_ids=None,
-                           explorer_id=None,
-                           status_code=200):
-        
-        mock_requests_post(consortiums=consortiums_to_be_returned_from_pcdc_analysis_tools)
+    def route_project_post(
+        authorization_token,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=[],
+        associated_users_emails=[],
+        name="",
+        description=None,
+        institution=None,
+        filter_set_ids=None,
+        explorer_id=None,
+        status_code=200,
+    ):
 
-        current_users = session.query(AssociatedUser).filter(
-                or_(AssociatedUser.user_id == authorization_token,
-                    AssociatedUser.email.in_(associated_users_emails))
-            ).all()
+        mock_requests_post(
+            consortiums=consortiums_to_be_returned_from_pcdc_analysis_tools
+        )
 
-        current_filters = session.query(Search).filter(
-                                Search.id.in_(filter_set_ids)
-                         ).all()        
-        
-        
+        current_users = (
+            session.query(AssociatedUser)
+            .filter(
+                or_(
+                    AssociatedUser.user_id == authorization_token,
+                    AssociatedUser.email.in_(associated_users_emails),
+                )
+            )
+            .all()
+        )
+
+        current_filters = (
+            session.query(Search).filter(Search.id.in_(filter_set_ids)).all()
+        )
+
         json = {}
         if associated_users_emails is not None:
             json["associated_users_emails"] = associated_users_emails
@@ -440,51 +461,74 @@ def project_post(session, client, mock_requests_post, find_fence_user):
         if explorer_id is not None:
             json["explorer_id"] = explorer_id
 
-        response = client.post("/projects", json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.post(
+            "/projects",
+            json=json,
+            headers={"Authorization": f"bearer {authorization_token}"},
+        )
 
         assert response.status_code == status_code
 
         project_id = response.json.get("id") if response.status_code == 200 else None
 
         project = session.query(Project).filter(Project.id == project_id).first()
-        
-        #fetch data for new filter sets and project filter sets
 
-        new_filter_sets = session.query(Search).filter(
-                            Search.name.in_(
-                                [name + "_" + user_gen_filter.name for user_gen_filter in current_filters]
-                            )
-                        ).all()
-        
-        project_filter_sets = session.query(ProjectSearch).filter(
-                            ProjectSearch.project_id == project_id
-                        ).all()
-        
-        #fetch data for new requests and states
+        # fetch data for new filter sets and project filter sets
 
-        project_requests = session.query(Request).filter(
-                            Request.project_id == project_id
-                        ).all()
-        
-        project_requests_states = session.query(RequestState).filter(
-                                    RequestState.request_id.in_(
-                                        [request.id for request in project_requests]
-                                    )
-                                ).all()
+        new_filter_sets = (
+            session.query(Search)
+            .filter(
+                Search.name.in_(
+                    [
+                        name + "_" + user_gen_filter.name
+                        for user_gen_filter in current_filters
+                    ]
+                )
+            )
+            .all()
+        )
 
-        #fetch data for new associated users and project associated users
+        project_filter_sets = (
+            session.query(ProjectSearch)
+            .filter(ProjectSearch.project_id == project_id)
+            .all()
+        )
 
-        project_associated_users = session.query(ProjectAssociatedUser).filter(
-                            ProjectAssociatedUser.project_id == project_id
-                        ).all()
-        
-        updated_associated_users = session.query(AssociatedUser).filter(
-                            or_(
-                                AssociatedUser.user_id == authorization_token,
-                                AssociatedUser.email.in_(associated_users_emails)
-                            )
-                        ).all()
-        
+        # fetch data for new requests and states
+
+        project_requests = (
+            session.query(Request).filter(Request.project_id == project_id).all()
+        )
+
+        project_requests_states = (
+            session.query(RequestState)
+            .filter(
+                RequestState.request_id.in_(
+                    [request.id for request in project_requests]
+                )
+            )
+            .all()
+        )
+
+        # fetch data for new associated users and project associated users
+
+        project_associated_users = (
+            session.query(ProjectAssociatedUser)
+            .filter(ProjectAssociatedUser.project_id == project_id)
+            .all()
+        )
+
+        updated_associated_users = (
+            session.query(AssociatedUser)
+            .filter(
+                or_(
+                    AssociatedUser.user_id == authorization_token,
+                    AssociatedUser.email.in_(associated_users_emails),
+                )
+            )
+            .all()
+        )
+
         if status_code == 200:
 
             assert project.name == name
@@ -497,16 +541,19 @@ def project_post(session, client, mock_requests_post, find_fence_user):
             assert project.approved_url == None
             assert project.active == True
 
-            #check filter-sets and searches connected to the project
+            # check filter-sets and searches connected to the project
 
             assert len(new_filter_sets) == len(current_filters)
 
             for new_filter_set in new_filter_sets:
-                
-                #get the filter set created by the user
-                #the test suite will just assume that all the filters have unique names to make this easier
-                user_gen_filter = [user_gen_filter for user_gen_filter in current_filters if user_gen_filter.name in new_filter_set.name][0]
 
+                # get the filter set created by the user
+                # the test suite will just assume that all the filters have unique names to make this easier
+                user_gen_filter = [
+                    user_gen_filter
+                    for user_gen_filter in current_filters
+                    if user_gen_filter.name in new_filter_set.name
+                ][0]
 
                 assert new_filter_set.user_id == None
                 assert new_filter_set.user_source == ""
@@ -514,32 +561,47 @@ def project_post(session, client, mock_requests_post, find_fence_user):
                 assert new_filter_set.description == user_gen_filter.description
                 assert new_filter_set.filter_object == user_gen_filter.filter_object
                 assert new_filter_set.filter_source == "manual"
-                assert new_filter_set.filter_source_internal_id == user_gen_filter.filter_source_internal_id
+                assert (
+                    new_filter_set.filter_source_internal_id
+                    == user_gen_filter.filter_source_internal_id
+                )
                 assert new_filter_set.ids_list == user_gen_filter.ids_list
                 assert new_filter_set.graphql_object == user_gen_filter.graphql_object
                 assert new_filter_set.es_index == user_gen_filter.es_index
                 assert new_filter_set.dataset_version == user_gen_filter.dataset_version
-                assert new_filter_set.is_superseded_by == user_gen_filter.is_superseded_by
+                assert (
+                    new_filter_set.is_superseded_by == user_gen_filter.is_superseded_by
+                )
                 assert new_filter_set.active == True
                 assert new_filter_set.is_valid == True
 
-            assert [filter_set.search_id for filter_set in project_filter_sets] == [search.id for search in new_filter_sets]
+            assert [filter_set.search_id for filter_set in project_filter_sets] == [
+                search.id for search in new_filter_sets
+            ]
 
+            # check requests their consortiums and states
 
-            #check requests their consortiums and states
-
-            assert sorted([request.consortium_data_contributor.code for request in project_requests]) == sorted(consortiums_to_be_returned_from_pcdc_analysis_tools)
+            assert sorted(
+                [
+                    request.consortium_data_contributor.code
+                    for request in project_requests
+                ]
+            ) == sorted(consortiums_to_be_returned_from_pcdc_analysis_tools)
 
             assert len(project_requests_states) == len(project_requests)
-            assert any(request_state.state.code == "IN_REVIEW" for request_state in project_requests_states)
+            assert any(
+                request_state.state.code == "IN_REVIEW"
+                for request_state in project_requests_states
+            )
 
-
-            #check associated users and project associated users
-            associated_users_in_fence = [find_fence_user({"ids":[authorization_token]})["users"][0]["name"]]
+            # check associated users and project associated users
+            associated_users_in_fence = [
+                find_fence_user({"ids": [authorization_token]})["users"][0]["name"]
+            ]
             associated_users_not_in_fence = []
 
             for associated_user in associated_users_emails:
-                fence_user = find_fence_user({"usernames":[associated_user]})["users"]
+                fence_user = find_fence_user({"usernames": [associated_user]})["users"]
 
                 if not fence_user:
                     associated_users_not_in_fence.append(associated_user)
@@ -550,13 +612,17 @@ def project_post(session, client, mock_requests_post, find_fence_user):
                 else:
                     associated_users_in_fence.append(fence_user[0]["name"])
 
-            assert len(updated_associated_users) == len(associated_users_in_fence + associated_users_not_in_fence)
+            assert len(updated_associated_users) == len(
+                associated_users_in_fence + associated_users_not_in_fence
+            )
 
             for updated_associated_user in updated_associated_users:
 
                 if not updated_associated_user.user_id:
 
-                    assert updated_associated_user.email in associated_users_not_in_fence
+                    assert (
+                        updated_associated_user.email in associated_users_not_in_fence
+                    )
 
                 else:
 
@@ -565,13 +631,13 @@ def project_post(session, client, mock_requests_post, find_fence_user):
                 assert updated_associated_user.user_source == "fence"
                 assert updated_associated_user.active == True
 
-
-            assert len(project_associated_users) == len(associated_users_in_fence + associated_users_not_in_fence)
+            assert len(project_associated_users) == len(
+                associated_users_in_fence + associated_users_not_in_fence
+            )
             for project_associated_user in project_associated_users:
                 assert project_associated_user.active == True
                 assert project_associated_user.project_id == project_id
                 assert project_associated_user.role.code == "METADATA_ACCESS"
-            
 
         else:
 
@@ -584,22 +650,24 @@ def project_post(session, client, mock_requests_post, find_fence_user):
             assert len(current_users) == len(updated_associated_users)
 
         return response
-    
+
     yield route_project_post
+
 
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_post(session, client):
 
-    def route_filter_set_post(authorization_token, 
-                             explorer_id=None,
-                             name=None,
-                             filter_object=None,
-                             graphql_object=None,
-                             description=None,
-                             ids_list=None, 
-                             status_code=200
-                             ):
-        
+    def route_filter_set_post(
+        authorization_token,
+        explorer_id=None,
+        name=None,
+        filter_object=None,
+        graphql_object=None,
+        description=None,
+        ids_list=None,
+        status_code=200,
+    ):
+
         json = {}
         if name is not None:
             json["name"] = name
@@ -612,23 +680,33 @@ def filter_set_post(session, client):
         if ids_list is not None:
             json["ids_list"] = ids_list
 
-        url = "/filter-sets" + ("?explorerId=" + str(explorer_id) if explorer_id is not None else "")
+        url = "/filter-sets" + (
+            "?explorerId=" + str(explorer_id) if explorer_id is not None else ""
+        )
 
-        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.post(
+            url, json=json, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
 
         filter_set_count = session.query(Search).count()
-        
+
         if status_code == 200:
 
-            filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
+            filter_set = (
+                session.query(Search).filter(Search.id == response.json["id"]).first()
+            )
 
             assert filter_set.name == name
             assert filter_set.filter_object == filter_object
             assert filter_set.graphql_object == graphql_object
             assert filter_set.description == description
-            assert filter_set.filter_source_internal_id == explorer_id if explorer_id is not None else 1
+            assert (
+                filter_set.filter_source_internal_id == explorer_id
+                if explorer_id is not None
+                else 1
+            )
             assert filter_set.ids_list == ids_list
             assert filter_set.filter_source == "explorer"
             assert filter_set.user_id == authorization_token
@@ -638,30 +716,30 @@ def filter_set_post(session, client):
             assert filter_set.is_superseded_by == None
             assert filter_set.active == True
             assert filter_set.is_valid == True
-        
+
         else:
 
             assert session.query(Search).count() == filter_set_count
 
-
         return response
-    
+
     yield route_filter_set_post
 
 
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_put(session, client):
-    def route_filter_set_put(authorization_token, 
-                             filter_set_id=None,
-                             explorer_id=1,
-                             name=None,
-                             filter_object=None,
-                             graphql_object=None,
-                             description=None,
-                             ids_list=None, 
-                             status_code=200
-                             ):
-        
+    def route_filter_set_put(
+        authorization_token,
+        filter_set_id=None,
+        explorer_id=1,
+        name=None,
+        filter_object=None,
+        graphql_object=None,
+        description=None,
+        ids_list=None,
+        status_code=200,
+    ):
+
         json = {}
         if name is not None:
             json["name"] = name
@@ -674,46 +752,86 @@ def filter_set_put(session, client):
         if ids_list is not None:
             json["ids_list"] = ids_list
 
-        filter_set = session.query(Search).filter(Search.id == filter_set_id, Search.user_id == authorization_token, Search.filter_source_internal_id == explorer_id).first()
+        filter_set = (
+            session.query(Search)
+            .filter(
+                Search.id == filter_set_id,
+                Search.user_id == authorization_token,
+                Search.filter_source_internal_id == explorer_id,
+            )
+            .first()
+        )
         filter_set_count = session.query(Search).count()
 
-        
         url = "/filter-sets/" + str(filter_set_id)
 
-        response = client.put(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.put(
+            url, json=json, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
-        filter_set_after_url = session.query(Search).filter(Search.id == filter_set_id, Search.user_id == authorization_token).first()
+        filter_set_after_url = (
+            session.query(Search)
+            .filter(Search.id == filter_set_id, Search.user_id == authorization_token)
+            .first()
+        )
         session.refresh(filter_set_after_url)
 
-
         assert response.status_code == status_code
-        
-        if status_code == 200:
-            
-            #properties that can change
-            assert filter_set_after_url.name == name if name is not None else filter_set.name
-            assert filter_set_after_url.filter_object == filter_object if filter_object is not None else filter_set.filter_object
-            assert filter_set_after_url.graphql_object == graphql_object if graphql_object is not None else filter_set.graphql_object
-            assert filter_set_after_url.description == description if description is not None else filter_set.description
-            print(True if filter_object is not None or graphql_object is not None else filter_set.is_valid)
-            print(filter_set_after_url.is_valid)
-            assert filter_set_after_url.is_valid == (True if filter_object is not None or graphql_object is not None else filter_set.is_valid)    
 
-            #properties that should not change
-            assert filter_set_after_url.filter_source_internal_id == filter_set.filter_source_internal_id 
+        if status_code == 200:
+
+            # properties that can change
+            assert (
+                filter_set_after_url.name == name
+                if name is not None
+                else filter_set.name
+            )
+            assert (
+                filter_set_after_url.filter_object == filter_object
+                if filter_object is not None
+                else filter_set.filter_object
+            )
+            assert (
+                filter_set_after_url.graphql_object == graphql_object
+                if graphql_object is not None
+                else filter_set.graphql_object
+            )
+            assert (
+                filter_set_after_url.description == description
+                if description is not None
+                else filter_set.description
+            )
+            print(
+                True
+                if filter_object is not None or graphql_object is not None
+                else filter_set.is_valid
+            )
+            print(filter_set_after_url.is_valid)
+            assert filter_set_after_url.is_valid == (
+                True
+                if filter_object is not None or graphql_object is not None
+                else filter_set.is_valid
+            )
+
+            # properties that should not change
+            assert (
+                filter_set_after_url.filter_source_internal_id
+                == filter_set.filter_source_internal_id
+            )
             assert filter_set_after_url.ids_list == filter_set_after_url.ids_list
-            assert filter_set_after_url.filter_source == filter_set_after_url.filter_source
+            assert (
+                filter_set_after_url.filter_source == filter_set_after_url.filter_source
+            )
             assert filter_set_after_url.user_id == authorization_token
             assert filter_set_after_url.user_source == filter_set.user_source
             assert filter_set_after_url.es_index == filter_set.es_index
             assert filter_set_after_url.dataset_version == filter_set.dataset_version
             assert filter_set_after_url.is_superseded_by == filter_set.is_superseded_by
-            assert filter_set_after_url.active == True  
-            
-        
+            assert filter_set_after_url.active == True
+
         elif status_code == 404:
             assert filter_set == None
-        
+
         else:
 
             assert filter_set.id == filter_set_after_url.id
@@ -721,7 +839,10 @@ def filter_set_put(session, client):
             assert filter_set.filter_object == filter_set_after_url.filter_object
             assert filter_set.graphql_object == filter_set_after_url.graphql_object
             assert filter_set.description == filter_set_after_url.description
-            assert filter_set.filter_source_internal_id == filter_set_after_url.filter_source_internal_id
+            assert (
+                filter_set.filter_source_internal_id
+                == filter_set_after_url.filter_source_internal_id
+            )
             assert filter_set.ids_list == filter_set_after_url.ids_list
             assert filter_set.filter_source == filter_set_after_url.filter_source
             assert filter_set.user_id == filter_set_after_url.user_id
@@ -731,29 +852,27 @@ def filter_set_put(session, client):
             assert filter_set.is_superseded_by == filter_set_after_url.is_superseded_by
             assert filter_set.active == filter_set_after_url.active
             assert filter_set.is_valid == filter_set_after_url.is_valid
-        
-        
+
         assert session.query(Search).count() == filter_set_count
 
-
         return response
-    
+
     yield route_filter_set_put
 
-    
 
 @pytest.fixture(scope="session", autouse=True)
 def admin_filter_set_post(session, client):
 
-    def route_admin_filter_set_post(authorization_token, 
-                             user_id=None,
-                             name=None,
-                             graphql_object=None,
-                             description=None,
-                             ids_list=None, 
-                             status_code=200
-                             ):
-        
+    def route_admin_filter_set_post(
+        authorization_token,
+        user_id=None,
+        name=None,
+        graphql_object=None,
+        description=None,
+        ids_list=None,
+        status_code=200,
+    ):
+
         json = {}
         if user_id is not None:
             json["user_id"] = user_id
@@ -768,15 +887,19 @@ def admin_filter_set_post(session, client):
 
         url = "/admin/filter-sets"
 
-        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.post(
+            url, json=json, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
 
         total_filter_sets = session.query(Search).count()
-        
+
         if status_code == 200:
 
-            filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
+            filter_set = (
+                session.query(Search).filter(Search.id == response.json["id"]).first()
+            )
 
             assert filter_set.name == name
             assert filter_set.filter_object == None
@@ -790,28 +913,25 @@ def admin_filter_set_post(session, client):
             assert filter_set.es_index == None
             assert filter_set.dataset_version == None
             assert filter_set.is_superseded_by == None
-            assert filter_set.active == True    
+            assert filter_set.active == True
             assert filter_set.is_valid == True
-        
+
         else:
 
             assert session.query(Search).count() == total_filter_sets
 
-
         return response
-    
+
     yield route_admin_filter_set_post
 
 
 @pytest.fixture(scope="session", autouse=True)
 def admin_copy_search_to_user_post(session, client):
 
-    def route_admin_copy_search_to_user_post(authorization_token, 
-                             user_id=None,
-                             filter_set_id=None,
-                             status_code=200
-                             ):
-        
+    def route_admin_copy_search_to_user_post(
+        authorization_token, user_id=None, filter_set_id=None, status_code=200
+    ):
+
         json = {}
         if user_id is not None:
             json["userId"] = user_id
@@ -822,21 +942,30 @@ def admin_copy_search_to_user_post(session, client):
 
         total_filter_sets = session.query(Search).count()
 
-        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.post(
+            url, json=json, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
-        
+
         if status_code == 200:
 
-            original_filter_set = session.query(Search).filter(Search.id == filter_set_id).first()
+            original_filter_set = (
+                session.query(Search).filter(Search.id == filter_set_id).first()
+            )
 
-            filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
+            filter_set = (
+                session.query(Search).filter(Search.id == response.json["id"]).first()
+            )
 
             assert filter_set.name == original_filter_set.name
             assert filter_set.filter_object == original_filter_set.filter_object
             assert filter_set.graphql_object == original_filter_set.graphql_object
             assert filter_set.description == original_filter_set.description
-            assert filter_set.filter_source_internal_id == original_filter_set.filter_source_internal_id
+            assert (
+                filter_set.filter_source_internal_id
+                == original_filter_set.filter_source_internal_id
+            )
             assert filter_set.ids_list == original_filter_set.ids_list
             assert filter_set.filter_source == "manual"
             assert filter_set.user_id == user_id
@@ -844,27 +973,23 @@ def admin_copy_search_to_user_post(session, client):
             assert filter_set.es_index == None
             assert filter_set.dataset_version == None
             assert filter_set.is_superseded_by == None
-            assert filter_set.active == True    
+            assert filter_set.active == True
             assert filter_set.is_valid == True
-        
-        else:   
+
+        else:
             assert session.query(Search).count() == total_filter_sets
 
-
-
         return response
-    
+
     yield route_admin_copy_search_to_user_post
 
 
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_snapshot_post(session, client):
-    def route_filter_set_snapshot_post(authorization_token, 
-                             filter_set_id=None,
-                             users_list=None,
-                             status_code=200
-                             ):
-        
+    def route_filter_set_snapshot_post(
+        authorization_token, filter_set_id=None, users_list=None, status_code=200
+    ):
+
         json = {}
         if filter_set_id is not None:
             json["filterSetId"] = filter_set_id
@@ -876,23 +1001,41 @@ def filter_set_snapshot_post(session, client):
         total_filter_sets = session.query(Search).count()
         total_search_is_shared = session.query(SearchIsShared).count()
 
-        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.post(
+            url, json=json, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
-        
+
         if status_code == 200:
-            original_filter_set = session.query(Search).filter(Search.id == filter_set_id).first()
-            new_filter_set = session.query(Search).join(SearchIsShared, and_(
-                Search.id == SearchIsShared.search_id,
-                SearchIsShared.shareable_token == response.json
-            )).first()
-            snapshot = session.query(SearchIsShared).filter(SearchIsShared.search_id == new_filter_set.id).first()
+            original_filter_set = (
+                session.query(Search).filter(Search.id == filter_set_id).first()
+            )
+            new_filter_set = (
+                session.query(Search)
+                .join(
+                    SearchIsShared,
+                    and_(
+                        Search.id == SearchIsShared.search_id,
+                        SearchIsShared.shareable_token == response.json,
+                    ),
+                )
+                .first()
+            )
+            snapshot = (
+                session.query(SearchIsShared)
+                .filter(SearchIsShared.search_id == new_filter_set.id)
+                .first()
+            )
 
             assert new_filter_set.name == original_filter_set.name
             assert new_filter_set.filter_object == original_filter_set.filter_object
             assert new_filter_set.graphql_object == original_filter_set.graphql_object
             assert new_filter_set.description == original_filter_set.description
-            assert new_filter_set.filter_source_internal_id == original_filter_set.filter_source_internal_id
+            assert (
+                new_filter_set.filter_source_internal_id
+                == original_filter_set.filter_source_internal_id
+            )
             assert new_filter_set.ids_list == original_filter_set.ids_list
             assert new_filter_set.filter_source == "explorer"
             assert new_filter_set.user_id == None
@@ -900,7 +1043,7 @@ def filter_set_snapshot_post(session, client):
             assert new_filter_set.es_index == None
             assert new_filter_set.dataset_version == None
             assert new_filter_set.is_superseded_by == None
-            assert new_filter_set.active == True    
+            assert new_filter_set.active == True
             assert new_filter_set.is_valid == True
 
             assert snapshot.search_id == new_filter_set.id
@@ -908,77 +1051,93 @@ def filter_set_snapshot_post(session, client):
             assert snapshot.access_role == "READ"
             assert snapshot.shareable_token != None
 
-        
-        else:   
+        else:
             assert session.query(Search).count() == total_filter_sets
             assert session.query(SearchIsShared).count() == total_search_is_shared
 
         return response
-    
+
     yield route_filter_set_snapshot_post
 
 
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_snapshot_get(session, client):
-    def route_filter_set_snapshot_get(authorization_token, 
-                             token=None,
-                             status_code=200
-                             ):
-        
+    def route_filter_set_snapshot_get(authorization_token, token=None, status_code=200):
+
         url = "/filter-sets/snapshot/" + token
 
-        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.get(
+            url, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
-        
+
         if status_code == 200:
 
-            snapshot = session.query(SearchIsShared).filter(SearchIsShared.shareable_token == token).first()
+            snapshot = (
+                session.query(SearchIsShared)
+                .filter(SearchIsShared.shareable_token == token)
+                .first()
+            )
 
             assert response.json["id"] == snapshot.search_id
             assert response.json["name"] == snapshot.search.name
-            assert response.json["explorer_id"] == snapshot.search.filter_source_internal_id
+            assert (
+                response.json["explorer_id"]
+                == snapshot.search.filter_source_internal_id
+            )
             assert response.json["description"] == snapshot.search.description
             assert response.json["filters"] == snapshot.search.filter_object
-        
+
         return response
 
     yield route_filter_set_snapshot_get
 
+
 @pytest.fixture(scope="session", autouse=True)
 def admin_filter_set_by_project_id_get(session, client):
-    def route_admin_filter_set_get_by_project_id(authorization_token, 
-                             project_id=None,
-                             status_code=200
-                             ):
-        
-        url = "/admin/project_filter_sets/" + (str(project_id) if project_id is not None else "")
+    def route_admin_filter_set_get_by_project_id(
+        authorization_token, project_id=None, status_code=200
+    ):
 
-        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+        url = "/admin/project_filter_sets/" + (
+            str(project_id) if project_id is not None else ""
+        )
+
+        response = client.get(
+            url, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
-        
+
         if status_code == 200:
 
-            project_filter_sets = session.query(ProjectSearch).filter(ProjectSearch.project_id == project_id).all()
+            project_filter_sets = (
+                session.query(ProjectSearch)
+                .filter(ProjectSearch.project_id == project_id)
+                .all()
+            )
 
             assert len(response.json) == len(project_filter_sets)
-            
-        
+
         return response
 
     yield route_admin_filter_set_get_by_project_id
 
+
 @pytest.fixture(scope="function", autouse=True)
-def admin_copy_search_to_project(session, client, mock_requests_post): 
-    def route_admin_copy_search_to_project(authorization_token, 
-                             project_id=None,
-                             filter_set_id=None,
-                             status_code=200,
-                             consortiums_to_be_returned_from_pcdc_analysis_tools=[],
-                             state_code="IN_REVIEW"
-                             ):
-        mock_requests_post(consortiums=consortiums_to_be_returned_from_pcdc_analysis_tools)
+def admin_copy_search_to_project(session, client, mock_requests_post):
+    def route_admin_copy_search_to_project(
+        authorization_token,
+        project_id=None,
+        filter_set_id=None,
+        status_code=200,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=[],
+        state_code="IN_REVIEW",
+    ):
+        mock_requests_post(
+            consortiums=consortiums_to_be_returned_from_pcdc_analysis_tools
+        )
         json = {}
         if project_id is not None:
             json["projectId"] = project_id
@@ -987,40 +1146,68 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
 
         url = "/admin/copy-search-to-project"
 
-        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.post(
+            url, json=json, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
-        
+
         if status_code == 200:
 
-            filter_set_id = [filter_set_id] if isinstance(filter_set_id, int) else filter_set_id
+            filter_set_id = (
+                [filter_set_id] if isinstance(filter_set_id, int) else filter_set_id
+            )
 
             project = session.query(Project).filter(Project.id == project_id).first()
 
             assert project
 
-            assert len(filter_set_id) == session.query(ProjectSearch).filter(ProjectSearch.project_id == project.id).count()
+            assert (
+                len(filter_set_id)
+                == session.query(ProjectSearch)
+                .filter(ProjectSearch.project_id == project.id)
+                .count()
+            )
 
             for filter_set_id in filter_set_id:
-            
-                original_filter_set = session.query(Search).filter(Search.id == filter_set_id).first()
-                new_filter_set = session.query(Search).join(ProjectSearch, and_(
-                    ProjectSearch.project_id == project_id,
-                    Search.name == project.name + "_" + original_filter_set.name
-                )).first()
 
-                assert session.query(ProjectSearch).filter(
-                    and_(
-                        ProjectSearch.project_id == project_id,
-                        ProjectSearch.search_id == new_filter_set.id
+                original_filter_set = (
+                    session.query(Search).filter(Search.id == filter_set_id).first()
+                )
+                new_filter_set = (
+                    session.query(Search)
+                    .join(
+                        ProjectSearch,
+                        and_(
+                            ProjectSearch.project_id == project_id,
+                            Search.name
+                            == project.name + "_" + original_filter_set.name,
+                        ),
                     )
-                ).first()
+                    .first()
+                )
 
-                #assert new_filter_set.name == original_filter_set.name
+                assert (
+                    session.query(ProjectSearch)
+                    .filter(
+                        and_(
+                            ProjectSearch.project_id == project_id,
+                            ProjectSearch.search_id == new_filter_set.id,
+                        )
+                    )
+                    .first()
+                )
+
+                # assert new_filter_set.name == original_filter_set.name
                 assert new_filter_set.filter_object == original_filter_set.filter_object
-                assert new_filter_set.graphql_object == original_filter_set.graphql_object
+                assert (
+                    new_filter_set.graphql_object == original_filter_set.graphql_object
+                )
                 assert new_filter_set.description == original_filter_set.description
-                assert new_filter_set.filter_source_internal_id == original_filter_set.filter_source_internal_id
+                assert (
+                    new_filter_set.filter_source_internal_id
+                    == original_filter_set.filter_source_internal_id
+                )
                 assert new_filter_set.ids_list == original_filter_set.ids_list
                 assert new_filter_set.filter_source == "manual"
                 assert new_filter_set.user_id == None
@@ -1028,44 +1215,50 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
                 assert new_filter_set.es_index == None
                 assert new_filter_set.dataset_version == None
                 assert new_filter_set.is_superseded_by == None
-                assert new_filter_set.active == True    
+                assert new_filter_set.active == True
                 assert new_filter_set.is_valid == True
 
-            requests = session.query(Request).filter(Request.project_id == project_id).all()
+            requests = (
+                session.query(Request).filter(Request.project_id == project_id).all()
+            )
 
-            current_consortiums = set(consortiums_to_be_returned_from_pcdc_analysis_tools)
+            current_consortiums = set(
+                consortiums_to_be_returned_from_pcdc_analysis_tools
+            )
 
             for request in requests:
 
-                current_state = session.query(RequestState).filter(
-                    and_(
-                        RequestState.request_id == request.id
-                    )
-                ).order_by(RequestState.update_date.desc()).first()
+                current_state = (
+                    session.query(RequestState)
+                    .filter(and_(RequestState.request_id == request.id))
+                    .order_by(RequestState.update_date.desc())
+                    .first()
+                )
 
-                if request.consortium_data_contributor.code in consortiums_to_be_returned_from_pcdc_analysis_tools:
+                if (
+                    request.consortium_data_contributor.code
+                    in consortiums_to_be_returned_from_pcdc_analysis_tools
+                ):
                     assert current_state.state.code == state_code
                     current_consortiums.remove(request.consortium_data_contributor.code)
 
                 else:
                     assert current_state.state.code == "DEPRECATED"
-            
+
             assert not current_consortiums
 
-
         return response
-    
+
     yield route_admin_copy_search_to_project
+
 
 @pytest.fixture(scope="function", autouse=True)
 def admin_associated_user_post(session, client, mock_requests_post, find_fence_user):
 
-    def route_admin_associated_user_post(authorization_token, 
-                             users=None,
-                             role=None,
-                             status_code=200
-                             ):
-        
+    def route_admin_associated_user_post(
+        authorization_token, users=None, role=None, status_code=200
+    ):
+
         mock_requests_post()
 
         json = {}
@@ -1076,33 +1269,53 @@ def admin_associated_user_post(session, client, mock_requests_post, find_fence_u
 
         url = "/admin/associated_user"
 
-        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.post(
+            url, json=json, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
 
         if status_code == 200:
             for user in users:
                 if "email" in user:
-                    associated_user = session.query(AssociatedUser).filter(AssociatedUser.email == user["email"]).first()
-                    project_user = session.query(ProjectAssociatedUser).filter(
-                        ProjectAssociatedUser.associated_user_id == associated_user.id and
-                        ProjectAssociatedUser.project_id == user["project_id"]
-                    ).first()
-                    fence_user = find_fence_user({"usernames":user["email"]})["users"]
+                    associated_user = (
+                        session.query(AssociatedUser)
+                        .filter(AssociatedUser.email == user["email"])
+                        .first()
+                    )
+                    project_user = (
+                        session.query(ProjectAssociatedUser)
+                        .filter(
+                            ProjectAssociatedUser.associated_user_id
+                            == associated_user.id
+                            and ProjectAssociatedUser.project_id == user["project_id"]
+                        )
+                        .first()
+                    )
+                    fence_user = find_fence_user({"usernames": user["email"]})["users"]
                 else:
-                    associated_user = session.query(AssociatedUser).filter(AssociatedUser.user_id == user["id"]).first()
-                    project_user = session.query(ProjectAssociatedUser).filter(
-                        ProjectAssociatedUser.associated_user_id == associated_user.id and
-                        ProjectAssociatedUser.project_id == user["project_id"]
-                    ).first()
-                    fence_user = find_fence_user({"ids":[user["id"]]})["users"]
-                
+                    associated_user = (
+                        session.query(AssociatedUser)
+                        .filter(AssociatedUser.user_id == user["id"])
+                        .first()
+                    )
+                    project_user = (
+                        session.query(ProjectAssociatedUser)
+                        .filter(
+                            ProjectAssociatedUser.associated_user_id
+                            == associated_user.id
+                            and ProjectAssociatedUser.project_id == user["project_id"]
+                        )
+                        .first()
+                    )
+                    fence_user = find_fence_user({"ids": [user["id"]]})["users"]
+
                 if "id" in user:
                     assert associated_user.user_id == user["id"]
-                
+
                 if "email" in user:
                     assert associated_user.email == user["email"]
-                
+
                 if fence_user:
                     assert associated_user.user_id == fence_user[0]["id"]
                     assert associated_user.email == fence_user[0]["name"]
@@ -1112,24 +1325,26 @@ def admin_associated_user_post(session, client, mock_requests_post, find_fence_u
 
                 assert project_user.project_id == user["project_id"]
                 assert project_user.associated_user_id == associated_user.id
-                assert project_user.role.code == role if role else config["ASSOCIATED_USER_ROLE_DEFAULT"]
+                assert (
+                    project_user.role.code == role
+                    if role
+                    else config["ASSOCIATED_USER_ROLE_DEFAULT"]
+                )
                 assert project_user.active == True
-        
-        return response
 
+        return response
 
     yield route_admin_associated_user_post
 
 
 @pytest.fixture(scope="function", autouse=True)
-def admin_remove_associated_user_from_project_delete(session, client, mock_requests_post):
+def admin_remove_associated_user_from_project_delete(
+    session, client, mock_requests_post
+):
 
-    def route_admin_remove_associated_user_from_project_delete(authorization_token, 
-                             project_id=None,
-                             user_id=None,
-                             email=None,
-                             status_code=200
-                             ):
+    def route_admin_remove_associated_user_from_project_delete(
+        authorization_token, project_id=None, user_id=None, email=None, status_code=200
+    ):
         mock_requests_post()
         url = f"/admin/remove_associated_user_from_project"
 
@@ -1141,28 +1356,31 @@ def admin_remove_associated_user_from_project_delete(session, client, mock_reque
         if email is not None:
             json["email"] = email
 
-        response = client.delete(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.delete(
+            url, json=json, headers={"Authorization": f"bearer {authorization_token}"}
+        )
 
         assert response.status_code == status_code
 
         if status_code == 200:
             # Use join to query both tables
-            query = session.query(ProjectAssociatedUser).join(
-                AssociatedUser, 
-                ProjectAssociatedUser.associated_user_id == AssociatedUser.id
-            ).filter(
-                ProjectAssociatedUser.project_id == project_id
+            query = (
+                session.query(ProjectAssociatedUser)
+                .join(
+                    AssociatedUser,
+                    ProjectAssociatedUser.associated_user_id == AssociatedUser.id,
+                )
+                .filter(ProjectAssociatedUser.project_id == project_id)
             )
-            
+
             if email:
                 query = query.filter(AssociatedUser.email == email)
             elif user_id:
                 query = query.filter(AssociatedUser.user_id == user_id)
-                
-            project_user = query.first()
-            
-            assert project_user.active == False
 
+            project_user = query.first()
+
+            assert project_user.active == False
 
         return response
 
@@ -1175,7 +1393,6 @@ def teardown(request, app_instance, session):
     def cleanup():
         session.remove()
         # Explicitly pop the app context to avoid the IndexError
-        #app_instance.app_context().pop()
+        # app_instance.app_context().pop()
 
     request.addfinalizer(cleanup)
-
