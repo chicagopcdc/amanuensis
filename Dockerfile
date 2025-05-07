@@ -4,8 +4,6 @@
 FROM quay.io/cdis/python:python3.9-buster-2.0.0
 
 ENV appname=amanuensis
-ENV PYTHONPATH=/amanuensis
-
 
 RUN pip install --upgrade pip
 RUN pip install --upgrade poetry
@@ -37,19 +35,18 @@ WORKDIR /$appname
 # this will make sure than the dependencies is cached
 COPY poetry.lock pyproject.toml /$appname/
 RUN poetry config virtualenvs.create false \
-    && poetry install -vv --no-root --only=main --no-interaction \
+    && poetry install -vv --no-root --no-dev --no-interaction \
     && poetry show -v
 
 # copy source code ONLY after installing dependencies
 COPY . /$appname
 COPY ./deployment/uwsgi/uwsgi.ini /etc/uwsgi/uwsgi.ini
 COPY ./deployment/uwsgi/wsgi.py /$appname/wsgi.py
-RUN chmod 644 /amanuensis/wsgi.py
 
 
 # install amanuensis and dependencies via poetry
 RUN poetry config virtualenvs.create false \
-    && poetry install -vv --only=main --no-interaction \
+    && poetry install -vv --no-dev --no-interaction \
     && poetry show -v
 
 # RUN COMMIT=`git rev-parse HEAD` && echo "COMMIT=\"${COMMIT}\"" >$appname/version_data.py \
