@@ -499,14 +499,14 @@ pycparser = "*"
 
 [[package]]
 name = "cfn-lint"
-version = "1.34.2"
+version = "1.34.1"
 description = "Checks CloudFormation templates for practices and behaviour that could potentially be improved"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "cfn_lint-1.34.2-py3-none-any.whl", hash = "sha256:b529e1f756455a7d45f3dd0584d035a8fb30cf30b8a95a492d11a2834e682673"},
-    {file = "cfn_lint-1.34.2.tar.gz", hash = "sha256:d340a6f816676489fac6f2fae3609e266c48d031abed04b978b07db7adf05f75"},
+    {file = "cfn_lint-1.34.1-py3-none-any.whl", hash = "sha256:2c21a908fa5d9b0c1caac2081c10261eaae7fce88364e4edc607717892f36d68"},
+    {file = "cfn_lint-1.34.1.tar.gz", hash = "sha256:58f4352c370a710b72b389eda0acd6762e62f926e534d2eb1609d5326ded4bed"},
 ]
 
 [package.dependencies]
@@ -1170,6 +1170,27 @@ socks = ["socksio (==1.*)"]
 zstd = ["zstandard (>=0.18.0)"]
 
 [[package]]
+name = "hubspot-api-client"
+version = "10.0.0"
+description = "HubSpot API client"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "hubspot_api_client-10.0.0-py3-none-any.whl", hash = "sha256:3b397c5fefc6ab12d8805e7cb147bfdbe3cacafa5deb70d2467f515955d6d566"},
+    {file = "hubspot_api_client-10.0.0.tar.gz", hash = "sha256:00174bc291cadbbe80d8448d7475a3ac92bb196ab078047c2a8464b9cffa7edf"},
+]
+
+[package.dependencies]
+certifi = "*"
+python-dateutil = "*"
+six = ">=1.10"
+urllib3 = ">=1.15"
+
+[package.extras]
+dev = ["black", "pytest"]
+
+[[package]]
 name = "hubspotclient"
 version = "0.0.1"
 description = "Gen3 Hubspot Client"
@@ -1658,8 +1679,8 @@ retry = "0.9.2"
 [package.source]
 type = "git"
 url = "https://github.com/chicagopcdc/pcdc-aws-client.git"
-reference = "1.2.6"
-resolved_reference = "a669ab19ffd8dc3aacdedd9f50801a9b5e926fd2"
+reference = "1.3.2"
+resolved_reference = "6c814160f251942429ce00f7e7ec2719990d707b"
 
 [[package]]
 name = "pcdcutils"
@@ -2504,14 +2525,14 @@ crt = ["botocore[crt] (>=1.33.2,<2.0a.0)"]
 
 [[package]]
 name = "setuptools"
-version = "80.1.0"
+version = "79.0.0"
 description = "Easily download, build, install, upgrade, and uninstall Python packages"
 optional = false
 python-versions = ">=3.9"
 groups = ["dev"]
 files = [
-    {file = "setuptools-80.1.0-py3-none-any.whl", hash = "sha256:ea0e7655c05b74819f82e76e11a85b31779fee7c4969e82f72bab0664e8317e4"},
-    {file = "setuptools-80.1.0.tar.gz", hash = "sha256:2e308396e1d83de287ada2c2fd6e64286008fe6aca5008e0b6a8cb0e2c86eedd"},
+    {file = "setuptools-79.0.0-py3-none-any.whl", hash = "sha256:b9ab3a104bedb292323f53797b00864e10e434a3ab3906813a7169e4745b912a"},
+    {file = "setuptools-79.0.0.tar.gz", hash = "sha256:9828422e7541213b0aacb6e10bbf9dd8febeaa45a48570e09b6d100e063fc9f9"},
 ]
 
 [package.extras]
@@ -2942,4 +2963,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9,<4.0.0"
-content-hash = "ef3c498c2ded3ad3d75688387f130aeb8217149f698aa370dcf987205df42bab"
+content-hash = "356dc91084fbe34f654dd560a8197c5692165506e62c1060b43bc940d15421fa"
