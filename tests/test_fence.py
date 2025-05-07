@@ -1,5 +1,5 @@
 import pytest
-from amanuensis.resources.fence import fence_get_users
+from amanuensis.resources.fence import fence_get_users, fence_get_all_users
 from amanuensis.config import config
 
 def test_fence_requests(client, register_user, mock_requests_post, patch_auth_header):
@@ -16,12 +16,34 @@ def test_fence_requests(client, register_user, mock_requests_post, patch_auth_he
     assert len(response['users']) == 0
 
 
+def test_fence_get_all_users(client, register_user, mock_requests_get, patch_auth_header, fence_users):
+    # Setup mock for requests.get
+    mock_requests_get()
+
+    # Register and authorize admin user
+    admin_id, admin_email = register_user(
+        email="admin@fence_all.edu",
+        name="fence_all",
+        role="admin"
+    )
+    patch_auth_header(str(admin_id))
+
+    # Call the function
+    response = fence_get_all_users()
+
+    # Validate response
+    assert isinstance(response, dict)
+    assert "users" in response
+    assert len(response["users"]) == len(fence_users)
+
+
 def test_get_fence_users_via_endpoint(client, register_user, fence_users, mock_requests_get):
     admin_id, admin_email = register_user(email=f"admin@test_get_fence_users_via_endpoint.edu", name="test_get_fence_users_via_endpoint", role="admin")
     mock_requests_get()
     response = client.get('/admin/get_users', headers={"Authorization": f'bearer {admin_id}'})
     assert response.status_code == 200
     assert len(response.json['users']) == len(fence_users)
+
 
 def test_get_fence_users_via_endpoint_no_auth(client, register_user, mock_requests_get):
     #user does not have amanuensis access return 403 to client
@@ -30,6 +52,7 @@ def test_get_fence_users_via_endpoint_no_auth(client, register_user, mock_reques
     response = client.get('/admin/get_users', headers={"Authorization": f'bearer {user_id}'})
     assert response.status_code == 403
     assert response.json == None
+
 
 def test_get_users_via_endpoint_service_auth_fails(client, register_user, mock_requests_get):
     #this would happen if one of the RSA keys was missing in either amanuensis or fence
