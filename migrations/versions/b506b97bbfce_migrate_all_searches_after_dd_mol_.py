@@ -34,8 +34,7 @@ def upgrade() -> None:
     search_ids_raw = session.execute(text("SELECT id from search where filter_object::text like '%molecular_analysis.molecular_abnormality_result%'")).fetchall()
     search_ids = [value for value, in search_ids_raw]
 
-    query = session.query(Search).filter(
-        # Search.filter_object.astext.like("%molecular_analysis.molecular_abnormality_result%")
+    query = session.query(Search.id, Search.filter_object, Search.graphql_object).filter(
         Search.id.in_(search_ids)
     )
     searches = query.all()
@@ -131,8 +130,7 @@ def downgrade() -> None:
     search_ids_raw = session.execute(text("SELECT id from search where filter_object::text like '%molecular_analysis.molecular_abnormality_result%'")).fetchall()
     search_ids = [value for value, in search_ids_raw]
 
-    query = session.query(Search).filter(
-        # Search.filter_object.astext.like("%molecular_analysis.molecular_abnormality_result%")
+    query = session.query(Search.id, Search.filter_object, Search.graphql_object).filter(
         Search.id.in_(search_ids)
     )
     searches = query.all()
