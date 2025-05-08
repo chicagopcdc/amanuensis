@@ -1,57 +1,61 @@
-# To run: docker run --rm -d -v /path/to/amanuensis-config.yaml:/var/www/amanuensis/amanuensis-config.yaml --name=amanuensis -p 80:80 amanuensis
-# To check running container: docker exec -it amanuensis /bin/bash
+# To build: docker build -t amanuensis:latest .
+# To run interactive:
+#   docker run -v ~/.gen3/amanuensis/amanuensis-config.yaml:/var/www/amanuensis/amanuensis-config.yaml  amanuensis:latest
+# To check running container do: docker exec -it CONTAINER bash
 
-FROM quay.io/cdis/python:python3.9-buster-2.0.0
+ARG AZLINUX_BASE_VERSION=master
+
+
+# ------ Base stage ------
+FROM quay.io/cdis/python-nginx-al:${AZLINUX_BASE_VERSION} AS base
+# Comment this in, and comment out the line above, if quay is down
+# FROM 707767160287.dkr.ecr.us-east-1.amazonaws.com/gen3/python-nginx-al:${AZLINUX_BASE_VERSION} as base
 
 ENV appname=amanuensis
 
-RUN pip install --upgrade pip
-RUN pip install --upgrade poetry
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl bash git \
-    && apt-get -y install vim \
-    libmcrypt4 libmhash2 mcrypt \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/
+WORKDIR /${appname}
+RUN chown -R gen3:gen3 /${appname}
 
-RUN mkdir -p /var/www/$appname \
-    && mkdir -p /var/www/.cache/Python-Eggs/ \
-    && mkdir /run/nginx/ \
-    && ln -sf /dev/stdout /var/log/nginx/access.log \
-    && ln -sf /dev/stderr /var/log/nginx/error.log \
-    && chown nginx -R /var/www/.cache/Python-Eggs/ \
-    && chown nginx /var/www/$appname
+# ------ Builder stage ------
+FROM base AS builder
 
+USER gen3
 
-# aws cli v2 - needed for storing files in s3 during usersync k8s job
-RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
-    && unzip awscliv2.zip \
-    && ./aws/install \
-    && /bin/rm -rf awscliv2.zip ./aws
+# copy ONLY poetry artifact, install the dependencies but not the app;
+# this will make sure that the dependencies are cached
+COPY poetry.lock pyproject.toml /${appname}/
+RUN poetry install -vv --no-root --only main --no-interaction
 
-WORKDIR /$appname
+# Move app files into working directory
+COPY --chown=gen3:gen3 . /$appname
+COPY --chown=gen3:gen3 ./deployment/wsgi/wsgi.py /$appname/wsgi.py
 
-# copy ONLY poetry artifact and install
-# this will make sure than the dependencies is cached
-COPY poetry.lock pyproject.toml /$appname/
-RUN poetry config virtualenvs.create false \
-    && poetry install -vv --no-root --no-dev --no-interaction \
-    && poetry show -v
+# install the app
+RUN poetry install --without dev --no-interaction
 
-# copy source code ONLY after installing dependencies
-COPY . /$appname
-COPY ./deployment/uwsgi/uwsgi.ini /etc/uwsgi/uwsgi.ini
-COPY ./deployment/uwsgi/wsgi.py /$appname/wsgi.py
+# Setup version info
+# RUN git config --global --add safe.directory ${appname} && COMMIT=`git rev-parse HEAD` && echo "COMMIT=\"${COMMIT}\"" > $appname/version_data.py \
+#     && VERSION=`git describe --always --tags` && echo "VERSION=\"${VERSION}\"" >> $appname/version_data.py
 
+# ------ Final stage ------
+FROM base
 
-# install amanuensis and dependencies via poetry
-RUN poetry config virtualenvs.create false \
-    && poetry install -vv --no-dev --no-interaction \
-    && poetry show -v
+ENV PATH="/${appname}/.venv/bin:$PATH"
 
-# RUN COMMIT=`git rev-parse HEAD` && echo "COMMIT=\"${COMMIT}\"" >$appname/version_data.py \
-#    && VERSION=`git describe --always --tags` && echo "VERSION=\"${VERSION}\"" >>$appname/version_data.py
+# Install ccrypt to decrypt dbgap telmetry files
+RUN echo "Upgrading dnf"; \
+    dnf upgrade -y; \
+    echo "Installing Packages"; \
+    dnf install -y \
+        libxcrypt-compat-4.4.33 \
+        libpq-15.0 \
+        gcc \
+        tar xz; \
+    echo "Installing RPM"; \
+    rpm -i https://ccrypt.sourceforge.net/download/1.11/ccrypt-1.11-1.src.rpm && \
+    cd /root/rpmbuild/SOURCES/ && \
+    tar -zxf ccrypt-1.11.tar.gz && cd ccrypt-1.11 && ./configure --disable-libcrypt && make install && make check;
 
-WORKDIR /var/www/$appname
+COPY --chown=gen3:gen3 --from=builder /$appname /$appname
 
-CMD ["sh","-c", "bash /dockerrun.sh"]
+CMD ["/bin/bash", "-c", "/amanuensis/dockerrun.bash"]
