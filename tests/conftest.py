@@ -1323,11 +1323,11 @@ def download_urls_get(session, client):
                              status_code=200
                              ):
 
-        url = "/download-urls" + (str(project_id) if project_id is not None else "")
+        url = "/download-urls/" + (str(project_id) if project_id is not None else "")
 
         overall_status_before_request = calculate_overall_project_state(session, project_id)["status"]
 
-        response = client.post(url, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
 
         assert response.status_code == status_code
         
