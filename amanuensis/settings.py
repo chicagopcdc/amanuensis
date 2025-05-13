@@ -26,20 +26,20 @@ CONFIG_SEARCH_FOLDERS = ["/var/www/amanuensis", "{}/.gen3/amanuensis".format(exp
 # located elsewhere, use that location in ``imp.load_source`` instead of
 # ``/var/www/local_settings.py``, just below.
 def use_deprecated_settings():
-    ENCRYPTION_KEY = HMAC_ENCRYPTION_KEY
+    ENCRYPTION_KEY =  ""
 
 
 try:
     # Import everything from ``local_settings``, if it exists.
-    from local_settings import *
+    #from local_settings import *
 
     use_deprecated_settings()
 except ImportError:
     # If it doesn't, look in ``/var/www/amanuensis``.
     try:
-        import imp
+        #import imp
 
-        imp.load_source("local_settings", "/var/www/amanuensis/local_settings.py")
+        #imp.load_source("local_settings", "/var/www/amanuensis/local_settings.py")
         use_deprecated_settings()
     except IOError:
         pass

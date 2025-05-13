@@ -3,7 +3,7 @@ import json
 from boto.s3.connection import OrdinaryCallingFormat
 
 
-DB = "postgresql://test:test@localhost:5432/amanuensis"
+DB: 'postgresql://postgres:Gr0as4le0y9!@localhost:5432/amanuensis'
 
 MOCK_AUTH = False
 MOCK_STORAGE = False
