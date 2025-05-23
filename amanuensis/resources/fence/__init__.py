@@ -1,4 +1,3 @@
-
 import json
 
 import requests
@@ -8,95 +7,104 @@ from amanuensis.auth.auth import get_jwt_from_header
 from pcdcutils.signature import SignatureManager
 from pcdcutils.errors import NoKeyError
 from pcdcutils.helpers import encode_str
+from pcdcutils.gen3 import Gen3RequestManager
 from amanuensis.config import config
 from amanuensis.errors import InternalError, Unauthorized
+from types import SimpleNamespace
 
 logger = get_logger(__name__)
 
 
-
 def fence_get_users(usernames=None, ids=None):
-    '''
-    amanuensis sends a request to fence for a list of user ids 
+    """
+    amanuensis sends a request to fence for a list of user ids
     matching the supplied list of user email addresses
-    '''
-    if (ids and usernames):
-        logger.error("fence_get_users: Wrong params, only one among `ids` and `usernames` should be set.")
+    """
+    if ids and usernames:
+        logger.error(
+            "fence_get_users: Wrong params, only one among `ids` and `usernames` should be set."
+        )
         return {}
-
 
     if usernames:
-        queryBody = {
-            'usernames': usernames
-        }
+        query_body = {"usernames": usernames}
     elif ids:
-        queryBody = {
-            'ids': ids
-        }
+        query_body = {"ids": ids}
     else:
-        logger.error("fence_get_users: Wrong params, at least one among `ids` and `usernames` should be set.")
+        logger.error(
+            "fence_get_users: Wrong params, at least one among `ids` and `usernames` should be set."
+        )
         return {}
 
-    
     try:
-        # sending request to Fence
-        url = config['FENCE'] + "/admin/users/selected"  
-        headers = {'Content-Type': 'application/json'}
-        body = json.dumps(queryBody)
+        # Sending request to Fence.
+        url = config["FENCE"] + "/admin/users/selected"
+        path = "/admin/users/selected"
+        method = "POST"
+        service_name = config.get("SERVICE_NAME")
         jwt = get_jwt_from_header()
-        sm = SignatureManager(key=config["RSA_PRIVATE_KEY"])
-        
-        headers['Authorization'] = 'bearer ' + jwt
-        headers['Signature'] = b'signature ' + sm.sign(body)
-        headers['Gen3-Service'] = encode_str(config.get('SERVICE_NAME'))
 
-        # logger.debug(f"headers: {str(headers)}")
-        # logger.debug(f"data: {str(body)}")
-        # logger.debug(f"url: {str(url)}")
-        # logger.debug(f"fence_get_users url: {url}")
- 
-        r = requests.post(
-            url, data=body, headers=headers
+        body = json.dumps(query_body, separators=(",", ":"))
+
+        g3rm = Gen3RequestManager(headers={"Gen3-Service": service_name})
+        signature = g3rm.make_gen3_signature(
+            SimpleNamespace(method=method, path=path, body=lambda: body.encode()),
+            config,
         )
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"bearer {jwt}",
+            "Signature": "signature " + signature.decode(),
+            "Gen3-Service": encode_str(service_name or ""),
+        }
+
+        r = requests.post(url, data=body, headers=headers)
         if r.status_code == 200:
-          return r.json()
+            return r.json()
 
     except NoKeyError as e:
-        logger.error(e.message)
+        logger.error(e)
     except requests.HTTPError as e:
-        logger.error(e.message)
+        logger.error(e)
 
-    return{}
+    return {}
+
 
 def fence_get_all_users():
-    '''
-    amanuensis sends a request to fence for a list of all users 
-    '''
-    
+    """
+    amanuensis sends a request to fence for a list of all users
+    """
     try:
-        # sending request to Fence
-        url = config['FENCE'] + "/admin/users"  
-        headers = {'Content-Type': 'application/json'}
-        body = json.dumps({"dummy": "data"})
+        # Sending request to Fence.
+        url = config["FENCE"] + "/admin/users"
+        path = "/admin/users"
+        method = "GET"
+        service_name = config.get("SERVICE_NAME")
         jwt = get_jwt_from_header()
-        sm = SignatureManager(key=config["RSA_PRIVATE_KEY"])
-        
-        headers['Authorization'] = 'bearer ' + jwt
-        headers['Signature'] = b'signature ' + sm.sign(body)
-        headers['Gen3-Service'] = encode_str(config.get('SERVICE_NAME'))
- 
-        r = requests.get(
-            url, data=body, headers=headers
+
+        g3rm = Gen3RequestManager(headers={"Gen3-Service": service_name})
+        signature = g3rm.make_gen3_signature(
+            SimpleNamespace(method=method, path=path, body=lambda: ""), config
         )
+
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"bearer {jwt}",
+            "Signature": "signature " + signature.decode(),
+            "Gen3-Service": encode_str(service_name or ""),
+        }
+
+        r = requests.get(url, headers=headers)
 
         if r.status_code == 200:
             return r.json()
-        
         elif r.status_code == 401:
             raise InternalError("Fence rejected request for all users from amanuensis")
-        
-        else: 
-            raise InternalError("Fence returned unexpected status code for all users request")
+        else:
+            raise InternalError(
+                "Fence returned unexpected status code for all users request"
+            )
 
     except Exception as e:
         logger.error(e)
