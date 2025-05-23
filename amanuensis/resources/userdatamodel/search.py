@@ -1,6 +1,7 @@
 from amanuensis.errors import NotFound, UserError, InternalError
-from amanuensis.models import Search, FilterSourceType
+from amanuensis.models import Search, FilterSourceType, ProjectSearch, SearchIsShared
 from cdislogging import get_logger
+from sqlalchemy import exists
 logger = get_logger(__name__)
 __all__ = [
     "get_filter_sets",
@@ -14,11 +15,19 @@ def get_filter_sets(
         active=True, 
         id=None,
         user_id=None,
-        many=True,
+        graphql_object=None,
+        filter_object=None,
+        ids_list=None,
+        source_type=FilterSourceType.explorer,
         filter_by_active=True,
         filter_by_source_type=True,
+        filter_by_ids_list=False,
+        filter_for_no_user_id=False,
+        filter_for_not_shared_filtersets=False,
+        filter_for_not_project_filtersets=False,
         throw_not_found=False,
-        throw_not_equal=False
+        throw_not_equal=False,
+        many=True,
 ):
     filter_sets = current_session.query(Search)
 
@@ -28,7 +37,7 @@ def get_filter_sets(
         filter_sets = filter_sets.filter(Search.active == active)
 
     if filter_by_source_type:
-        filter_sets = filter_sets.filter(Search.filter_source == FilterSourceType.explorer)
+        filter_sets = filter_sets.filter(Search.filter_source == source_type)
     
     
     if explorer_id is not None:
@@ -46,11 +55,29 @@ def get_filter_sets(
     elif throw_not_equal:
         raise UserError("You must pass a filter_set_id to enforce equality check")
 
+    if filter_object is not None:
+        filter_object = [filter_object] if not isinstance(filter_object, list) else filter_object
+        filter_sets = filter_sets.filter(Search.filter_object.in_(filter_object))
+    
+    if graphql_object is not None:
+        graphql_object = [graphql_object] if not isinstance(graphql_object, list) else graphql_object
+        filter_sets = filter_sets.filter(Search.graphql_object.in_(graphql_object))
+    
+    if filter_by_ids_list:
+        filter_sets = filter_sets.filter(Search.ids_list.is_(ids_list))
 
     if user_id:
         user_id = [user_id] if not isinstance(user_id, list) else user_id
         filter_sets = filter_sets.filter(Search.user_id.in_(user_id))
 
+    if filter_for_no_user_id:
+        filter_sets = filter_sets.filter(Search.user_id.is_(None))
+    if filter_for_not_shared_filtersets:
+        filter_sets = filter_sets.filter(~exists().where(SearchIsShared.search_id == Search.id))
+    if filter_for_not_project_filtersets:
+        filter_sets = filter_sets.filter(~exists().where(ProjectSearch.search_id == Search.id))
+        
+        
 
     filter_sets = filter_sets.all()
 
@@ -88,11 +115,11 @@ def create_filter_set(
         user_source=user_source,
         name=name,
         description=description,
-        filter_object=filter_object,
+        filter_object={} if filter_object is None else filter_object,
         filter_source=FilterSourceType.manual if is_amanuensis_admin else FilterSourceType.explorer,
         filter_source_internal_id=explorer_id,
         ids_list=ids_list,
-        graphql_object=graphql_object
+        graphql_object={} if graphql_object is None else graphql_object
     )
     # TODO add es_index, add dataset_version
     current_session.add(new_filter_set)
@@ -141,3 +168,41 @@ def update_filter_set(
 
     return filter_set
 
+def hard_delete_filter_set(
+        session,
+        graphql_object=None,
+        filter_object=None,
+        ids_list=None,
+        filter_by_active=False,
+        filter_by_source_type=False,
+        filter_by_ids_list=False,
+        filter_for_no_user_id=False,
+        filter_for_not_shared_filtersets=False,
+        filter_for_not_project_filtersets=False,
+
+    ):
+    
+    filter_sets = get_filter_sets(
+        session,
+        filter_object=filter_object,
+        graphql_object=graphql_object,
+        ids_list=ids_list,
+        filter_by_ids_list=filter_by_ids_list,
+        filter_by_active=filter_by_active, 
+        filter_by_source_type=filter_by_source_type,
+        filter_for_no_user_id=filter_for_no_user_id,
+        filter_for_not_shared_filtersets=filter_for_not_shared_filtersets,
+        filter_for_not_project_filtersets=filter_for_not_project_filtersets,
+        many=True,
+        throw_not_found=False,
+        throw_not_equal=False,
+    )
+
+    for filter_set in filter_sets:
+        logger.info(f"Deleting filter_set NAME: {filter_set.name} ID: {filter_set.id}")
+        session.delete(filter_set)
+    
+    
+    session.flush()
+  
+                           
