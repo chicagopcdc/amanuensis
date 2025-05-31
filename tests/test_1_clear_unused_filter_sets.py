@@ -6,7 +6,7 @@ from amanuensis.scripting.clear_old_filter_sets import main
 
 
 
-def test_clear_unused_filter_sets(session, client, register_user, login, mock_requests_post, pytestconfig):
+def test_clear_unused_filter_sets(session, client, register_user, login, mock_requests_post, pytestconfig, filter_set_post, filter_set_snapshot_post, project_post, admin_copy_search_to_user_post, admin_copy_search_to_project, admin_filter_set_post):
     # Validate initial state
     # User creates filter-set via UI and has user_id
     # User creates project, and a new search without a user_id is created and added to project_has_search
@@ -17,89 +17,137 @@ def test_clear_unused_filter_sets(session, client, register_user, login, mock_re
 
     login(user_id, user_email)
 
-    search_1_response = client.post(
-        "/filter-sets?explorerId=1",
-        json={"name": f"search_1_{__name__}"},
-        headers={"Authorization": f'bearer {user_id}'},
-    )
-    assert search_1_response.status_code == 200
-    search_1_id = search_1_response.json["id"]
+    #1 This will be deleted becuase it has no ids list and no graphql_object and no filter_object
+    search_1_id = filter_set_post(
+        user_id, 
+        name=f"search_1_{__name__}"
+    ).json["id"]
 
-    search_2_response = client.post(
-        "/filter-sets?explorerId=1",
-        json={"name": f"search_2_{__name__}"},
-        headers={"Authorization": f'bearer {user_id}'},
-    )
-    assert search_2_response.status_code == 200
-    search_2_id = search_2_response.json["id"]
+    #2 this will not be deleted bc filter_object is present and graphql_object is present
+    search_2_id = filter_set_post(
+        user_id, 
+        name=f"search_2_{__name__}", 
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT", "INRG"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
+    ).json["id"]
 
+    
     login(user_id_2, user_email_2)
-
-    search_3_response = client.post(
-        "/filter-sets?explorerId=1",
-        json={"name": f"search_3_{__name__}"},
-        headers={"Authorization": f'bearer {user_id_2}'},
-    )
-    assert search_3_response.status_code == 200
-    search_3_id = search_3_response.json["id"]
+    #3 this will not be deleted bc filter_object is presetn
+    search_3_id = filter_set_post(
+        user_id_2, 
+        name=f"search_3_{__name__}", 
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT", "INRG"],"isExclusion":False}},
+    ).json["id"]
 
     login(user_id, user_email)
-
-    snapshot_response = client.post(
-        "filter-sets/snapshot",
-        json={"filterSetId": search_1_id},
-        headers={"Authorization": f'bearer {user_id}'},
+    #4 this will not be deleted bc its part of search_is_shared
+    filter_set_snapshot_post(
+        user_id,
+        filter_set_id=search_1_id
     )
-    assert snapshot_response.status_code == 200
 
     login(admin_id, admin_email)
-    mock_requests_post(consortiums=["INSTRUCT", "INRG"])
-    project_response = client.post(
-        f"/admin/projects",
-        json={
-            "user_id": user_id,
-            "name": f"{__name__}_project",
-            "description": "This is an endpoint test project",
-            "institution": "test university",
-            "filter_set_ids": [search_2_id],
-            "associated_users_emails": [],
-        },
-        headers={"Authorization": f'bearer {admin_id}'},
+    #5 this will not be deleted bc it has graphql_object and filter_object
+    admin_copy_search_to_user_post(
+        admin_id,
+        user_id=user_id_2,
+        filter_set_id=search_2_id
     )
-    assert project_response.status_code == 200
-    project_id = project_response.json["id"]
+    
+    #6 will be deleted by #7 bc is is no longer part of the project has search and has no user_id
+    login(user_id, user_email)
+    project_id = project_post(
+        user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
+        associated_users_emails=[user_email],
+        name=f"{__name__}_project",
+        description="This is an endpoint test project",
+        institution="test university",
+        filter_set_ids=[search_2_id],
+    ).json["id"]
 
-    assert session.query(Search).count() == 5
-    assert session.query(Search).filter(Search.user_id.is_(None)).count() == 2
-    assert session.query(SearchIsShared).count() == 1
-    assert session.query(ProjectSearch).count() == 1
+    login(admin_id, admin_email)
+    #7 this will not be deleted bc it is part of the project has search
+    admin_copy_search_to_project(
+        admin_id,
+        filter_set_id=search_3_id,
+        project_id=project_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
+    )
 
-    # Run main function
-    main(pytestconfig.getoption("--configuration-file"))
+    #8 this will be deleted 
+    blank_1 = Search(
+        user_id=user_id,
+        name=f"search_1_blank_{__name__}",
+        filter_object=None,
+        graphql_object={},
+    )
 
-    # Validate post-main state
-    assert session.query(Search).count() == 5
-    assert session.query(Search).filter(Search.user_id.is_(None)).count() == 2
-    assert session.query(SearchIsShared).count() == 1
-    assert session.query(ProjectSearch).count() == 1
+    #9 this will be deleted
+    blank_2 = Search(
+        user_id=user_id,
+        name=f"search_2_blank_{__name__}",
+        filter_object={},
+        graphql_object=None,
+    )
 
-    #change filter-set in project
-    admin_copy_search_to_project_json = {
-        "filtersetId": search_3_id,
-        "projectId": project_id
-    }
-    admin_copy_search_to_project_response = client.post("admin/copy-search-to-project", json=admin_copy_search_to_project_json, headers={"Authorization": f'bearer {admin_id}'})
-    assert session.query(Search).count() == 6
+    #10 this will be deleted
+    blank_3 = Search(
+        user_id=user_id,
+        name=f"search_3_blank_{__name__}",
+        filter_object={},
+        graphql_object={},
+    )
+    #11 this will be deleted
+    blank_4 = Search(
+        user_id=user_id,
+        name=f"search_4_blank_{__name__}",
+        filter_object=None,
+        graphql_object=None,
+    )
+    session.add_all([blank_1, blank_2, blank_3, blank_4])
+    session.commit()
+
+    login(admin_id, admin_email)
+    #12 this will not be deleted bc it has graphql_object
+    admin_filter_set_post(
+        admin_id,
+        user_id=user_id,
+        name=f"search_1_admin_{__name__}",
+        graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
+    )
+    #13 this will not be deleted bc it has ids list
+    admin_filter_set_post(
+        admin_id,
+        user_id=user_id,
+        name=f"search_2_ids_list_admin_{__name__}",
+        ids_list=["this_is_an_id"],
+    )
+    #14 this will be deleted bc it has no ids list and no graphql_object and no filter_object
+    admin_filter_set_post(
+        admin_id,
+        user_id=user_id,
+        name=f"no_data_admin_{__name__}",
+    )
+    assert session.query(Search).count() == 14
     assert session.query(Search).filter(Search.user_id.is_(None)).count() == 3
     assert session.query(SearchIsShared).count() == 1
     assert session.query(ProjectSearch).count() == 1
 
-    main(pytestconfig.getoption("--configuration-file"))
+    # Run main function
+    main(["--file_name", pytestconfig.getoption("--configuration-file")])
 
-    assert session.query(Search).count() == 5
+    assert session.query(Search).count() == 7
     assert session.query(Search).filter(Search.user_id.is_(None)).count() == 2
     assert session.query(SearchIsShared).count() == 1
     assert session.query(ProjectSearch).count() == 1
 
-    deleted_filter_set = session.query(Search).filter(Search.name == "test_1_clear_unused_filter_sets_project_search_2_test_1_clear_unused_filter_sets").first()
-    assert not deleted_filter_set
+    assert not session.query(Search).filter(Search.id == search_1_id).first()
+    assert not session.query(Search).filter(Search.name == f"{__name__}_project_search_2_{__name__}").first()
+    assert not session.query(Search).filter(Search.name == f"search_1_blank_{__name__}").first()
+    assert not session.query(Search).filter(Search.name == f"search_2_blank_{__name__}").first()
+    assert not session.query(Search).filter(Search.name == f"search_3_blank_{__name__}").first()
+    assert not session.query(Search).filter(Search.name == f"search_4_blank_{__name__}").first()
+    assert not session.query(Search).filter(Search.name == f"no_data_admin_{__name__}",).first()
+
