@@ -32,7 +32,7 @@ SERVICE_NAME: 'amanuensis'
 # postgres db to connect to
 # connection url format:
 #     postgresql://[user[:password]@][netloc][:port][/dbname]
-DB: 'postgresql://postgres:Gr0as4le0y9!@localhost:5432/amanuensis'
+DB: 'postgresql://test:test@localhost:5432/amanuensis'
 
 # A URL-safe base64-encoded 32-byte key for encrypting keys in db
 # in python you can use the following script to generate one:
