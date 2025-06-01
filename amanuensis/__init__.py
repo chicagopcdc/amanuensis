@@ -20,6 +20,7 @@ import amanuensis.blueprints.project
 import amanuensis.blueprints.admin
 import amanuensis.blueprints.download_urls
 import amanuensis.blueprints.notification
+import amanuensis.blueprints.project_datapoints
 from copy import deepcopy
 
 
@@ -73,6 +74,7 @@ def app_register_blueprints(app):
     app.register_blueprint(amanuensis.blueprints.filterset.blueprint, url_prefix="/filter-sets")
     app.register_blueprint(amanuensis.blueprints.project.blueprint, url_prefix="/projects")
     app.register_blueprint(amanuensis.blueprints.notification.blueprint, url_prefix="/notifications")
+    app.register_blueprint(amanuensis.blueprints.project_datapoints.blueprint, url_prefix="/project-datapoints")
     # Disable for now since they are not used yet
     # app.register_blueprint(amanuensis.blueprints.message.blueprint, url_prefix="/message")
     
