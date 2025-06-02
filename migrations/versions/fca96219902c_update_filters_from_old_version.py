@@ -87,10 +87,10 @@ def upgrade() -> None:
                 print(f"Error processing search {name}: {e}")
                 continue
         
-            updates.append((search_id, new_filter_object))
+            updates.append((search_id, new_filter_object, filter_obj))
     
-    for search_id, new_filter in updates:
-        logger.info(f"Updating search {search_id} with new filter object: {new_filter}")
+    for search_id, new_filter, filter_obj in updates:
+        logger.info(f"Updating search {search_id} with new filter object: {new_filter} from old filter object: {filter_obj}")
         session.query(Search).filter(Search.id == search_id).update(
             {"filter_object": new_filter}
         )
