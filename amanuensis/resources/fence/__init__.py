@@ -4,15 +4,25 @@ import requests
 from cdislogging import get_logger
 
 from amanuensis.auth.auth import get_jwt_from_header
-from pcdcutils.signature import SignatureManager
+from pcdcutils.gen3 import Gen3RequestManager
 from pcdcutils.errors import NoKeyError
 from pcdcutils.helpers import encode_str
-from pcdcutils.gen3 import Gen3RequestManager
 from amanuensis.config import config
 from amanuensis.errors import InternalError, Unauthorized
-from types import SimpleNamespace
 
 logger = get_logger(__name__)
+
+
+class SignaturePayload:
+    def __init__(self, method, path, headers=None):
+        self.method = method.upper()
+        self.path = path
+        self.headers = headers or {}
+
+    def get_data(self, as_text=True):
+        header_str = "\n".join(f"{k}: {v}" for k, v in sorted(self.headers.items()))
+        payload_str = f"{self.method} {self.path}\n{header_str}"
+        return payload_str if as_text else payload_str.encode("utf-8")
 
 
 def fence_get_users(usernames=None, ids=None):
@@ -27,9 +37,9 @@ def fence_get_users(usernames=None, ids=None):
         return {}
 
     if usernames:
-        query_body = {"usernames": usernames}
+        queryBody = {"usernames": usernames}
     elif ids:
-        query_body = {"ids": ids}
+        queryBody = {"ids": ids}
     else:
         logger.error(
             "fence_get_users: Wrong params, at least one among `ids` and `usernames` should be set."
@@ -37,27 +47,39 @@ def fence_get_users(usernames=None, ids=None):
         return {}
 
     try:
-        # Sending request to Fence.
         url = config["FENCE"] + "/admin/users/selected"
-        path = "/admin/users/selected"
-        method = "POST"
-        service_name = config.get("SERVICE_NAME")
         jwt = get_jwt_from_header()
 
-        body = json.dumps(query_body, separators=(",", ":"))
+        # --- RSA guard ---
+        if not config.get("RSA_PRIVATE_KEY"):
+            logger.error("No RSA_PRIVATE_KEY configured — cannot sign request")
+            raise NoKeyError("Missing RSA_PRIVATE_KEY — cannot sign request")
 
-        g3rm = Gen3RequestManager(headers={"Gen3-Service": service_name})
-        signature = g3rm.make_gen3_signature(
-            SimpleNamespace(method=method, path=path, body=lambda: body.encode()),
-            config,
+        g3rm = Gen3RequestManager(headers={})
+
+        # --- Prepare SignaturePayload ---
+        from urllib.parse import urlparse
+
+        parsed_url = urlparse(url)
+        path_only = parsed_url.path
+
+        payload = SignaturePayload(
+            method="POST",
+            path=path_only,
+            headers={"Gen3-Service": config.get("SERVICE_NAME")},
         )
 
+        signature = g3rm.make_gen3_signature(payload, config=config)
+
+        # --- Headers ---
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"bearer {jwt}",
-            "Signature": "signature " + signature.decode(),
-            "Gen3-Service": encode_str(service_name or ""),
+            "Authorization": "bearer " + jwt,
+            "Signature": b"signature " + signature,
+            "Gen3-Service": encode_str(config.get("SERVICE_NAME")),
         }
+
+        body = json.dumps(queryBody)
 
         r = requests.post(url, data=body, headers=headers)
         if r.status_code == 200:
@@ -76,25 +98,39 @@ def fence_get_all_users():
     amanuensis sends a request to fence for a list of all users
     """
     try:
-        # Sending request to Fence.
         url = config["FENCE"] + "/admin/users"
-        path = "/admin/users"
-        method = "GET"
-        service_name = config.get("SERVICE_NAME")
         jwt = get_jwt_from_header()
 
-        g3rm = Gen3RequestManager(headers={"Gen3-Service": service_name})
-        signature = g3rm.make_gen3_signature(
-            SimpleNamespace(method=method, path=path, body=lambda: ""), config
+        # --- RSA guard ---
+        if not config.get("RSA_PRIVATE_KEY"):
+            logger.error("No RSA_PRIVATE_KEY configured — cannot sign request")
+            raise NoKeyError("Missing RSA_PRIVATE_KEY — cannot sign request")
+
+        g3rm = Gen3RequestManager(headers={})
+
+        # --- Prepare SignaturePayload ---
+        from urllib.parse import urlparse
+
+        parsed_url = urlparse(url)
+        path_only = parsed_url.path
+
+        payload = SignaturePayload(
+            method="GET",
+            path=path_only,
+            headers={"Gen3-Service": config.get("SERVICE_NAME")},
         )
 
+        signature = g3rm.make_gen3_signature(payload, config=config)
+
+        # --- Headers ---
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"bearer {jwt}",
-            "Signature": "signature " + signature.decode(),
-            "Gen3-Service": encode_str(service_name or ""),
+            "Authorization": "bearer " + jwt,
+            "Signature": b"signature " + signature,
+            "Gen3-Service": encode_str(config.get("SERVICE_NAME")),
         }
 
+        # --- NOTE: GET request — NO body needed anymore! ---
         r = requests.get(url, headers=headers)
 
         if r.status_code == 200:
