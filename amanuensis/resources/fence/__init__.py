@@ -75,7 +75,7 @@ def fence_get_users(usernames=None, ids=None):
         headers = {
             "Content-Type": "application/json",
             "Authorization": "bearer " + jwt,
-            "Signature": b"signature " + signature,
+            "Signature": "signature " + signature.decode(),
             "Gen3-Service": encode_str(config.get("SERVICE_NAME")),
         }
 
@@ -126,7 +126,7 @@ def fence_get_all_users():
         headers = {
             "Content-Type": "application/json",
             "Authorization": "bearer " + jwt,
-            "Signature": b"signature " + signature,
+            "Signature": "signature " + signature.decode(),
             "Gen3-Service": encode_str(config.get("SERVICE_NAME")),
         }
 
