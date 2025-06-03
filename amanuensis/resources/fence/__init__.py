@@ -4,25 +4,13 @@ import requests
 from cdislogging import get_logger
 
 from amanuensis.auth.auth import get_jwt_from_header
-from pcdcutils.gen3 import Gen3RequestManager
+from pcdcutils.gen3 import Gen3RequestManager, SignaturePayload
 from pcdcutils.errors import NoKeyError
 from pcdcutils.helpers import encode_str
 from amanuensis.config import config
 from amanuensis.errors import InternalError, Unauthorized
 
 logger = get_logger(__name__)
-
-
-class SignaturePayload:
-    def __init__(self, method, path, headers=None):
-        self.method = method.upper()
-        self.path = path
-        self.headers = headers or {}
-
-    def get_data(self, as_text=True):
-        header_str = "\n".join(f"{k}: {v}" for k, v in sorted(self.headers.items()))
-        payload_str = f"{self.method} {self.path}\n{header_str}"
-        return payload_str if as_text else payload_str.encode("utf-8")
 
 
 def fence_get_users(usernames=None, ids=None):
@@ -49,37 +37,28 @@ def fence_get_users(usernames=None, ids=None):
     try:
         url = config["FENCE"] + "/admin/users/selected"
         jwt = get_jwt_from_header()
+        headers = {
+                "Gen3-Service": config.get("SERVICE_NAME").upper(),
+            }
+        body = json.dumps(queryBody, separators=(",", ":"))
 
-        # --- RSA guard ---
         if not config.get("RSA_PRIVATE_KEY"):
             logger.error("No RSA_PRIVATE_KEY configured — cannot sign request")
             raise NoKeyError("Missing RSA_PRIVATE_KEY — cannot sign request")
 
-        g3rm = Gen3RequestManager(headers={})
-
-        # --- Prepare SignaturePayload ---
-        from urllib.parse import urlparse
-
-        parsed_url = urlparse(url)
-        path_only = parsed_url.path
-
         payload = SignaturePayload(
             method="POST",
-            path=path_only,
-            headers={"Gen3-Service": config.get("SERVICE_NAME")},
+            path=url,
+            headers=headers,
+            body=body
         )
 
+        g3rm = Gen3RequestManager(headers=headers)
+
         signature = g3rm.make_gen3_signature(payload, config=config)
-
-        # --- Headers ---
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "bearer " + jwt,
-            "Signature": "signature " + signature.decode(),
-            "Gen3-Service": encode_str(config.get("SERVICE_NAME")),
-        }
-
-        body = json.dumps(queryBody)
+        headers["Content-Type"] = "application/json"
+        headers["Authorization"] = "bearer " + jwt
+        headers["Signature"] = "signature " + signature
 
         r = requests.post(url, data=body, headers=headers)
         if r.status_code == 200:
@@ -100,37 +79,27 @@ def fence_get_all_users():
     try:
         url = config["FENCE"] + "/admin/users"
         jwt = get_jwt_from_header()
+        headers = {
+                "Gen3-Service": config.get("SERVICE_NAME").upper(),
+            }
 
-        # --- RSA guard ---
         if not config.get("RSA_PRIVATE_KEY"):
             logger.error("No RSA_PRIVATE_KEY configured — cannot sign request")
             raise NoKeyError("Missing RSA_PRIVATE_KEY — cannot sign request")
 
-        g3rm = Gen3RequestManager(headers={})
-
-        # --- Prepare SignaturePayload ---
-        from urllib.parse import urlparse
-
-        parsed_url = urlparse(url)
-        path_only = parsed_url.path
-
         payload = SignaturePayload(
             method="GET",
-            path=path_only,
-            headers={"Gen3-Service": config.get("SERVICE_NAME")},
+            path=url,
+            headers=headers,
         )
 
+        g3rm = Gen3RequestManager(headers=headers)
+
         signature = g3rm.make_gen3_signature(payload, config=config)
+        headers["Content-Type"] = "application/json"
+        headers["Authorization"] = "bearer " + jwt
+        headers["Signature"] = "signature " + signature
 
-        # --- Headers ---
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "bearer " + jwt,
-            "Signature": "signature " + signature.decode(),
-            "Gen3-Service": encode_str(config.get("SERVICE_NAME")),
-        }
-
-        # --- NOTE: GET request — NO body needed anymore! ---
         r = requests.get(url, headers=headers)
 
         if r.status_code == 200:
