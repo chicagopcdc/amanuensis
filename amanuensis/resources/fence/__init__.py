@@ -63,6 +63,8 @@ def fence_get_users(usernames=None, ids=None):
         headers["Authorization"] = "bearer " + jwt
         headers["Signature"] = "signature " + signature
 
+        logger.error("signature " + signature)
+
         r = requests.post(url, data=body, headers=headers)
         if r.status_code == 200:
             return r.json()
@@ -95,9 +97,6 @@ def fence_get_all_users():
             path=url,
             headers=headers,
         )
-
-        logger.error("AAAAAAAAA")
-        logger.error(payload.get_standardized_payload(config.get("SERVICE_NAME").upper()))
 
         g3rm = Gen3RequestManager(headers=headers)
 
