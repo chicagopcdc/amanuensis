@@ -1,4 +1,4 @@
-from amanuensis.resources.userdatamodel.search import get_filter_sets, update_filter_set
+from amanuensis.resources.userdatamodel.search import get_filter_sets, update_filter_set, hard_delete_filter_set
 import requests
 from amanuensis.settings import CONFIG_SEARCH_FOLDERS
 import os
@@ -181,13 +181,15 @@ def _check_es_to_dd_map(selected_filters, filter_set_name, es_to_dd_map):
     return True   
 
 
-def check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", portal_config_file_name="gitops.json"):
+def check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", portal_config_file_name="gitops.json", filter_sets_to_mark_as_invalid_manually="invalid-filters.json"):
 
     es_to_dd_map = _load_data_files(es_to_dd_map_file_name)
     
     portal_config = _load_data_files(portal_config_file_name)
 
     explorer_selectable_values = _get_selectable_filters_from_data_portal(portal_config)
+
+    invalid_filter_sets_list = _load_data_files(filter_sets_to_mark_as_invalid_manually)
 
     filter_sets = get_filter_sets(session, filter_by_active=False, filter_by_source_type=False)
 
@@ -206,32 +208,40 @@ def check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", porta
 
         is_valid_portal = False
         is_valid_dd = False
-            
-        if graphql_object is None:
 
-            logger.info(f"Filter-set {filter_set_name} has no graphql_object")
-        
+        if filter_set.id in invalid_filter_sets_list:
+            
+            logger.info(f"Filter-set {filter_set_name} is in the invalid filter sets list, marking as invalid")
+
         else:
-            
-            extracted_values_from_filter_set = _extract_selected_values_from_filter_set(graphql_object)
-        
-            if extracted_values_from_filter_set is not False:
-                
-                if not filter_source_internal_id and filter_source == "manual":
-                    logger.info(f"Filter-set {filter_set_name} is a manual filter-set, skipping validation against data portal explorer values")
-                    is_valid_portal = True
-                else:
-                    is_valid_portal = (
-                        _check_portal_config(set(extracted_values_from_filter_set.keys()), filter_set_name, explorer_selectable_values[filter_source_internal_id])
-                    )
+            if graphql_object is None:
 
-                is_valid_dd = _check_es_to_dd_map(extracted_values_from_filter_set, filter_set_name, es_to_dd_map)
+                logger.info(f"Filter-set {filter_set_name} has no graphql_object")
             
             else:
                 
-                logger.info(f"Filter-set {filter_set_name} is malformed")
+                extracted_values_from_filter_set = _extract_selected_values_from_filter_set(graphql_object)
+            
+                if extracted_values_from_filter_set is not False:
+                    
+                    if filter_source == "manual":
+                        logger.info(f"Filter-set {filter_set_name} is a manual filter-set, skipping validation against data portal explorer values")
+                        is_valid_portal = True
+                    elif filter_source == "explorer" and filter_source_internal_id and filter_source_internal_id in explorer_selectable_values:
+                        is_valid_portal = (
+                            _check_portal_config(set(extracted_values_from_filter_set.keys()), filter_set_name, explorer_selectable_values[filter_source_internal_id])
+                        )
+                    else:
+                        logger.info(f"Filter-set {filter_set_name} does not have a valid filter source: {filter_source} and/or filter source internal id {filter_source_internal_id}. allowed values for filter source id are: {list(explorer_selectable_values.keys())}")
+                        is_valid_portal = False
 
-        
+                    is_valid_dd = _check_es_to_dd_map(extracted_values_from_filter_set, filter_set_name, es_to_dd_map)
+                
+                else:
+                    
+                    logger.info(f"Filter-set {filter_set_name} is malformed")
+
+            
         
         is_valid = is_valid_portal and is_valid_dd
         
@@ -266,3 +276,33 @@ def check_filter_sets(session, es_to_dd_map_file_name="es_to_dd_map.json", porta
         
         logger.info(message)
             
+def clear_out_unused_filter_sets(session):
+
+
+    # delete all filters that are no longer part of projects and sharable searches
+
+    hard_delete_filter_set(
+                session, 
+                filter_by_active=False, 
+                filter_by_source_type=False,
+                filter_for_no_user_id=True,
+                filter_for_not_shared_filtersets=True,
+                filter_for_not_project_filtersets=True,
+    )
+
+    # delete all filter sets which are blanks
+
+    hard_delete_filter_set(
+                session, 
+                filter_by_active=False, 
+                filter_by_source_type=False,
+                filter_for_no_user_id=False,
+                filter_for_not_shared_filtersets=True,
+                filter_for_not_project_filtersets=True,
+                filter_object=[{}, None],
+                graphql_object=[{}, None],
+                filter_by_ids_list=True,
+                ids_list=None
+
+    )
+
