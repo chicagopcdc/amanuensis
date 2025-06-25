@@ -84,7 +84,7 @@ def upgrade() -> None:
                 new_filter_object["value"] = proccess_filter_object(old_filter_object)
             
             except Exception as e:
-                print(f"Error processing search {name}: {e}")
+                print(f"Error processing search with id: {search_id} and value: {name}: {e}")
                 continue
         
             updates.append((search_id, new_filter_object, filter_obj))
@@ -95,10 +95,6 @@ def upgrade() -> None:
             {"filter_object": new_filter}
         )
             
-
-
-
-
     session.commit()
         
             
