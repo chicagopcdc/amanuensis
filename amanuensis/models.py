@@ -20,7 +20,8 @@ from userportaldatamodel.models import (
     SearchIsShared, 
     Transition,
     Notification,
-    NotificationLog
+    NotificationLog,
+    ProjectDataPoints
 )
 
 
