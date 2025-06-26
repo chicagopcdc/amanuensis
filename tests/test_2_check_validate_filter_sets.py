@@ -1,8 +1,10 @@
 import pytest
 from amanuensis.resources.filter_sets import _load_data_files, _get_selectable_filters_from_data_portal, _check_es_to_dd_map, _check_portal_config, check_filter_sets, _extract_selected_values_from_filter_set
 from amanuensis.errors import NotFound, InternalError
-from amanuensis.models import Search, SearchIsShared, Project
+from amanuensis.models import Search, SearchIsShared, Project, FilterSourceType
 from amanuensis.scripting.validate_filter_sets import main
+import json
+import os
 
 
 @pytest.fixture(scope="module")
@@ -350,7 +352,26 @@ def test_check_filter_sets(session,
         filter_set_id=filter_set_post_invalid.json["id"],
         )
 
+    #generate bad filter set missing filter_source
 
+    filter_set_no_filter_source = Search(
+            name="filter_set_no_filter_source",
+            description="filter_set_no_filter_source",
+            filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+            graphql_object=real_graphql_object,
+            filter_source_internal_id=1,
+    )
+
+    filter_set_no_filter_source_internal_id = Search(
+            name="filter_set_no_filter_source_internal_id",
+            description="filter_set_no_filter_source_internal_id",
+            filter_object={"__combineMode":"AND","__type":"STANDARD","value":{"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}},
+            graphql_object=real_graphql_object,
+            filter_source=FilterSourceType.explorer
+    )
+
+    session.add_all([filter_set_no_filter_source, filter_set_no_filter_source_internal_id])
+    session.commit()
     main(["--file_name", pytestconfig.getoption("--configuration-file")])
 
     assert session.query(Search).filter(Search.id==filter_set_post_real.json["id"]).first().is_valid
@@ -362,6 +383,10 @@ def test_check_filter_sets(session,
     assert session.query(Search).filter(Search.id==filter_set_post_invalid_for_portal_valid_for_data_dictionary.json["id"]).first().is_valid == False
     assert session.query(Search).filter(Search.id==filter_set_post_malformed.json["id"]).first().is_valid == False
     assert session.query(Search).filter(Search.id==filter_set_no_graphql_object.json["id"]).first().is_valid == False
+    session.refresh(filter_set_no_filter_source)
+    assert filter_set_no_filter_source.is_valid == False
+    session.refresh(filter_set_no_filter_source_internal_id)
+    assert filter_set_no_filter_source_internal_id.is_valid == False
     
     assert session.query(SearchIsShared).filter(SearchIsShared.shareable_token == filter_set_snapshot_post_real.json).first().search.is_valid
     assert session.query(SearchIsShared).filter(SearchIsShared.shareable_token == filter_set_snapshot_post_invalid.json).first().search.is_valid == False
@@ -442,3 +467,39 @@ def test_manual_change_to_filter_set_does_not_update_is_valid(session, register_
     )
 
     assert session.query(Search).filter(Search.id==filter_set_post_invalid_1.json["id"]).first().is_valid == False
+
+
+pytest.mark.order(11)
+def test_filter_set_invalid_list_manual_mark_as_invalid(session,  
+                           pytestconfig,
+                           filter_set_post, 
+                           register_user,
+                           login,
+                           ):
+
+    #generate bad filter set with filter_set_post
+    user_id, user_email = register_user(email=f"user_1@test_filter_set_invalid_list_manual_mark_as_invalid.com", name="test_filter_set_invalid_list_manual_mark_as_invalid")
+    real_graphql_object = {"AND":[{"IN":{"consortium":["INRG"]}}]}
+    bad_filter_object = {"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}}
+    login(user_id, user_email)
+    filter_set_post_invalid_id = filter_set_post(
+        user_id,
+        name="invalid_filter_set_from_filter_set_post",
+        filter_object=bad_filter_object,
+        graphql_object=real_graphql_object,
+        description="invalid_filter_set_from_filter_set_post",
+    ).json["id"]
+    #generate a json file with a list [] containing the id of the filter set and save that file to ~/.gen3/amanuensis/invalid-filters.json
+
+    filter_set_invalid_list = [filter_set_post_invalid_id]
+    invalid_filters_file = os.path.expanduser("~/.gen3/amanuensis/invalid-filters.json")
+    if os.path.exists(invalid_filters_file):
+        os.remove(invalid_filters_file)
+
+    with open(invalid_filters_file, "w") as f:
+        f.write(json.dumps(filter_set_invalid_list))
+
+
+    main(["--file_name", pytestconfig.getoption("--configuration-file")])
+    assert session.query(Search).filter(Search.id==filter_set_post_invalid_id).first().is_valid == False
+    
