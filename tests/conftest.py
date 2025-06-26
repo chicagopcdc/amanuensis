@@ -647,8 +647,8 @@ def filter_set_post(session, client):
             filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
 
             assert filter_set.name == name
-            assert filter_set.filter_object == filter_object
-            assert filter_set.graphql_object == graphql_object
+            assert filter_set.filter_object == ({} if filter_object is None else filter_object)
+            assert filter_set.graphql_object == ({} if graphql_object is None else graphql_object)
             assert filter_set.description == description
             assert filter_set.filter_source_internal_id == explorer_id if explorer_id is not None else 1
             assert filter_set.ids_list == ids_list
@@ -713,10 +713,10 @@ def filter_set_put(session, client):
         if status_code == 200:
             
             #properties that can change
-            assert filter_set_after_url.name == name if name is not None else filter_set.name
-            assert filter_set_after_url.filter_object == filter_object if filter_object is not None else filter_set.filter_object
-            assert filter_set_after_url.graphql_object == graphql_object if graphql_object is not None else filter_set.graphql_object
-            assert filter_set_after_url.description == description if description is not None else filter_set.description
+            assert filter_set_after_url.name == (name if name is not None else filter_set.name)
+            assert filter_set_after_url.filter_object == (filter_object if filter_object is not None else filter_set.filter_object)
+            assert filter_set_after_url.graphql_object == (graphql_object if graphql_object is not None else filter_set.graphql_object)
+            assert filter_set_after_url.description == (description if description is not None else filter_set.description)
             assert filter_set_after_url.is_valid == (True if filter_object is not None or graphql_object is not None else filter_set.is_valid)    
 
             #properties that should not change
@@ -798,8 +798,8 @@ def admin_filter_set_post(session, client):
             filter_set = session.query(Search).filter(Search.id == response.json["id"]).first()
 
             assert filter_set.name == name
-            assert filter_set.filter_object == None
-            assert filter_set.graphql_object == graphql_object
+            assert filter_set.filter_object == {}
+            assert filter_set.graphql_object == ({} if not graphql_object else graphql_object)
             assert filter_set.description == description
             assert filter_set.filter_source_internal_id == None
             assert filter_set.ids_list == ids_list
