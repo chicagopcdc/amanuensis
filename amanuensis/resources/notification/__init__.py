@@ -22,3 +22,9 @@ def update_users_notifications(session, user_id):
     
 
     return latest_notifications
+
+def get_all_notifications(session, user_id):
+    all_notifs = get_notification_logs(session, expired = False) 
+    for notification in all_notifs: 
+        create_notification(session, notification_log_id=notification.id, user_id=user_id)
+    return all_notifs
