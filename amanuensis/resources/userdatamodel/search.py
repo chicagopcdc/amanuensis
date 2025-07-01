@@ -198,8 +198,6 @@ def hard_delete_filter_set(
         throw_not_equal=False,
     )
 
-    logger.info(f"hard_delete_filter_set: sanity")
-
     for filter_set in filter_sets:
         logger.info(f"Deleting filter_set NAME: {filter_set.name} ID: {filter_set.id}")
         session.delete(filter_set)
