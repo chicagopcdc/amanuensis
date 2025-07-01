@@ -127,8 +127,8 @@ def patch_ses_client(request, app_instance):
 @pytest.fixture(scope="session", autouse=True)
 def mock_signature_manager():
     config["RSA_PRIVATE_KEY"] = "mock_private_key"
-    with patch("amanuensis.resources.fence.SignatureManager") as mock_sm:
-        mock_sm.return_value.sign.return_value = b"mock_signature"
+    with patch("amanuensis.resources.fence.Gen3RequestManager") as mock_sm:
+        mock_sm.return_value.make_gen3_signature.return_value = "mock_signature"
         yield
 
 @pytest.fixture(scope="session", autouse=True)

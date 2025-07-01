@@ -2,7 +2,7 @@ from amanuensis.errors import NotFound, UserError, InternalError
 from amanuensis.models import Search, FilterSourceType, ProjectSearch, SearchIsShared
 from cdislogging import get_logger
 from sqlalchemy import exists
-logger = get_logger(__name__)
+logger = get_logger(__name__, log_level="info")
 __all__ = [
     "get_filter_sets",
     "create_filter_set",
@@ -197,6 +197,8 @@ def hard_delete_filter_set(
         throw_not_found=False,
         throw_not_equal=False,
     )
+
+    logger.info(f"hard_delete_filter_set: sanity")
 
     for filter_set in filter_sets:
         logger.info(f"Deleting filter_set NAME: {filter_set.name} ID: {filter_set.id}")
