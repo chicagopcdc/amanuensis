@@ -22,7 +22,3 @@ def update_users_notifications(session, user_id):
     
 
     return latest_notifications
-
-def get_all_notification_log(session):
-    all_notifs = get_notification_logs(session, expired = False) 
-    return all_notifs
