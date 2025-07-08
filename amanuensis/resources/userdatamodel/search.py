@@ -2,7 +2,7 @@ from amanuensis.errors import NotFound, UserError, InternalError
 from amanuensis.models import Search, FilterSourceType, ProjectSearch, SearchIsShared
 from cdislogging import get_logger
 from sqlalchemy import exists
-logger = get_logger(__name__)
+logger = get_logger(__name__, log_level="info")
 __all__ = [
     "get_filter_sets",
     "create_filter_set",
