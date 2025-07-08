@@ -52,7 +52,7 @@ def upgrade() -> None:
     def proccess_filter_object(filter_object):
         selected_filters = {}  
         for key, value in filter_object.items():
-            if "disease_phase" in key:
+            if "disease_phase:Initial Diagnosis" in key or "disease_phase:Relapse" in key:
                 # Handle disease_phase filters with anchor type
                 selected_filters[key] = anchor_filter_setter(value)
             elif "selectedValues" in value:
