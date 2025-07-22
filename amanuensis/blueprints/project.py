@@ -105,7 +105,8 @@ def get_projetcs():
             tmp_project["status"] = get_states(session, code=project_status["status"], many=False, filter_out_depricated=True).name if project_status["status"] else "ERROR"
             tmp_project["submitted_at"] = submitted_at
             tmp_project["completed_at"] = project_status["completed_at"] if "completed_at" in project_status else None
-
+            tmp_project["description"] = project.description
+            tmp_project["approved_url_present"] = True if project.approved_url else False
             tmp_project["has_access"] = False
             for user in project.associated_users_roles:
                 if user.role and user.role.code == "DATA_ACCESS" and user.active and (user.associated_user.user_id == logged_user_id or user.associated_user.email == logged_user_email):

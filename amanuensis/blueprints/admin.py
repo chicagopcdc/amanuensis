@@ -10,7 +10,7 @@ from flask import request, jsonify, Blueprint, current_app
 from cdislogging import get_logger
 
 from amanuensis.auth.auth import check_arborist_auth, current_user, has_arborist_access
-from amanuensis.errors import UserError, AuthError
+from amanuensis.errors import UserError, AuthError, NotFound
 from amanuensis.resources.institution import get_background
 from amanuensis.resources import project
 from amanuensis.resources.userdatamodel.request_has_state import create_request_state
@@ -379,7 +379,9 @@ def update_project_attributes():
         raise UserError("A project_id is required for this endpoint.")
 
     approved_url = request.get_json().get("approved_url", None)
-    filter_set_ids = request.get_json().get("filter_set_ids", None)
+
+    if not approved_url:
+        raise UserError("approved_url is a required field")
 
     project_schema = ProjectSchema()
     with current_app.db.session as session:
@@ -763,4 +765,15 @@ def get_project_filter_sets(project_id):
             project_searches = [project_search.search for project_search in project_searches]
             
         return jsonify(search_schema.dump(project_searches))
-  
+
+
+@blueprint.route("/project/approved-url/<project_id>", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def admin_get_approved_url_get(project_id):
+    """
+    Get the approved url for a project
+    """
+    with current_app.db.session as session:
+        project = get_projects(session, id=project_id, many=False, throw_not_found=True)
+
+        return jsonify({"approved_url": project.approved_url})
