@@ -26,6 +26,9 @@ def get_project_datapoints(
     
     projectDataPoints = current_session.query(ProjectDataPoints)
 
+    #only gets the active datapoints
+    projectDataPoints = projectDataPoints.filter(ProjectDataPoints.active == True)
+
     #only gets the projectDataPoints with the given project_datapoints.id
     if id is not None:
         projectDataPoints = projectDataPoints.filter(ProjectDataPoints.id == id)
@@ -44,16 +47,12 @@ def get_project_datapoints(
 
     projectDataPoints = projectDataPoints.all()
 
-    #throws exception if not found
     if not projectDataPoints and throw_not_found:
         raise NotFound("No ProjectDataPoints found")
     
     #deals with returning one versus multiple rows
     if not many:
-        if len(projectDataPoints) > 1:
-            raise UserError(f"More than one project_datapoints found, check inputs")
-        else:
-            projectDataPoints = projectDataPoints[0] if projectDataPoints else None
+        projectDataPoints = projectDataPoints[0] if projectDataPoints else None
 
     return projectDataPoints
 
@@ -75,21 +74,19 @@ def create_project_datapoints(
     if type not in ['w','b']:
         raise UserError("datapoints type may only be: 'b' for blacklist, or 'w' for whitelist")
 
-    pre_existing_datapoints = get_project_datapoints(current_session, term=term, type=type, throw_not_found=False)
+    pre_existing_datapoints = get_project_datapoints(current_session, term=term, type=type, project_id=project_id, throw_not_found=False)
 
     #checks if the term already exists within the database
     if pre_existing_datapoints:
-        raise UserError(f"Project_DataPoints with term {term} and {"whitelist" if type =="w" else "blacklist"} datapoints type")
-    
-    print(term, value_list, type, project_id)
+        raise UserError(f"Project_DataPoints with term {term} and {'whitelist' if type =='w' else 'blacklist'} datapoints type")
 
     new_project_datapoints = ProjectDataPoints(
         term = term,
         value_list = value_list,
         type = type,
-        project_id = project_id
+        project_id = project_id,
+        active = True,
     )
-    print("new_project_datapoints: ", new_project_datapoints)
     
     current_session.add(new_project_datapoints)
 
@@ -116,7 +113,8 @@ def update_project_datapoints(current_session,
         raise NotFound("No ProjectDataPoints with id:{id} found")
     
     if delete:
-        current_session.delete(prev_datapoints) 
+        # changes the activation value to false
+        prev_datapoints.active = False
     else:
         prev_datapoints.term = term if term is not None else prev_datapoints.term
         prev_datapoints.value_list = value_list if value_list is not None else prev_datapoints.value_list
@@ -128,3 +126,22 @@ def update_project_datapoints(current_session,
 
     current_session.flush()
     return prev_datapoints
+
+def reactivate_datapoint(
+        current_session,
+        id=None
+        ):
+    '''
+    created in order to reactive a previously deleted dataPoints row, 
+    sets activate to true within Datapoints row given id
+    '''
+    dataPoint = current_session.query(ProjectDataPoints)
+    dataPoint = dataPoint.filter(ProjectDataPoints.id == id).first()
+
+    if dataPoint is None:
+        raise NotFound("No ProjectDataPoints with id:{id} found")
+    
+    dataPoint.active = True
+
+    current_session.flush()
+    return dataPoint

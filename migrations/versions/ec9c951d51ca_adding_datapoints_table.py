@@ -28,6 +28,7 @@ def upgrade() -> None:
         sa.Column('term', sa.String, nullable=False),
         sa.Column('value_list', ARRAY(sa.String()), nullable=False, default=list),
         sa.Column('type', sa.CHAR(),nullable=False),
+        sa.Column('active', sa.Boolean(), nullable=False, default=True),
 
         sa.Column('project_id', sa.Integer(),ForeignKey("project.id"),nullable=True),
 
