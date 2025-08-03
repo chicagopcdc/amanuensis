@@ -15,7 +15,7 @@ from userportaldatamodel.models import AssociatedUserRoles
 
 # revision identifiers, used by Alembic.
 revision = 'ec9c951d51ca'
-down_revision = 'bfd4b47dd236'
+down_revision = 'fca96219902c'
 branch_labels = None
 depends_on = None
 
@@ -32,21 +32,12 @@ def upgrade() -> None:
 
         sa.Column('project_id', sa.Integer(),ForeignKey("project.id"),nullable=True),
 
-
         sa.PrimaryKeyConstraint('id'),
         sa.CheckConstraint("type IN ('w', 'b')", name="type_check")
     )
 
     conn = op.get_bind()
     session = Session(bind=conn)
-
-    roles = []
-    roles.append(AssociatedUserRoles(role="DATA_ACCESS",code="DATA_ACCESS"))
-    roles.append(AssociatedUserRoles(role="METADATA_ACCESS",code="METADATA_ACCESS"))
-    session.add_all(roles)
-    session.commit()
-
-
 
 def downgrade() -> None:
     op.drop_table("project_datapoints")

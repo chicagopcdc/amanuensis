@@ -43,7 +43,7 @@ def gen_project(session, register_user, login, project_post, filter_set_post, us
             )
         return project.id
 
-    return _make_project
+    yield _make_project
 
 def test_get_datapoints(gen_project,
                            users,
@@ -263,14 +263,17 @@ def test_reactivate_datapoints(gen_project,
                            users,
                            admin_add_project_datapoints_post,
                            admin_get_project_datapoints_get,
-                           admin_delete_project_datapoints_delete,
-                           admin_reactivate_project_datapoints_post):  
+                           admin_delete_project_datapoints_delete):  
     project_data = gen_project(name="test_reactivate_datapoints")
+
+    reactivated_term = "test_reactivate_datapoints"
+    reactivated_type = "w"
+
     response = admin_add_project_datapoints_post(
         authorization_token=users[1].email,
-        term = "test_reactivate_datapoints",
+        term = reactivated_term,
         value_list = ["test_reactivate_datapoints"],
-        type = "w",
+        type = reactivated_type,
         project_id = project_data
     ).get_json()
 
@@ -285,10 +288,13 @@ def test_reactivate_datapoints(gen_project,
         id = response["id"],
         status_code = 404
     )
-    assert admin_reactivate_project_datapoints_post(
+    assert admin_add_project_datapoints_post(
         authorization_token=users[1].email,
-        id = response["id"]
-    )
+        term=reactivated_term,
+        value_list = ["changed value for test_reactivate_datapoints"],
+        type = reactivated_type,
+        project_id = project_data
+    ).get_json()
 
     response = admin_get_project_datapoints_get(
         authorization_token=users[1].email,
@@ -300,7 +306,7 @@ def test_update_datapoints(gen_project,
                            users,
                            admin_add_project_datapoints_post,
                            admin_get_project_datapoints_get,
-                           admin_modify_project_datapoints_post
+                           admin_modify_project_datapoints_put
                            ):    
     project_data = gen_project(name="test_update_datapoints")
     
@@ -322,9 +328,9 @@ def test_update_datapoints(gen_project,
     assert response["type"] == "w"
     assert response["project_id"] == project_data
 
-    assert admin_modify_project_datapoints_post(
-        id = response["id"],
+    assert admin_modify_project_datapoints_put(
         authorization_token=users[1].email,
+        id = response["id"],
         term = "test_update_datapoints_different",
         value_list = ["test_update_datapoints", "test_update_datapoints_different"],
         type = "b"
@@ -342,7 +348,7 @@ def test_update_datapoints(gen_project,
 
     other_project_data = gen_project(name="test_update_datapoints_different")
 
-    response = admin_modify_project_datapoints_post(
+    response = admin_modify_project_datapoints_put(
         id = response["id"],
         authorization_token=users[1].email,
         project_id = other_project_data

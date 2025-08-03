@@ -1,5 +1,5 @@
 from cdislogging import get_logger
-from amanuensis.models import ProjectDataPoints
+from amanuensis.models import ProjectDataPoints, Project
 from amanuensis.errors import NotFound, UserError
 
 logger = get_logger(__name__)
@@ -33,7 +33,7 @@ def get_project_datapoints(
     if id is not None:
         projectDataPoints = projectDataPoints.filter(ProjectDataPoints.id == id)
 
-    #only gets the projectDataPoints with the given project_datapoints.id
+    #only gets the projectDataPoints with the given project_datapoints.term
     if term is not None:
         projectDataPoints = projectDataPoints.filter(ProjectDataPoints.term == term)
 
@@ -69,6 +69,11 @@ def create_project_datapoints(
     returns projectDataPoints model if project_datapoints did not already exist
     returns None if projectDataPoints already exists in the database table 
     """
+
+    #checking if project with inputed id exists within the db
+    project_exists = current_session.query(Project.id).filter_by(id=project_id).first()
+    if not project_exists:
+        raise UserError("Invalid project_id: project does not exist")
     
     #checks if the inputted type is 'w' or 'b'
     if type not in ['w','b']:
@@ -80,19 +85,33 @@ def create_project_datapoints(
     if pre_existing_datapoints:
         raise UserError(f"Project_DataPoints with term {term} and {'whitelist' if type =='w' else 'blacklist'} datapoints type")
 
-    new_project_datapoints = ProjectDataPoints(
-        term = term,
-        value_list = value_list,
-        type = type,
-        project_id = project_id,
-        active = True,
-    )
-    
-    current_session.add(new_project_datapoints)
+    datapoint = current_session.query(ProjectDataPoints)
+    datapoint = datapoint.filter(ProjectDataPoints.active == False)
+    datapoint = datapoint.filter(ProjectDataPoints.type == type)
+    datapoint = datapoint.filter(ProjectDataPoints.project_id == project_id)
+    datapoint = datapoint.filter(ProjectDataPoints.term == term).all()
+
+    if  len(datapoint) > 1:
+        raise ValueError("Expected at most one result, but got multiple rows.")
+    elif datapoint:
+        datapoint = datapoint[0]
+        # reactivate the deactivated datapoint and give it the value list of new creation
+        datapoint.active = True
+        datapoint.value_list = value_list
+        datapoint = datapoint
+
+    else:
+        datapoint = ProjectDataPoints(
+            term = term,
+            value_list = value_list,
+            type = type,
+            project_id = project_id,
+            active = True,
+        )
+        current_session.add(datapoint)
 
     current_session.flush()
-
-    return new_project_datapoints
+    return datapoint
 
 def update_project_datapoints(current_session,
                    id,
@@ -106,11 +125,7 @@ def update_project_datapoints(current_session,
     updates a row in the table with information given an id for the project_datapoints
     """
 
-    prev_datapoints = get_project_datapoints(current_session,id=id,many=False)
-    
-    #the project_datapoints associated with the id does not exist
-    if not prev_datapoints:
-        raise NotFound("No ProjectDataPoints with id:{id} found")
+    prev_datapoints = get_project_datapoints(current_session,id=id,many=False,throw_not_found= True)
     
     if delete:
         # changes the activation value to false
@@ -126,22 +141,3 @@ def update_project_datapoints(current_session,
 
     current_session.flush()
     return prev_datapoints
-
-def reactivate_datapoint(
-        current_session,
-        id=None
-        ):
-    '''
-    created in order to reactive a previously deleted dataPoints row, 
-    sets activate to true within Datapoints row given id
-    '''
-    dataPoint = current_session.query(ProjectDataPoints)
-    dataPoint = dataPoint.filter(ProjectDataPoints.id == id).first()
-
-    if dataPoint is None:
-        raise NotFound("No ProjectDataPoints with id:{id} found")
-    
-    dataPoint.active = True
-
-    current_session.flush()
-    return dataPoint

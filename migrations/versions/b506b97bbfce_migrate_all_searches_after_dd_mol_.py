@@ -7,7 +7,6 @@ Create Date: 2022-10-20 08:49:09.830257
 """
 from alembic import op
 from sqlalchemy.orm.session import Session
-from sqlalchemy.orm import load_only
 import json
 from sqlalchemy import text
 from userportaldatamodel.models import (Search)
@@ -27,21 +26,12 @@ def upgrade() -> None:
     # Attach a sqlalchemy Session to the env connection
     session = Session(bind=conn)
 
-    # query = session.query(Search).filter(
-    #     # Search.filter_object.astext.like("%molecular_analysis.molecular_abnormality_result%")
-    #     Search.filter_object.astext_type.like("%molecular_analysis.molecular_abnormality_result%")
-    # )
-    # searches = query.all()
     search_ids_raw = session.execute(text("SELECT id from search where filter_object::text like '%molecular_analysis.molecular_abnormality_result%'")).fetchall()
     search_ids = [value for value, in search_ids_raw]
 
     query = session.query(Search.id, Search.filter_object, Search.graphql_object).filter(
         Search.id.in_(search_ids)
     )
-    # query = session.query(Search).filter(
-    #     # Search.filter_object.astext.like("%molecular_analysis.molecular_abnormality_result%")
-    #     Search.id.in_(search_ids)
-    # )
     searches = query.all()
 
     for search in searches:

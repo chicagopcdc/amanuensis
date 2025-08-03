@@ -7,7 +7,7 @@ from flask import request, Blueprint, current_app, jsonify
 from cdislogging import get_logger
 
 from amanuensis.errors import UserError, AuthError
-from amanuensis.resources.userdatamodel.project_datapoints import get_project_datapoints, update_project_datapoints, create_project_datapoints, reactivate_datapoint
+from amanuensis.resources.userdatamodel.project_datapoints import get_project_datapoints, update_project_datapoints, create_project_datapoints
 from amanuensis.auth.auth import check_arborist_auth
 
 from amanuensis.schema import (
@@ -20,8 +20,8 @@ blueprint = Blueprint("project-datapoints",__name__)
 
 #TODO: implement debug log function
 
-@check_arborist_auth(resource="/services/amanuensis", method="*")
 @blueprint.route("/delete-datapoints", methods = ["DELETE"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
 def delete_datapoints():
     """
     deletes a datapoints
@@ -44,8 +44,8 @@ def delete_datapoints():
 
         return jsonify(project_datapoints_schema.dump(project_datapoints))
 
+@blueprint.route("/modify-datapoints", methods = ["PUT"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
-@blueprint.route("/modify-datapoints", methods = ["POST"])
 def modify_datapoints():
     """
     modifies an existing datapoint
@@ -70,8 +70,8 @@ def modify_datapoints():
 
         return jsonify(project_datapoints_schema.dump(project_datapoints))
 
-@check_arborist_auth(resource="/services/amanuensis", method="*")
 @blueprint.route("/add-datapoints", methods = ["POST"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
 def add_datapoints():
     """
     creates a new datapoints for the project_datapoints table
@@ -97,19 +97,12 @@ def add_datapoints():
     project_datapoints_schema = ProjectDataPointsSchema()
 
     with current_app.db.session as session:
-        try:
-            project_datapoints = create_project_datapoints(session, term, value_list, type, project_id)
-            session.commit()
-            return jsonify(project_datapoints_schema.dump(project_datapoints))
+        project_datapoints = create_project_datapoints(session, term, value_list, type, project_id)
+        session.commit()
+        return jsonify(project_datapoints_schema.dump(project_datapoints))
 
-        except IntegrityError as e:
-            session.rollback()
-            if isinstance(e.orig, ForeignKeyViolation):
-                raise UserError("Invalid project_id: project does not exist")  # will be returned as 400
-            raise
- 
-@check_arborist_auth(resource="/services/amanuensis", method="*")
 @blueprint.route("/get-datapoints",methods = ["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
 def get_datapoints():
     id = request.get_json().get("id",None)
     term = request.get_json().get("term",None)
@@ -133,25 +126,4 @@ def get_datapoints():
 
         return jsonify(project_datapoints_schema.dump(project_datapoints))
 
-@check_arborist_auth(resource="/services/amanuensis", method="*")
-@blueprint.route("/reactivate-datapoints",methods = ["POST"])
-def reactivate_datapoints():
-    """
-    used with an input of a project_datapoint id
-
-    reactivates a datapoint that has previously been deleted
-
-    returns a json object
-    """
-
-    id = request.get_json().get("id",None)
-
-    project_datapoints_schema = ProjectDataPointsSchema()
-
-    with current_app.db.session as session:
-        project_datapoints = reactivate_datapoint(session,id)
-
-        session.commit()
-
-        return jsonify(project_datapoints_schema.dump(project_datapoints))
 
