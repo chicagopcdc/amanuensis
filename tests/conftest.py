@@ -128,7 +128,7 @@ def patch_ses_client(request, app_instance):
 @pytest.fixture(scope="session", autouse=True)
 def mock_signature_manager():
     config["RSA_PRIVATE_KEY"] = "mock_private_key"
-    with patch("amanuensis.resources.fence.SignatureManager") as mock_sm:
+    with patch("pcdcutils.signature.SignatureManager") as mock_sm:
         mock_sm.return_value.sign.return_value = b"mock_signature"
         yield
 

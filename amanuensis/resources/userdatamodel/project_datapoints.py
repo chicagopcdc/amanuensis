@@ -1,6 +1,7 @@
 from cdislogging import get_logger
 from amanuensis.models import ProjectDataPoints, Project
 from amanuensis.errors import NotFound, UserError
+from .project import get_projects
 
 logger = get_logger(__name__)
 
@@ -17,7 +18,8 @@ def get_project_datapoints(
         project_id=None, #id associated with a certain project
         type=None, #user wants a specific datapoints type: 'w' or 'b'
         throw_not_found=True, #throws error if query returns no rows
-        many=False #true if you want the option of multiple rows
+        many=False, #true if you want the option of multiple rows
+        filter_by_active=True
     ):
     """
     accesses project_datapoints from the project_datapoints table based on the 
@@ -27,7 +29,8 @@ def get_project_datapoints(
     projectDataPoints = current_session.query(ProjectDataPoints)
 
     #only gets the active datapoints
-    projectDataPoints = projectDataPoints.filter(ProjectDataPoints.active == True)
+    if filter_by_active:
+        projectDataPoints = projectDataPoints.filter(ProjectDataPoints.active == True)
 
     #only gets the projectDataPoints with the given project_datapoints.id
     if id is not None:
@@ -71,10 +74,8 @@ def create_project_datapoints(
     """
 
     #checking if project with inputed id exists within the db
-    project_exists = current_session.query(Project.id).filter_by(id=project_id).first()
-    if not project_exists:
-        raise UserError("Invalid project_id: project does not exist")
-    
+    project = get_projects(current_session,id=project_id, throw_not_found=True)
+
     #checks if the inputted type is 'w' or 'b'
     if type not in ['w','b']:
         raise UserError("datapoints type may only be: 'b' for blacklist, or 'w' for whitelist")
@@ -85,16 +86,9 @@ def create_project_datapoints(
     if pre_existing_datapoints:
         raise UserError(f"Project_DataPoints with term {term} and {'whitelist' if type =='w' else 'blacklist'} datapoints type")
 
-    datapoint = current_session.query(ProjectDataPoints)
-    datapoint = datapoint.filter(ProjectDataPoints.active == False)
-    datapoint = datapoint.filter(ProjectDataPoints.type == type)
-    datapoint = datapoint.filter(ProjectDataPoints.project_id == project_id)
-    datapoint = datapoint.filter(ProjectDataPoints.term == term).all()
-
-    if  len(datapoint) > 1:
-        raise ValueError("Expected at most one result, but got multiple rows.")
-    elif datapoint:
-        datapoint = datapoint[0]
+    datapoint = get_project_datapoints(current_session, term=term, type=type, project_id=project_id, throw_not_found=False, filter_by_active=False)
+     
+    if datapoint:
         # reactivate the deactivated datapoint and give it the value list of new creation
         datapoint.active = True
         datapoint.value_list = value_list
