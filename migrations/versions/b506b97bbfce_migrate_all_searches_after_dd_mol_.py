@@ -26,11 +26,6 @@ def upgrade() -> None:
     # Attach a sqlalchemy Session to the env connection
     session = Session(bind=conn)
 
-    # query = session.query(Search).filter(
-    #     # Search.filter_object.astext.like("%molecular_analysis.molecular_abnormality_result%")
-    #     Search.filter_object.astext_type.like("%molecular_analysis.molecular_abnormality_result%")
-    # )
-    # searches = query.all()
     search_ids_raw = session.execute(text("SELECT id from search where filter_object::text like '%molecular_analysis.molecular_abnormality_result%'")).fetchall()
     search_ids = [value for value, in search_ids_raw]
 

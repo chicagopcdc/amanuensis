@@ -60,6 +60,7 @@ def session(app_instance):
         session.query(Receiver).delete()
         session.query(Message).delete()
         session.query(Request).delete()
+        session.query(ProjectDataPoints).delete()
         session.query(Project).delete()
         session.query(ConsortiumDataContributor).delete()
         consortiums = []
@@ -1267,6 +1268,141 @@ def admin_associated_user_post(session, client, mock_requests_post, find_fence_u
 
     yield route_admin_associated_user_post
 
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_add_project_datapoints_post(session, client):
+    def route_admin_add_project_datapoints_post(authorization_token, 
+                             term=None,
+                             value_list = None,
+                             type = None,
+                             project_id = None,
+                             status_code=200
+                             ):
+        json = {}
+        if term is not None:
+            json["term"] = term
+        if value_list is not None:
+            json["value_list"] = value_list
+        if type is not None:
+            json["type"] = type
+        if project_id is not None:
+            json["project_id"] = project_id
+
+        url = "/project-datapoints/add-datapoints"
+
+
+        response = client.post(url, json=json, headers={"Authorization": f"bearer {authorization_token}"})
+        assert response.status_code == status_code, f"failed in admin_add_project_datapoints_post, status code {response.status_code}, expected status code: {status_code}"
+
+        if response.status_code == 200:
+            values = response.get_json()
+            
+            assert values ["term"] == term if term else True
+            assert values ["value_list"] == value_list if value_list else True
+            assert values["type"] == type if type else True
+            assert values["project_id"] == project_id if project_id else True
+
+        return response
+
+    yield route_admin_add_project_datapoints_post
+
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_modify_project_datapoints_put(session, client):
+    def route_admin_modify_project_datapoints_put(authorization_token, 
+                             id=None,
+                             term=None,
+                             value_list=None,
+                             project_id=None,
+                             type=None,
+                             status_code=200
+                             ):
+        json = {}
+        if id is not None:
+            json["id"] = id
+        if term is not None:
+            json["term"] = term
+        if value_list is not None:
+            json["value_list"] = value_list
+        if type is not None:
+            json["type"] = type
+        if project_id is not None:
+            json["project_id"] = project_id
+
+        url = "/project-datapoints/modify-datapoints"
+
+        response = client.put(url, json=json, headers={"Authorization": f"bearer {authorization_token}"})
+
+        assert response.status_code == status_code
+        if response.status_code == 200:
+            values = response.get_json()
+            
+            assert values["id"] == id if id else True
+            assert values ["term"] == term if term else True
+            assert values ["value_list"] == value_list if value_list else True
+            assert values["type"] == type if type else True
+            assert values["project_id"] == project_id if project_id else True
+        return response
+
+    yield route_admin_modify_project_datapoints_put
+
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_delete_project_datapoints_delete(session, client):
+    def route_admin_delete_project_datapoints_delete(authorization_token, 
+                             id=None,
+                             status_code=200
+                             ):
+        json = {}
+        if id is not None:
+            json["id"] = id
+
+        url = "/project-datapoints/delete-datapoints"
+
+        response = client.delete(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        if response.status_code == 200:
+            assert response.get_json()["active"] == False
+        return response
+    yield route_admin_delete_project_datapoints_delete
+
+
+@pytest.fixture(scope="function", autouse=True)
+def admin_get_project_datapoints_get(session, client):
+    def route_admin_get_project_datapoints_get(authorization_token, 
+                             term=None,
+                             id=None,
+                             project_id=None,
+                             type=None,
+                             many=False,
+                             status_code=200
+                             ):
+        json = {}
+        if id is not None:
+            json["id"] = id
+        if term is not None:
+            json["term"] = term
+        if type is not None:
+            json["type"] = type
+        if project_id is not None:
+            json["project_id"] = project_id
+        if many is not None:
+            json["many"] = many
+        url = "/project-datapoints/get-datapoints"
+
+        response = client.get(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        assert response.status_code == status_code
+        if response.status_code == 200:
+            values = response.get_json()[0] if many else response.get_json()
+
+            assert values["id"] == id if id else True
+            assert values ["term"] == term if term else True
+            assert values["type"] == type if type else True
+            assert values["project_id"] == project_id if project_id else True
+        return response
+    
+    yield route_admin_get_project_datapoints_get
 
 @pytest.fixture(scope="function", autouse=True)
 def admin_remove_associated_user_from_project_delete(session, client, mock_requests_post):
