@@ -94,7 +94,7 @@ def update_associated_user(current_session,
     user.email = new_email if new_email else user.email
     user.active = True if not delete else False
 
-    if user.user_id and not fence_get_users(ids=[user.user_id]):
+    if user.user_id and not fence_get_users(ids=[user.user_id])["users"]:
         user.user_id = None
         user.user_source = None
         user.active = False
