@@ -128,8 +128,8 @@ def patch_ses_client(request, app_instance):
 @pytest.fixture(scope="session", autouse=True)
 def mock_signature_manager():
     config["RSA_PRIVATE_KEY"] = "mock_private_key"
-    with patch("pcdcutils.signature.SignatureManager") as mock_sm:
-        mock_sm.return_value.sign.return_value = b"mock_signature"
+    with patch("amanuensis.resources.fence.Gen3RequestManager") as mock_sm:
+        mock_sm.return_value.make_gen3_signature.return_value = "mock_signature"
         yield
 
 @pytest.fixture(scope="session", autouse=True)
@@ -1477,6 +1477,73 @@ def download_urls_get(session, client):
         return response
 
     yield route_download_urls_post
+
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_update_project_put(session, client):
+    def route_admin_update_project_put(authorization_token, 
+                             project_id=None,
+                             approved_url=None,
+                             status_code=200
+                             ):
+        
+        json = {}
+        if approved_url is not None:
+            json["approved_url"] = approved_url
+        if project_id is not None:
+            json["project_id"] = project_id
+
+        url = "admin/projects"
+
+        response = client.put(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            project = session.query(Project).filter(Project.id == project_id).first()
+
+            assert project.approved_url == approved_url
+        
+        elif status_code == 404:
+
+            project = session.query(Project).filter(Project.id == project_id).first()
+
+            assert project is None
+        
+        return response
+    
+    yield route_admin_update_project_put
+
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_get_approved_url_get(session, client):
+    def route_admin_get_approved_url_get(authorization_token, 
+                             project_id=None,
+                             status_code=200
+                             ):
+
+        url = "/admin/project/approved-url/" + (str(project_id) if project_id is not None else "")
+
+        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            project = session.query(Project).filter(Project.id == project_id).first()
+
+            assert project.approved_url == response.json["approved_url"]
+
+        if status_code == 404:
+
+            project = session.query(Project).filter(Project.id == project_id).first()
+
+            assert project is None or project.approved_url is None
+        
+        return response
+
+    yield route_admin_get_approved_url_get
 
 
 # Add a finalizer to ensure proper teardown
