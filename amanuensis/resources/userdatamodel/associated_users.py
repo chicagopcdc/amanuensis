@@ -79,8 +79,6 @@ def update_associated_user(current_session,
             raise InternalError("input must be correct type")
 
     else:
-        
-
         user = get_associated_users(current_session, 
                                     email=old_email, 
                                     user_id=old_user_id, 
@@ -89,15 +87,18 @@ def update_associated_user(current_session,
                                     throw_not_found=True
                 )
     
-    user.user_id = new_user_id if new_user_id else user.user_id
-    user.user_source = new_user_source if new_user_source else user.user_source
-    user.email = new_email if new_email else user.email
-    user.active = True if not delete else False
-
-    if user.user_id and not fence_get_users(ids=[user.user_id])["users"]:
+    user.user_id = new_user_id if new_user_id else old_user_id
+    
+    if not user.user_id:
         user.user_id = None
         user.user_source = None
         user.active = False
+    else:
+        user.user_source = new_user_source if new_user_source else user.user_source
+        user.active = True
+
+    user.email = new_email if new_email else user.email
+    user.active = False if delete else user.active
 
     current_session.flush()
 
@@ -111,7 +112,6 @@ def create_associated_user(current_session, email, user_id=None, user_source="fe
                                       many=False,
                                       filter_by_active=False
                                       )
-
     if user:
         if not user.active:
             user.active = True
@@ -119,8 +119,7 @@ def create_associated_user(current_session, email, user_id=None, user_source="fe
         else: 
             logger.info(f"User {user.email} already exists, skipping")
     else:
-        fgu = fence_get_users(ids=[user_id])
-        if not fgu["users"]:
+        if not user_id:
             print("not logged in")
             new_user = AssociatedUser(
                 email=email, 
@@ -145,5 +144,4 @@ def create_associated_user(current_session, email, user_id=None, user_source="fe
         logger.info(f"User {new_user} has been created")
     
     current_session.flush()
-    
     return user if user else new_user
