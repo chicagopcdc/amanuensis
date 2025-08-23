@@ -4,17 +4,7 @@ from amanuensis.errors import NotFound, InternalError
 from amanuensis.models import AssociatedUser
 from unittest.mock import MagicMock, patch
 
-@pytest.fixture(scope="module", autouse=True)
-def s3(app_instance):
-    mock_s3_client = MagicMock()
-    # Mock methods you use
-    mock_s3_client.create_bucket.return_value = None
-    mock_s3_client.list_buckets.return_value = {'Buckets': []}
-    mock_s3_client.delete_object.return_value = None
-    mock_s3_client.list_objects_v2.return_value = {'Contents': []}
 
-    with patch.object(app_instance.s3_boto, 's3_client', mock_s3_client):
-        yield mock_s3_client
 
 @pytest.mark.order(1)
 def test_create_associated_users(session, register_user):
