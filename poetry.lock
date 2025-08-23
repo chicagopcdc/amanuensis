@@ -3954,8 +3954,8 @@ sqlalchemy = "^2.0.36"
 [package.source]
 type = "git"
 url = "https://github.com/chicagopcdc/userPortalDataModel.git"
-reference = "1.11.0"
-resolved_reference = "78c7c51b58369aca884b243cfb88492d07bc936a"
+reference = "1.11.1"
+resolved_reference = "a3680b540289bd120a855e7d183add014176a7f9"
 
 [[package]]
 name = "werkzeug"
@@ -4219,4 +4219,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.9,<4.0.0"
-content-hash = "7abbe37cef43461e2473bdad5b722b1a43ba5a4e83f03a4cccfce9def03871e1"
+content-hash = "b321c2a28eb7c949426bbdef36e637449ddb9ae8bcd9d3b55c044d15cc291c96"

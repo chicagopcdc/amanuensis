@@ -1,6 +1,7 @@
 from amanuensis.errors import NotFound, UserError, InternalError
 from amanuensis.models import AssociatedUser
 from cdislogging import get_logger
+from amanuensis.resources.fence import fence_get_users
 
 
 logger = get_logger(logger_name=__name__)
@@ -10,9 +11,6 @@ __all__ = [
     "update_associated_user",
     "create_associated_user"
 ]
-
-
-
 
 def get_associated_users(current_session, 
                          id=None, 
@@ -81,7 +79,6 @@ def update_associated_user(current_session,
             raise InternalError("input must be correct type")
 
     else:
-
         user = get_associated_users(current_session, 
                                     email=old_email, 
                                     user_id=old_user_id, 
@@ -90,10 +87,18 @@ def update_associated_user(current_session,
                                     throw_not_found=True
                 )
     
-    user.user_id = new_user_id if new_user_id else user.user_id
-    user.user_source = new_user_source if new_user_source else user.user_source
+    user.user_id = new_user_id if new_user_id else old_user_id
+    
+    if not user.user_id:
+        user.user_id = None
+        user.user_source = None
+        user.active = False
+    else:
+        user.user_source = new_user_source if new_user_source else user.user_source
+        user.active = True
+
     user.email = new_email if new_email else user.email
-    user.active = True if not delete else False
+    user.active = False if delete else user.active
 
     current_session.flush()
 
@@ -107,7 +112,6 @@ def create_associated_user(current_session, email, user_id=None, user_source="fe
                                       many=False,
                                       filter_by_active=False
                                       )
-
     if user:
         if not user.active:
             user.active = True
@@ -115,20 +119,29 @@ def create_associated_user(current_session, email, user_id=None, user_source="fe
         else: 
             logger.info(f"User {user.email} already exists, skipping")
     else:
-        new_user = AssociatedUser(
-                        email=email, 
-                        user_id=user_id, 
-                        user_source=user_source, 
-                        active=True
-                    )
+        if not user_id:
+            print("not logged in")
+            new_user = AssociatedUser(
+                email=email, 
+                user_id=None, 
+                user_source=None, 
+                active=False
+            )
+        else:
+            print("logged in")
+            new_user = AssociatedUser(
+                email=email, 
+                user_id=user_id, 
+                user_source=user_source, 
+                active=True
+            )
+        print("new user in get_associated_users: ", new_user)
         current_session.add(
             new_user
         )
-
         
 
         logger.info(f"User {new_user} has been created")
     
     current_session.flush()
-    
     return user if user else new_user
