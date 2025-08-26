@@ -16,6 +16,7 @@ from userportaldatamodel.schemas.schemas import (
     ProjectAssociatedUserSchema, 
     AssociatedUserRolesSchema,
     NotificationSchema,
-    NotificationLogSchema
+    NotificationLogSchema,
+    ProjectDataPointsSchema
 )
 
