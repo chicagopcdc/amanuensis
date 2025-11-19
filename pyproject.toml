@@ -11,9 +11,9 @@ include = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9,<4.0.0"
+python = ">=3.9.2,<4.0.0"
 alembic = "^1.13.3"
-authutils = "^6.2.5" # authutils = {git = "https://github.com/chicagopcdc/authutils.git", rev = "6.1.4"}  
+authutils = {git = "https://github.com/chicagopcdc/authutils.git", rev = "master"}  
 boto3 = "1.35.50"
 cdiserrors = "1.0.0"
 cdislogging = "^1.1.1"
