@@ -63,7 +63,6 @@ def get_projects(
     projects = projects.all()
 
 
-
     if throw_not_found and not projects:
         raise NotFound(f"No projects found")
 
@@ -84,7 +83,10 @@ def create_project(current_session, user_id, description, name, institution):
     project = get_projects(current_session, name=name, many=False)
 
     if project:
-        raise UserError(f"Project with name {name} already exists")
+        """
+        Return json message of name already exists
+        """
+        raise UserError(f"Projects with name {name} already exists")
 
 
     new_project = Project(

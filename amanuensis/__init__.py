@@ -13,6 +13,7 @@ from gen3authz.client.arborist.client import ArboristClient
 from amanuensis.error_handler import get_error_response
 from amanuensis.config import config
 from amanuensis.settings import CONFIG_SEARCH_FOLDERS
+from amanuensis.errors import UserError
 import amanuensis.blueprints.misc
 import amanuensis.blueprints.filterset
 import amanuensis.blueprints.project
@@ -161,9 +162,11 @@ def _setup_data_endpoint_and_boto(app):
         logger.error(e)
         app.ses_boto = None
 
+
 def _setup_arborist_client(app):
     if app.config.get("ARBORIST"):
         app.arborist = ArboristClient(arborist_base_url=config["ARBORIST"])
+
 
 def _setup_hubspot_client(app):
     try:
@@ -175,12 +178,26 @@ def _setup_hubspot_client(app):
         logger.error(f"Could not initialize Hubspot. Error: {e}")
         app.hubspot_client = None
 
+
+@app.errorhandler(UserError)
+def handle_user_error(error):
+    """
+    Ensure UserError always returns JSON.
+    When UserError has a .json attribute, return that JSON;
+    otherwise fall back.
+    """
+    payload = getattr(error, "json", None) or {"message": str(error)}
+    code = getattr(error, "code", 400)
+    return flask.jsonify(payload), code
+
+
 @app.errorhandler(Exception)
 def handle_error(error):
     """
     Register an error handler for general exceptions.
     """
     return get_error_response(error)
+
 
 @app.teardown_appcontext
 def remove_scoped_session(*args, **kwargs):
@@ -189,6 +206,3 @@ def remove_scoped_session(*args, **kwargs):
             app.scoped_session.remove()
         except Exception as exc:
             logger.warning(f"could not remove app.scoped_session. Error: {exc}")
-
-
-

@@ -10,6 +10,7 @@ class UserError(APIError):
         super(UserError, self).__init__(message)
         self.message = str(message)
         self.code = 400
+        self.json = {"message": str(message)}
 
 
 class BlacklistingError(APIError):
