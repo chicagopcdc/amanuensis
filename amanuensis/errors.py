@@ -18,7 +18,7 @@ class JSONAPIError(APIError):
 
 class AuthError(APIError):
     """
-    Low-level authentication error used internally
+    Authentication error used internally
     Not meant to be a user-facing API error.
     """
     pass
@@ -69,10 +69,8 @@ class Unauthorized(APIError):
 
 class Forbidden(APIError):
     """
-    Used for AuthZ-related errors in most cases.
+    Used for logging
     """
-    # TODO: Currently not pulling in parent class for JSON output.
-    # This will probably switch to using JSONAPIError - Edit message when done.
 
     def __init__(self, message):
         super(Forbidden, self).__init__(message)

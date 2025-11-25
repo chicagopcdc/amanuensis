@@ -51,7 +51,7 @@ def download_data(project_id):
         user = get_project_associated_users(session, project_id, associated_user_user_id=logged_user_id, associated_user_email=logged_user_email, many=False, throw_not_found=True)
         
         if user.role.code != "DATA_ACCESS":
-            raise Forbidden("User {} is not allowed to download data from project {}".format(logged_user_email, project_id))
+            raise Forbidden(f"User '{logged_user_email}' is not allowed to download data from project '{project_id}'")
         
         # TODO - assign on file creation metadata to S3 file (play with indexd since it probably supports it). 
         # Check that user has access to that file before creating the presigned url. The responsibility is on the admin here and a wrong 
