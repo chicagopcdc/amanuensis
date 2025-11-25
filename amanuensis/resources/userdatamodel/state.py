@@ -39,7 +39,7 @@ def get_states(current_session, id=None, name=None, code=None, throw_not_found=F
 
     if not many:
         if len(states) > 1:
-            raise UserError(f"More than one state found check inputs")
+            raise UserError("More than one state found check inputs")
         else:
             states = states[0] if states else None
     

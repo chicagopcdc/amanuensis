@@ -54,7 +54,7 @@ def get_associated_users(current_session,
 
     if not many:
         if len(users) > 1:
-            raise UserError(f"More than one user found check inputs")
+            raise UserError("More than one user found check inputs")
         else:
             users = users[0] if users else None
     

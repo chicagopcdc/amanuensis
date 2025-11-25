@@ -101,7 +101,6 @@ def delete_project():
     if not project_id:
         raise UserError("A project_id is required for this endpoint.")
     
-
     with current_app.db.session as session:
 
         project_schema = ProjectSchema()
@@ -130,7 +129,7 @@ def upload_file():
     expires = request.get_json().get("expires", None)
     
     if any(param is None for param in [key, project_id]):
-            raise UserError("One or more required parameters are missing")
+        raise UserError("One or more required parameters are missing")
     
     with current_app.db.session as session:
 
@@ -215,11 +214,8 @@ def create_search():
     user_id = request.get_json().get("user_id", None)
 
     #TODO check it is present in fence
-
     if not user_id:
         raise UserError("Missing user_id in the payload")
-
-
 
     # get the explorer_id from the querystring
     # explorer_id = flask.request.args.get('explorerId', default=1, type=int)

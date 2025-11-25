@@ -52,7 +52,7 @@ def get_requests(
 
     if not many:
         if len(requests) > 1:
-            raise UserError(f"More than one request found check inputs")
+            raise UserError("More than one request found check inputs")
         else:
             requests = requests[0] if requests else None
     

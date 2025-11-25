@@ -74,7 +74,7 @@ def get_request_states(
 
     if not many:
         if len(request_state) > 1:
-            raise UserError(f"More than one request found check inputs")
+            raise UserError("More than one request found check inputs")
         else:
             request_state = request_state[0] if request_state else None
     

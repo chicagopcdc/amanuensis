@@ -89,7 +89,7 @@ def get_filter_sets(
 
     if not many:
         if len(filter_sets) > 1:
-            raise UserError(f"More than one filter_set found check inputs")
+            raise UserError("More than one filter_set found check inputs")
         else:
             filter_sets = filter_sets[0] if filter_sets else None 
         

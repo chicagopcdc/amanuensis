@@ -34,7 +34,7 @@ def get_associated_user_roles(current_session, id=None, role=None, code=None, th
 
     if not many:
         if len(roles) > 1:
-            raise UserError(f"More than one Role found check inputs")
+            raise UserError("More than one Role found check inputs")
         else:
             roles = roles[0] if roles else None
     

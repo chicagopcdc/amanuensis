@@ -68,7 +68,7 @@ def get_projects(
 
     if not many:
         if len(projects) > 1:
-            raise UserError(f"More than one project found check inputs")
+            raise UserError("More than one project found check inputs")
         else:
             projects = projects[0] if projects else None
     

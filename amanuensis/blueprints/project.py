@@ -61,9 +61,7 @@ def get_projetcs():
             else:
                 # TODO: Check modal on fe and ensure this message makes sense.
                 # If model does not show, add one.
-                raise UserError(
-                        "The user is trying to access as admin but it's not an admin." 
-                )
+                raise UserError("The user is trying to access as admin but it's not an admin.")
         else:
             projects = get_projects(session, associated_user_email=logged_user_email)
 
