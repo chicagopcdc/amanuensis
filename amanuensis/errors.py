@@ -35,8 +35,9 @@ class UserError(JSONAPIError):
 
 
 class BlacklistingError(APIError):
-    # TODO: Currently not pulling in parent class for JSON output.
-    # This will probably switch to using JSONAPIError - Edit message when done.
+    # Not currently called in in amanuensis, and did not find in other
+    # services, that did not already have their own defined.
+    # TODO: May not be needed
 
     def __init__(self, message):
         super(BlacklistingError, self).__init__(message)
