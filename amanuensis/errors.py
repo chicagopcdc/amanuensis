@@ -90,8 +90,9 @@ class NotFound(APIError):
 
 
 class NotSupported(APIError):
-    # TODO: Currently not pulling in parent class for JSON output.
-    # This will probably switch to using JSONAPIError - Edit message when done.
+    # Not currently called in in amanuensis, and did not find in other
+    # services, that did not already have their own defined.
+    # TODO: May not be needed
 
     def __init__(self, message):
         super(NotSupported, self).__init__(message)
@@ -100,9 +101,10 @@ class NotSupported(APIError):
 
 
 class UnavailableError(APIError):
-    # TODO: Currently not pulling in parent class for JSON output.
-    # This should stay due to logging - Edit message when done.
-    
+    # Not currently called in in amanuensis, and did not find in other
+    # services, that did not already have their own defined.
+    # TODO: May not be needed
+ 
     def __init__(self, message):
         super(UnavailableError, self).__init__(message)
         self.message = str(message)
