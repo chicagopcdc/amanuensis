@@ -325,7 +325,7 @@ def login(request, find_fence_user):
         if not fence_user:
             # TODO: Check modal on fe and ensure this message makes sense.
             # If model does not show, add one.
-            raise UserError("The user id {} does not exist in the commons".format(id))
+            raise UserError(f"The user id {id} does not exist in the commons")
         else:
             id = fence_user[0]["id"]
             username = fence_user[0]["name"]
