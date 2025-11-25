@@ -13,7 +13,7 @@ from gen3authz.client.arborist.client import ArboristClient
 from amanuensis.error_handler import get_error_response
 from amanuensis.config import config
 from amanuensis.settings import CONFIG_SEARCH_FOLDERS
-from amanuensis.errors import UserError
+from amanuensis.errors import UserError, JSONAPIError
 import amanuensis.blueprints.misc
 import amanuensis.blueprints.filterset
 import amanuensis.blueprints.project
@@ -88,6 +88,7 @@ def app_config(
     """
     Set up the config for the Flask app.
     """
+
     if root_dir is None:
         root_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
 
@@ -111,7 +112,6 @@ def app_config(
     # directly from the amanuensis config singleton in the code though.
     app.config.update(**config._configs)
 
-    
     _setup_arborist_client(app)
     _setup_data_endpoint_and_boto(app)
     _setup_hubspot_client(app)
@@ -183,9 +183,9 @@ def _setup_hubspot_client(app):
 def handle_user_error(error):
     """
     Ensure UserError always returns JSON.
-    When UserError has a .json attribute, return that JSON;
-    otherwise fall back.
+    When UserError has a .json attribute, return that JSON.
     """
+
     payload = getattr(error, "json", None) or {"message": str(error)}
     code = getattr(error, "code", 400)
     return flask.jsonify(payload), code
@@ -196,6 +196,7 @@ def handle_error(error):
     """
     Register an error handler for general exceptions.
     """
+
     return get_error_response(error)
 
 
@@ -206,3 +207,14 @@ def remove_scoped_session(*args, **kwargs):
             app.scoped_session.remove()
         except Exception as exc:
             logger.warning(f"could not remove app.scoped_session. Error: {exc}")
+
+
+@app.errorhandler(JSONAPIError)
+def handle_json_api_error(error):
+    """
+    Ensure the JSONAPIError subclasses return JSON, if there is not a specific handler.
+    """
+
+    payload = getattr(error, "json", None) or {"message": str(error)}
+    code = getattr(error, "code", 400)
+    return flask.jsonify(payload), code
