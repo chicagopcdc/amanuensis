@@ -46,7 +46,8 @@ def download_data(project_id):
         # Get download url from project table
         storage_url = project.approved_url
         if not storage_url:
-            raise NotFound("The project with id {} doesn't seem to have a loaded file with approved data.".format(project_id)) 
+            # TODO: Potential userError to show in fe to user?
+            raise NotFound(f"The project with id '{project_id}' doesn't seem to have a loaded file with approved data.")
 
         user = get_project_associated_users(session, project_id, associated_user_user_id=logged_user_id, associated_user_email=logged_user_email, many=False, throw_not_found=True)
         
@@ -66,7 +67,7 @@ def download_data(project_id):
         # Create pre-signed URL for downalod
         s3_info = get_s3_key_and_bucket(storage_url)
         if s3_info is None:
-            raise NotFound("The S3 bucket and key information cannot be extracted from the URL {}".format(storage_url))
+            raise NotFound(f"The S3 bucket and key information cannot be extracted from the URL '{storage_url}'")
 
         result = flask.current_app.s3_boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
         return flask.jsonify({"download_url": result})

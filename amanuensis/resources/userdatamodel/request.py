@@ -48,6 +48,7 @@ def get_requests(
     requests = requests.all()
 
     if throw_not_found and not requests:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound(f"No requests found")
 
     if not many:

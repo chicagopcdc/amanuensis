@@ -10,6 +10,7 @@ logger = get_logger(__name__)
 
 def get_consortium_list(src_filter, ids_list, path=None):
     if src_filter is None and ids_list is None:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound("There is no filter specified and associated with the project you are trying to create")
 
     if not path:

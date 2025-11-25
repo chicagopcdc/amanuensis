@@ -70,6 +70,7 @@ def get_request_states(
     request_state = request_state.all()
 
     if throw_not_found and not request_state:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound(f"No requests found")
 
     if not many:

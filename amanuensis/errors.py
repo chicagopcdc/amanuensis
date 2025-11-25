@@ -79,8 +79,9 @@ class Forbidden(APIError):
 
 
 class NotFound(APIError):
-    # TODO: Currently not pulling in parent class for JSON output.
-    # This will probably switch to using JSONAPIError - Edit message when done.
+    """
+    Used for logging
+    """
 
     def __init__(self, message):
         super(NotFound, self).__init__(message)

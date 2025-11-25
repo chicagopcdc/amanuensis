@@ -35,6 +35,7 @@ def get_states(current_session, id=None, name=None, code=None, throw_not_found=F
     states = states.all()
 
     if throw_not_found and not states:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound(f"No states found")
 
     if not many:

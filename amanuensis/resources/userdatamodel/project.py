@@ -64,6 +64,7 @@ def get_projects(
 
 
     if throw_not_found and not projects:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound(f"No projects found")
 
     if not many:

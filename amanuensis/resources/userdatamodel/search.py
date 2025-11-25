@@ -82,6 +82,7 @@ def get_filter_sets(
     filter_sets = filter_sets.all()
 
     if throw_not_found and not filter_sets:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound(f"No filter_sets found")
     
     if throw_not_equal and len(filter_sets) != must_match:
