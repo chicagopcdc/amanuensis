@@ -34,7 +34,8 @@ def get_consortium_list(src_filter, ids_list, path=None):
        
 
     if r.status_code != 200:
-        raise InternalError(f"Sorry could not complete request")
+        # TODO: Should this be switched to userError instead and the FE reviewed for it.
+        raise InternalError("Sorry could not complete request")
 
     else:
         return r.json()
