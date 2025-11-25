@@ -16,14 +16,12 @@ class JSONAPIError(APIError):
         self.json = {"message": str(message)}
 
 
-class AuthError(JSONAPIError):
+class AuthError(APIError):
     """
-    Authentication/authorization error.
-    Returns a 401 JSON response by default.
+    Low-level authentication error used internally
+    Not meant to be a user-facing API error.
     """
-
-    def __init__(self, message="Unauthorized"):
-        super(AuthError, self).__init__(message, code=401)
+    pass
 
 
 class UserError(JSONAPIError):
