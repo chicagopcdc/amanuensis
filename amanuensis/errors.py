@@ -46,8 +46,9 @@ class BlacklistingError(APIError):
 
 
 class InternalError(APIError):
-    # TODO: Currently not pulling in parent class for JSON output.
-    # This should stay due to logging - Edit message when done.
+    """
+    Used for logging
+    """
 
     def __init__(self, message):
         super(InternalError, self).__init__(message)
