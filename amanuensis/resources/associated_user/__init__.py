@@ -52,7 +52,7 @@ def add_associated_users(session, users, role=None):
             fence_user = fence_get_users(ids=[id])["users"]
 
             if fence_user:
-                email = fence_user[0]["name"]
+                email = fence_user[0]["username"]
 
             else:
                 raise UserError(f"The user id {id} does not exist in the commons")
@@ -87,7 +87,7 @@ def remove_associated_user(session, project_id, user_id=None, email=None):
         #this covers a situation if a user signs up but never goes to data request page
         if not project_user:
             try:
-                fence_user_email = fence_get_users(ids=[user_id])["users"][0]["name"]
+                fence_user_email = fence_get_users(ids=[user_id])["users"][0]["username"]
             except Exception as e:
                 raise NotFound(f"User {user_id} not found in commons")
             
