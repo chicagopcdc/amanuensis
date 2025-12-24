@@ -10,13 +10,18 @@ from pcdcutils.errors import KeyPathInvalidError, NoKeyError
 from pcdc_aws_client.boto import BotoManager
 from cdislogging import get_logger
 from gen3authz.client.arborist.client import ArboristClient
-from amanuensis.error_handler import get_error_response
+from amanuensis.error_handler import (
+    get_error_response,
+    get_error_details_and_status,
+    _get_error_identifier,
+)
 from amanuensis.config import config
 from amanuensis.settings import CONFIG_SEARCH_FOLDERS
-from amanuensis.errors import UserError, JSONAPIError
+from amanuensis.errors import APIError
 import amanuensis.blueprints.misc
 import amanuensis.blueprints.filterset
 import amanuensis.blueprints.project
+
 # import amanuensis.blueprints.message
 import amanuensis.blueprints.admin
 import amanuensis.blueprints.download_urls
@@ -62,7 +67,7 @@ def app_init(
 
 
 def app_sessions(app):
-    ''' Override userdatamodel's `setup_db` since Alembic handles the migrations now. '''
+    """Override userdatamodel's `setup_db` since Alembic handles the migrations now."""
     app.url_map.strict_slashes = False
     SQLAlchemyDriver.setup_db = lambda _: None
     app.db = SQLAlchemyDriver(config["DB"])
@@ -71,14 +76,25 @@ def app_sessions(app):
 
 def app_register_blueprints(app):
     app.register_blueprint(amanuensis.blueprints.admin.blueprint, url_prefix="/admin")
-    app.register_blueprint(amanuensis.blueprints.download_urls.blueprint, url_prefix="/download-urls")
-    app.register_blueprint(amanuensis.blueprints.filterset.blueprint, url_prefix="/filter-sets")
-    app.register_blueprint(amanuensis.blueprints.project.blueprint, url_prefix="/projects")
-    app.register_blueprint(amanuensis.blueprints.notification.blueprint, url_prefix="/notifications")
-    app.register_blueprint(amanuensis.blueprints.project_datapoints.blueprint, url_prefix="/project-datapoints")
+    app.register_blueprint(
+        amanuensis.blueprints.download_urls.blueprint, url_prefix="/download-urls"
+    )
+    app.register_blueprint(
+        amanuensis.blueprints.filterset.blueprint, url_prefix="/filter-sets"
+    )
+    app.register_blueprint(
+        amanuensis.blueprints.project.blueprint, url_prefix="/projects"
+    )
+    app.register_blueprint(
+        amanuensis.blueprints.notification.blueprint, url_prefix="/notifications"
+    )
+    app.register_blueprint(
+        amanuensis.blueprints.project_datapoints.blueprint,
+        url_prefix="/project-datapoints",
+    )
     # Disable for now since they are not used yet
     # app.register_blueprint(amanuensis.blueprints.message.blueprint, url_prefix="/message")
-    
+
     amanuensis.blueprints.misc.register_misc(app)
 
 
@@ -128,10 +144,10 @@ def app_config(
     try:
         config["RSA_PRIVATE_KEY"] = SignatureManager(key_path=key_path).get_key()
     except NoKeyError:
-        logger.warn('AMANUENSIS_PUBLIC_KEY not found.')
+        logger.warn("AMANUENSIS_PUBLIC_KEY not found.")
         pass
     except KeyPathInvalidError:
-        logger.warn('AMANUENSIS_PUBLIC_KEY_PATH invalid.')
+        logger.warn("AMANUENSIS_PUBLIC_KEY_PATH invalid.")
         pass
 
     # _check_s3_buckets(app)
@@ -141,23 +157,19 @@ def _setup_data_endpoint_and_boto(app):
     try:
         aws_creds = deepcopy(config["AWS_CREDENTIALS"]["DATA_DELIVERY_S3_BUCKET"])
         del aws_creds["bucket_name"]
-        app.s3_boto = BotoManager(
-            aws_creds, logger=logger
-        )
+        app.s3_boto = BotoManager(aws_creds, logger=logger)
     except Exception as e:
         logger.error(f"Could not initialize data delivery BotoManager.")
         app.s3_boto = None
-    
+
     try:
         aws_creds = deepcopy(config["AWS_CREDENTIALS"]["AWS_SES"])
         del aws_creds["SENDER"]
         del aws_creds["RECIPIENT"]
         del aws_creds["CC_RECIPIENTS"]
-        app.ses_boto = BotoManager(
-            aws_creds, logger=logger
-        )
+        app.ses_boto = BotoManager(aws_creds, logger=logger)
     except Exception as e:
-        
+
         logger.error(f"Could not initialize SES BotoManager.")
         logger.error(e)
         app.ses_boto = None
@@ -179,25 +191,20 @@ def _setup_hubspot_client(app):
         app.hubspot_client = None
 
 
-@app.errorhandler(UserError)
-def handle_user_error(error):
+@app.errorhandler(APIError)
+def handle_json_api_error(error):
     """
-    Ensure UserError always returns JSON.
-    When UserError has a .json attribute, return that JSON.
+    Ensure the JSONAPIError subclasses return JSON, if there is not a specific handler.
     """
+    error_id = _get_error_identifier()
+    logger.error("{} ID: {}".format(str(error), error_id))
 
-    payload = getattr(error, "json", None) or {"message": str(error)}
-    code = getattr(error, "code", 400)
-    return flask.jsonify(payload), code
-
-
-@app.errorhandler(Exception)
-def handle_error(error):
-    """
-    Register an error handler for general exceptions.
-    """
-
-    return get_error_response(error)
+    return (
+        flask.jsonify(
+            (error.json if (hasattr(error, "json") and error.json) else error.message) + f" (Error ID: {error_id})"
+        ),
+        error.code,
+    )
 
 
 @app.teardown_appcontext
@@ -207,14 +214,3 @@ def remove_scoped_session(*args, **kwargs):
             app.scoped_session.remove()
         except Exception as exc:
             logger.warning(f"could not remove app.scoped_session. Error: {exc}")
-
-
-@app.errorhandler(JSONAPIError)
-def handle_json_api_error(error):
-    """
-    Ensure the JSONAPIError subclasses return JSON, if there is not a specific handler.
-    """
-
-    payload = getattr(error, "json", None) or {"message": str(error)}
-    code = getattr(error, "code", 400)
-    return flask.jsonify(payload), code

@@ -3,11 +3,13 @@ import flask
 from cdislogging import get_logger
 
 from amanuensis.auth.auth import current_user
-from amanuensis.errors import AuthError, UserError, NotFound, InternalError, Forbidden
+from amanuensis.errors import UserError, NotFound, InternalError, Forbidden, AuthNError
 from pcdc_aws_client.utils import get_s3_key_and_bucket
 
 from amanuensis.resources.userdatamodel.project import get_projects
-from amanuensis.resources.userdatamodel.project_has_associated_user import get_project_associated_users
+from amanuensis.resources.userdatamodel.project_has_associated_user import (
+    get_project_associated_users,
+)
 from amanuensis.resources.request import change_request_state
 
 from amanuensis.config import config
@@ -27,17 +29,17 @@ def download_data(project_id):
     try:
         logged_user_id = current_user.id
         logged_user_email = current_user.username
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
 
     if not flask.current_app.s3_boto:
-        raise InternalError("BotoManager not found. Check the AWS credentials are set in the config and have the correct permissions.")
+        raise InternalError(
+            "BotoManager not found. Check the AWS credentials are set in the config and have the correct permissions."
+        )
 
     # Check param is present
     if not project_id:
-        raise UserError("A project_id is needed to retrieve the correct URL")
+        raise UserError("an id of the project is required to download data.")
 
     with flask.current_app.db.session as session:
 
@@ -47,36 +49,41 @@ def download_data(project_id):
         storage_url = project.approved_url
         if not storage_url:
             # TODO: Potential userError to show in fe to user?
-            raise NotFound(f"The project with id '{project_id}' doesn't seem to have a loaded file with approved data.")
+            raise NotFound(
+                f"The project {project.name} with id '{project_id}' doesn't seem to have a loaded file with approved data."
+            )
 
-        user = get_project_associated_users(session, project_id, associated_user_user_id=logged_user_id, associated_user_email=logged_user_email, many=False, throw_not_found=True)
-        
+        user = get_project_associated_users(
+            session,
+            project_id,
+            associated_user_user_id=logged_user_id,
+            associated_user_email=logged_user_email,
+            many=False,
+            throw_not_found=True,
+        )
+
         if user.role.code != "DATA_ACCESS":
-            raise Forbidden(f"User '{logged_user_email}' is not allowed to download data from project '{project_id}'")
-        
-        # TODO - assign on file creation metadata to S3 file (play with indexd since it probably supports it). 
-        # Check that user has access to that file before creating the presigned url. The responsibility is on the admin here and a wrong 
+            raise Forbidden(
+                f"User '{logged_user_email}' is not allowed to download data from project '{project_id}'"
+            )
+
+        # TODO - assign on file creation metadata to S3 file (play with indexd since it probably supports it).
+        # Check that user has access to that file before creating the presigned url. The responsibility is on the admin here and a wrong
         # project_id in the API call could assign data download rights to the wrong user
 
-
-        #check if project is in fianl state or in Data Download state before attempting to change state
+        # check if project is in fianl state or in Data Download state before attempting to change state
         change_request_state(session, project_id, state_code="DATA_DOWNLOADED")
-            
+
         session.commit()
 
         # Create pre-signed URL for downalod
         s3_info = get_s3_key_and_bucket(storage_url)
         if s3_info is None:
-            raise NotFound(f"The S3 bucket and key information cannot be extracted from the URL '{storage_url}'")
+            raise InternalError(
+                f"The S3 bucket and key information cannot be extracted from the URL '{storage_url}'"
+            )
 
-        result = flask.current_app.s3_boto.presigned_url(s3_info["bucket"], s3_info["key"], "1800", {}, "get_object")
+        result = flask.current_app.s3_boto.presigned_url(
+            s3_info["bucket"], s3_info["key"], "1800", {}, "get_object"
+        )
         return flask.jsonify({"download_url": result})
-
-
-
-
-
-
-
-
-

@@ -1,30 +1,17 @@
 import flask
-from wsgiref.util import request_uri
 
 from cdislogging import get_logger
 
 from amanuensis.resources.project import create
 from amanuensis.resources.fence import fence_get_users
 from amanuensis.auth.auth import current_user, has_arborist_access
-from amanuensis.errors import AuthError, InternalError, UserError
+from amanuensis.errors import Forbidden, UserError, AuthNError
 from amanuensis.schema import ProjectSchema
-from amanuensis.config import config
-from datetime import datetime
-from userportaldatamodel.models import State, Transition
 from amanuensis.resources.userdatamodel.associated_users import create_associated_user, update_associated_user
 from amanuensis.resources.userdatamodel.project import get_projects
 from amanuensis.resources.userdatamodel.request_has_state import get_request_states
 from amanuensis.resources.request import calculate_overall_project_state
 from amanuensis.resources.userdatamodel.state import get_states
-
-#TODO: userportaldatamodel.models needs to be updated to include transition
-#from userportaldatamodel.transition import Transition
-
-
-# from amanuensis.auth import login_required, current_token
-# from amanuensis.errors import Unauthorized, UserError, NotFound
-
-
 
 blueprint = flask.Blueprint("projects", __name__)
 
@@ -41,8 +28,8 @@ def get_projetcs():
     try:
         logged_user_id = current_user.id
         logged_user_email = current_user.username
-    except AuthError:
-        logger.warning("Unable to load or find the user, check your token")
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
 
     #add user_id from fence if this is the users first time logging in
     with flask.current_app.db.session as session:
@@ -61,7 +48,7 @@ def get_projetcs():
             else:
                 # TODO: Check modal on fe and ensure this message makes sense.
                 # If model does not show, add one.
-                raise UserError("The user is trying to access as admin but it's not an admin.")
+                raise Forbidden("You do not have the correct permissions to access all projects.")
         else:
             projects = get_projects(session, associated_user_email=logged_user_email)
 
@@ -129,11 +116,8 @@ def create_project():
     """
     try:
         logged_user_id = current_user.id
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
-
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
 
     associated_users_emails = flask.request.get_json().get("associated_users_emails", None)
     # if not associated_users_emails:
@@ -157,7 +141,7 @@ def create_project():
     filter_set_ids = flask.request.get_json().get("filter_set_ids", None)
 
     if not filter_set_ids:
-        raise UserError("a filter-set id is required field")
+        raise UserError("an id of a filter-set is required field")
     
     # get the explorer_id from the querystring ex: https://portal-dev.pedscommons.org/explorer?id=1
     explorer_id = flask.request.args.get('explorer', default=1, type=int)

@@ -9,7 +9,7 @@ from cdislogging import get_logger
 from pcdcutils.signature import SignatureManager
 import json
 from sqlalchemy import or_, and_
-from amanuensis.errors import AuthError, UserError
+from amanuensis.errors import UserError
 from amanuensis.resources.request import calculate_overall_project_state
 from amanuensis.models import ConsortiumDataContributor
 from flask import request
