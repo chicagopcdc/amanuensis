@@ -190,6 +190,12 @@ def _setup_hubspot_client(app):
         logger.error(f"Could not initialize Hubspot. Error: {e}")
         app.hubspot_client = None
 
+@app.errorhandler(Exception)
+def handle_error(error):
+    """
+    Register an error handler for general exceptions.
+    """
+    return get_error_response(error)
 
 @app.errorhandler(APIError)
 def handle_json_api_error(error):
