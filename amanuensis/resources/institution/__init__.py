@@ -14,7 +14,6 @@ def get_background(name, fuzzy_name):
     api_url = config["CSL_API"]
     try:
         url = api_url + name + (f"&fuzzy_name={fuzzy_name}" if fuzzy_name else "")
-        print(url)
         hdr ={
         # Request headers
         'Cache-Control': 'no-cache',
@@ -29,7 +28,7 @@ def get_background(name, fuzzy_name):
         if(code == 200):
             info_dict = json.loads(r)
         else:
-            logger.error("Request unsuccessful: error {code}")
+            logger.error(f"Request unsuccessful: error {code}")
             raise APIError("Request to CSL API failed")
         return info_dict
     except Exception as e:

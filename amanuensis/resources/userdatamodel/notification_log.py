@@ -45,7 +45,7 @@ def get_notification_logs(current_session,
 
     if not many:
         if len(notification_logs) > 1:
-            raise UserError(f"More than one notification log found check inputs")
+            raise UserError("More than one notification log found check inputs")
         else:
             notification_logs = notification_logs[0] if notification_logs else None
 

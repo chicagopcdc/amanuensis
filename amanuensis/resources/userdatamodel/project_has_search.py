@@ -24,11 +24,12 @@ def get_project_searches(current_session, project_id=None, filter_set_id=None, t
     project_searches = project_searches.all()
 
     if throw_not_found and not project_searches:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound(f"No project searches found")
 
     if not many:
         if len(project_searches) > 1:
-            raise UserError(f"More than one project search found check inputs")
+            raise UserError("More than one project search found check inputs")
         else:
             project_searches = project_searches[0] if project_searches else None
 

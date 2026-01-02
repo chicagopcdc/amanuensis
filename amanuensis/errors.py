@@ -1,69 +1,35 @@
-from cdiserrors import APIError
-
-
-class AuthError(APIError):
-    pass
-
-
-class UserError(APIError):
-    def __init__(self, message):
-        super(UserError, self).__init__(message)
-        self.message = str(message)
-        self.code = 400
-
-
-class BlacklistingError(APIError):
-    def __init__(self, message):
-        super(BlacklistingError, self).__init__(message)
-        self.message = str(message)
-        self.code = 400
+from cdiserrors import APIError, UserError, AuthZError, AuthNError
 
 
 class InternalError(APIError):
-    def __init__(self, message):
-        super(InternalError, self).__init__(message)
-        self.message = str(message)
-        self.code = 500
-
-
-class Unauthorized(APIError):
     """
-    Used for AuthN-related errors in most cases.
+    Used for logging
+    revproxy will block the message from going to the user
     """
 
     def __init__(self, message):
-        super(Unauthorized, self).__init__(message)
-        self.message = str(message)
-        self.code = 401
+        super(InternalError, self).__init__(
+            message, 500, json="An internal error occurred. Please try again later."
+        )
 
 
 class Forbidden(APIError):
     """
-    Used for AuthZ-related errors in most cases.
+    Used for logging
     """
 
     def __init__(self, message):
-        super(Forbidden, self).__init__(message)
-        self.message = str(message)
-        self.code = 403
+        super(Forbidden, self).__init__(
+            message,
+            403,
+            json="Access denied. Please contact your administrator if you believe this is an error.",
+        )
 
 
 class NotFound(APIError):
+    """
+    Used for logging
+    """
+
     def __init__(self, message):
-        super(NotFound, self).__init__(message)
-        self.message = str(message)
-        self.code = 404
-
-
-class NotSupported(APIError):
-    def __init__(self, message):
-        super(NotSupported, self).__init__(message)
-        self.message = str(message)
-        self.code = 400
-
-
-class UnavailableError(APIError):
-    def __init__(self, message):
-        super(UnavailableError, self).__init__(message)
-        self.message = str(message)
-        self.code = 503
+        super(NotFound, self).__init__(message, 404)

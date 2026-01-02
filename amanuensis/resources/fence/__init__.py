@@ -8,7 +8,7 @@ from pcdcutils.gen3 import Gen3RequestManager, SignaturePayload
 from pcdcutils.errors import NoKeyError
 from pcdcutils.helpers import encode_str
 from amanuensis.config import config
-from amanuensis.errors import InternalError, Unauthorized
+from amanuensis.errors import InternalError
 
 logger = get_logger(__name__)
 

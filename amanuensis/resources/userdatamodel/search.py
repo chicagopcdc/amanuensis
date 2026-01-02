@@ -82,6 +82,7 @@ def get_filter_sets(
     filter_sets = filter_sets.all()
 
     if throw_not_found and not filter_sets:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound(f"No filter_sets found")
     
     if throw_not_equal and len(filter_sets) != must_match:
@@ -89,7 +90,7 @@ def get_filter_sets(
 
     if not many:
         if len(filter_sets) > 1:
-            raise UserError(f"More than one filter_set found check inputs")
+            raise UserError("More than one filter_set found check inputs")
         else:
             filter_sets = filter_sets[0] if filter_sets else None 
         
