@@ -21,7 +21,7 @@ pytest.mark.order(1)
 def test__load_data_files():
     assert _load_data_files("es_to_dd_map.json")
     assert _load_data_files("gitops.json")
-    with pytest.raises(NotFound):
+    with pytest.raises(InternalError):
         _load_data_files("not_real.json")
 
 pytest.mark.order(3)

@@ -29,7 +29,7 @@ def test_get_fence_users_via_endpoint_no_auth(client, register_user, mock_reques
     mock_requests_get()
     response = client.get('/admin/get_users', headers={"Authorization": f'bearer {user_id}'})
     assert response.status_code == 403
-    assert response.json == None
+    assert "Access denied. Please contact your administrator if you believe this is an error" in response.json
 
 def test_get_users_via_endpoint_service_auth_fails(client, register_user, mock_requests_get):
     #this would happen if one of the RSA keys was missing in either amanuensis or fence
@@ -38,4 +38,4 @@ def test_get_users_via_endpoint_service_auth_fails(client, register_user, mock_r
     mock_requests_get(urls={f"{config['FENCE']}/admin/users": 401})
     response = client.get('/admin/get_users', headers={"Authorization": f'bearer {admin_id}'})
     assert response.status_code == 500
-    assert response.json == None
+    assert "An internal error occurred. Please try again later." in response.json
