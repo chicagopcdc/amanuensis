@@ -1,7 +1,6 @@
 from amanuensis.errors import NotFound, UserError, InternalError
 from amanuensis.models import AssociatedUser
 from cdislogging import get_logger
-from amanuensis.resources.fence import fence_get_users
 
 
 logger = get_logger(logger_name=__name__)
@@ -19,6 +18,8 @@ def get_associated_users(current_session,
                          active=True, 
                          user_source=None, 
                          filter_by_active=True, 
+                         include_not_signed_up=False,
+                         throw_user_not_signed_up_error=False,
                          many=True, 
                          throw_not_found=False):
     
@@ -27,7 +28,10 @@ def get_associated_users(current_session,
     users = current_session.query(AssociatedUser)
 
     if filter_by_active:
-        users = users.filter(AssociatedUser.active == active)
+        if active and include_not_signed_up:
+            users = users.filter((AssociatedUser.active == True) | ((AssociatedUser.user_id.is_(None)) & (AssociatedUser.active.is_(False))))
+        else:
+            users = users.filter(AssociatedUser.active == active)
 
     if id is not None:
         id = [id] if not isinstance(id, list) else id
@@ -49,12 +53,19 @@ def get_associated_users(current_session,
 
     if throw_not_found and not users:
         raise NotFound(f"No users found")
+    
+    if throw_user_not_signed_up_error:
+        for user in users:
+            if not user.user_id:
+                raise UserError(f"User {user.email} has not signed up and therefore this action cannot be completed. Please contact an admin for more information.")
 
     if not many:
         if len(users) > 1:
             raise UserError(f"More than one user found check inputs")
         else:
             users = users[0] if users else None
+        
+    
     
     return users
 
@@ -65,7 +76,7 @@ def update_associated_user(current_session,
                            user=None, 
                            old_email=None, 
                            old_user_id=None, 
-                           old_user_source="fence",
+                           old_user_source=None,
                            new_email=None,
                            new_user_id=None,
                            new_user_source="fence",
@@ -77,28 +88,29 @@ def update_associated_user(current_session,
             logger.error("user must be an instance of AssociatedUser")
         
             raise InternalError("input must be correct type")
+        
+        if user.user_id and not user.active:
+            logger.error("Cannot update an inactive user who has signed up")
+            raise UserError("Cannot update an inactive user who has signed up")
 
     else:
+        #filter for active accounts and accounts of users who have not signed up
         user = get_associated_users(current_session, 
                                     email=old_email, 
                                     user_id=old_user_id, 
                                     user_source=old_user_source, 
                                     many=False, 
-                                    throw_not_found=True
+                                    throw_not_found=True,
+                                    include_not_signed_up=True
                 )
-    
-    user.user_id = new_user_id if new_user_id else old_user_id
-    
-    if not user.user_id:
-        user.user_id = None
-        user.user_source = None
-        user.active = False
-    else:
-        user.user_source = new_user_source if new_user_source else user.user_source
-        user.active = True
+    # user.user_id can only be None during creation, cant be updated to None
+    user.user_id = new_user_id if new_user_id else user.user_id
+    # only update user_source if new_user_source is provided (cant pass None), user.user_id is not None, and new_user_source is different from current (to avoid unnecessary updates with default value)
+    user.user_source = new_user_source if (new_user_source and user.user_id and new_user_source != user.user_source) else user.user_source
+    # set to false if were deleteing or user_id is None (not signed up), true if were activating for first time, else keep current value
+    user.active = False if delete or not user.user_id else True
 
     user.email = new_email if new_email else user.email
-    user.active = False if delete else user.active
 
     current_session.flush()
 
@@ -114,28 +126,21 @@ def create_associated_user(current_session, email, user_id=None, user_source="fe
                                       )
     if user:
         if not user.active:
-            user.active = True
-            logger.info(f"User {user.email} has been reactivated")
+            if not user.user_id:
+                logger.info(f"User {user.email} exists but not signed up, skipping reactivation")
+            else:
+                user.active = True
+                logger.info(f"User {user.email} has been reactivated")
         else: 
             logger.info(f"User {user.email} already exists, skipping")
     else:
-        if not user_id:
-            print("not logged in")
-            new_user = AssociatedUser(
-                email=email, 
-                user_id=None, 
-                user_source=None, 
-                active=False
-            )
-        else:
-            print("logged in")
-            new_user = AssociatedUser(
-                email=email, 
-                user_id=user_id, 
-                user_source=user_source, 
-                active=True
-            )
-        print("new user in get_associated_users: ", new_user)
+        # if user_id is None, user_source should be None and active should be False
+        new_user = AssociatedUser(
+            email=email, 
+            user_id=user_id, 
+            user_source=user_source if user_id else None, 
+            active=True if user_id else False
+        )
         current_session.add(
             new_user
         )

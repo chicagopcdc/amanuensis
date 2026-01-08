@@ -6,7 +6,8 @@ Create Date: 2025-08-10 20:17:50.577021
 
 """
 from alembic import op
-import sqlalchemy as sa
+from sqlalchemy.orm.session import Session
+from userportaldatamodel.models import AssociatedUser
 
 
 # revision identifiers, used by Alembic.
@@ -17,12 +18,10 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("""
-        UPDATE associated_user
-        SET active = False, user_source = NULL
-        WHERE user_id IS NULL;
-    """)
-
+    conn = op.get_bind()
+    session = Session(bind=conn)
+    session.query(AssociatedUser).filter(AssociatedUser.user_id == None).update({"active": False, "user_source": None})
+    session.commit()
 
 def downgrade() -> None:
     pass
