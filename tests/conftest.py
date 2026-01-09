@@ -1624,7 +1624,7 @@ def admin_get_project_status_history_get(session, client):
                         # Check that create_date is later than the previous state if it exists
                         if i > 0:
                             prev_create_date = response.json[consortium_code][i-1]["create_date"]
-                            assert resp_status["create_date"] >= prev_create_date, f"Create date {resp_status['create_date']} should be later than or equal to previous state date {prev_create_date}"
+                            assert resp_status["create_date"] <= prev_create_date, f"Create date {resp_status['create_date']} should be later than or equal to previous state date {prev_create_date}"
                         break
                 assert found, f"Status update for consortium {consortium_code} with state {state_code} and create_date {create_date} not found in response."
 

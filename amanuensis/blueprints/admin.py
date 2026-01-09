@@ -4,7 +4,7 @@ solutions. Operations here assume the underlying operations in the interface
 will maintain coherence between both systems.
 """
 import functools
-from datetime import datetime
+from datetime import datetime, timezone
 from cdiserrors import APIError
 from flask import request, jsonify, Blueprint, current_app
 from cdislogging import get_logger
@@ -787,7 +787,7 @@ def admin_get_project_status_history(project_id):
     with current_app.db.session as session:
         get_projects(session, id=project_id, many=False, throw_not_found=True)
 
-        status_history = get_request_states(session, project_id=project_id)
+        status_history = get_request_states(session, project_id=project_id, order_by=True, order_by_create_date_desc=True)
 
         result = {}
 
@@ -797,6 +797,7 @@ def admin_get_project_status_history(project_id):
                 result[consortium_code] = []
             result[consortium_code].append({
                 "state": request_state.state.code,
-                "create_date": request_state.create_date.isoformat() if request_state.create_date else None            })
+                "create_date": request_state.create_date.replace(tzinfo=timezone.utc).isoformat() if request_state.create_date else None    
+            })
 
         return jsonify(result)
