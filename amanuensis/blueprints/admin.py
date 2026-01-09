@@ -13,7 +13,7 @@ from amanuensis.auth.auth import check_arborist_auth, current_user, has_arborist
 from amanuensis.errors import UserError, AuthError, NotFound
 from amanuensis.resources.institution import get_background
 from amanuensis.resources import project
-from amanuensis.resources.userdatamodel.request_has_state import create_request_state
+from amanuensis.resources.userdatamodel.request_has_state import create_request_state, get_request_states
 from amanuensis.resources.userdatamodel.request import get_requests
 from amanuensis.resources.userdatamodel.project import update_project
 from amanuensis.resources.userdatamodel.state import create_state, get_states
@@ -777,3 +777,26 @@ def admin_get_approved_url_get(project_id):
         project = get_projects(session, id=project_id, many=False, throw_not_found=True)
 
         return jsonify({"approved_url": project.approved_url})
+
+@blueprint.route("/project/status-history/<project_id>", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def admin_get_project_status_history(project_id):
+    """
+    Get the status history for a project
+    """
+    with current_app.db.session as session:
+        get_projects(session, id=project_id, many=False, throw_not_found=True)
+
+        status_history = get_request_states(session, project_id=project_id)
+
+        result = {}
+
+        for request_state in status_history:
+            consortium_code = request_state.request.consortium_data_contributor.code
+            if consortium_code not in result:
+                result[consortium_code] = []
+            result[consortium_code].append({
+                "state": request_state.state.code,
+                "create_date": request_state.create_date.isoformat() if request_state.create_date else None            })
+
+        return jsonify(result)

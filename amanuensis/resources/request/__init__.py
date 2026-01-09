@@ -136,7 +136,6 @@ def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=N
     # list of request to have their state changed
     update_consortiums = old_consortiums & new_consortiums.keys()
     if add_consortiums or remove_consortiums:
-       
         if add_consortiums:
             IN_REVIEW = get_states(session, code="IN_REVIEW", many=False, throw_not_found=True)
             for consortium in add_consortiums:

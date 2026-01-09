@@ -8,11 +8,12 @@ from amanuensis.config import config
 from cdislogging import get_logger
 from pcdcutils.signature import SignatureManager
 import json
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
 from amanuensis.errors import AuthError
 from amanuensis.resources.request import calculate_overall_project_state
 from amanuensis.models import ConsortiumDataContributor
 from flask import request
+from sqlalchemy import func
 
 logger = get_logger(logger_name=__name__)
 
@@ -1554,6 +1555,181 @@ def admin_get_approved_url_get(session, client):
     yield route_admin_get_approved_url_get
 
 
+@pytest.fixture(scope="session", autouse=True)
+def admin_get_project_status_history_get(session, client):
+    def route_admin_get_project_status_history_get(authorization_token, 
+                             project_id=None,
+                             status_code=200
+                             ):
+
+        url = "/admin/project/status-history/" + (str(project_id) if project_id is not None else "")
+
+        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            sql = """
+            SELECT
+                state.code,
+                state.id,
+                request_has_state.create_date,
+                request.id,
+                consortium_data_contributor.code
+            FROM request_has_state
+            JOIN request ON request_has_state.request_id = request.id
+            JOIN state ON state.id = request_has_state.state_id
+            JOIN consortium_data_contributor ON consortium_data_contributor.id = request.consortium_data_contributor_id
+            WHERE request.project_id = :project_id
+            ORDER BY request.id, request_has_state.create_date DESC;
+            """
+
+            """
+            Example query: 
+               code    | id |        create_date         |  id  |   code   
+            -----------+----+----------------------------+------+----------
+            IN_REVIEW |  1 | 2026-01-08 17:45:08.6449   | 1605 | INRG
+            APPROVED  |  3 | 2026-01-08 17:45:08.742821 | 1606 | INSTRUCT
+            IN_REVIEW |  1 | 2026-01-08 17:45:08.6449   | 1606 | INSTRUCT
+            """
+
+            """
+            response.json = {"INRG": [{"state": "IN_REVIEW", "create_date": "2023-01-01T00:00:00"}],
+                             "INSTRUCT": [
+                                    {"state": "IN_REVIEW", "create_date": "2023-01-02T00:00:00"}, 
+                                    {"state": "APPROVED", "create_date": "2023-01-01T00:00:00"}
+                            ]
+                            }
+            """
+
+            result = session.execute(text(sql), {"project_id": project_id}).fetchall()
+
+            print(response.json)
+
+            for status_update in result:
+
+                #iterate through result and make sure each consortium code is a key in response.json
+                #then check that the state and create_date match and make sure the order of the states is correct
+                # based on create_date descending
+                consortium_code = status_update[-1]
+                state_code = status_update[0]
+                create_date = status_update[2].isoformat()
+                assert consortium_code in response.json
+                found = False
+                for i, resp_status in enumerate(response.json[consortium_code]):
+                    print(resp_status)
+                    if resp_status["state"] == state_code and resp_status["create_date"] == create_date:
+                        found = True
+                        # Check that create_date is later than the previous state if it exists
+                        if i > 0:
+                            prev_create_date = response.json[consortium_code][i-1]["create_date"]
+                            assert resp_status["create_date"] >= prev_create_date, f"Create date {resp_status['create_date']} should be later than or equal to previous state date {prev_create_date}"
+                        break
+                assert found, f"Status update for consortium {consortium_code} with state {state_code} and create_date {create_date} not found in response."
+
+        return response
+
+    yield route_admin_get_project_status_history_get
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_states_get(session, client):
+    def route_admin_states_get(authorization_token, 
+                             status_code=200
+                             ):
+
+        url = "/admin/states"
+
+        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            states = session.query(State).all()
+
+            assert len(response.json) == len(states) - 1  # Exclude DEPRECATED state
+
+            for resp_state, state in zip(response.json, [s for s in states if s.code != "DEPRECATED"]):
+                assert resp_state["id"] == state.id
+                assert resp_state["code"] == state.code
+        
+        return response
+
+    yield route_admin_states_get
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_update_project_state_post(session, client):
+    def route_admin_update_project_state_post(authorization_token, 
+                             project_id=None,
+                             state_id=None,
+                             consortium_codes=None,
+                             status_code=200
+                             ):
+        
+        json = {}
+        if state_id is not None:
+            json["state_id"] = state_id
+        if project_id is not None:
+            json["project_id"] = project_id
+        if consortium_codes is not None:
+            json["consortiums"] = consortium_codes
+
+        # Get the latest request state per consortium for the project
+        
+        # First, get the latest update_date for each consortium
+        sql = """
+        SELECT DISTINCT ON (request.id)
+            state.code,
+            state.id,
+            request_has_state.create_date,
+            request.id,
+            consortium_data_contributor.code
+        FROM request_has_state
+        JOIN request ON request_has_state.request_id = request.id
+        JOIN state ON state.id = request_has_state.state_id
+        JOIN consortium_data_contributor ON consortium_data_contributor.id = request.consortium_data_contributor_id
+        WHERE request.project_id = :project_id
+        ORDER BY request.id, request_has_state.create_date DESC;
+        """
+        result = session.execute(text(sql), {"project_id": project_id}).fetchall()
+
+        url = "/admin/projects/state"
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        new_result = session.execute(text(sql), {"project_id": project_id}).fetchall()
+        
+        if status_code == 200:
+
+            for new_state in new_result:
+                if consortium_codes:
+                    if new_state[-1] in consortium_codes:
+                            assert new_state[1] == state_id
+                    else:
+                        #look through results list for request.id matching new_state request.id and check state ids match
+                        for old_state in result:
+                            if new_state[-2] == old_state[-2]:
+                                assert new_state[1] == old_state[1]
+                                break
+
+                else:
+                    #every state id should match state_id
+                    assert new_state[1] == state_id
+        
+        else:
+            #all state ids should match previous state ids
+            for new_state in new_result:
+                for old_state in result:
+                    if new_state[-2] == old_state[-2]:
+                        assert new_state[1] == old_state[1]
+                        break
+        
+        return response
+    
+    yield route_admin_update_project_state_post
 # Add a finalizer to ensure proper teardown
 @pytest.fixture(scope="session", autouse=True)
 def teardown(request, app_instance, session):
