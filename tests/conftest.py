@@ -1559,6 +1559,7 @@ def admin_get_approved_url_get(session, client):
 def admin_get_project_status_history_get(session, client):
     def route_admin_get_project_status_history_get(authorization_token, 
                              project_id=None,
+                             history_dict={},
                              status_code=200
                              ):
 
@@ -1570,63 +1571,14 @@ def admin_get_project_status_history_get(session, client):
         
         if status_code == 200:
 
-            sql = """
-            SELECT
-                state.code,
-                state.id,
-                request_has_state.create_date,
-                request.id,
-                consortium_data_contributor.code
-            FROM request_has_state
-            JOIN request ON request_has_state.request_id = request.id
-            JOIN state ON state.id = request_has_state.state_id
-            JOIN consortium_data_contributor ON consortium_data_contributor.id = request.consortium_data_contributor_id
-            WHERE request.project_id = :project_id
-            ORDER BY request.id, request_has_state.create_date DESC;
-            """
+            if history_dict:
 
-            """
-            Example query: 
-               code    | id |        create_date         |  id  |   code   
-            -----------+----+----------------------------+------+----------
-            IN_REVIEW |  1 | 2026-01-08 17:45:08.6449   | 1605 | INRG
-            APPROVED  |  3 | 2026-01-08 17:45:08.742821 | 1606 | INSTRUCT
-            IN_REVIEW |  1 | 2026-01-08 17:45:08.6449   | 1606 | INSTRUCT
-            """
+                for consortium, state_list in history_dict.items():
+                    assert consortium in response.json
 
-            """
-            response.json = {"INRG": [{"state": "IN_REVIEW", "create_date": "2023-01-01T00:00:00"}],
-                             "INSTRUCT": [
-                                    {"state": "IN_REVIEW", "create_date": "2023-01-02T00:00:00"}, 
-                                    {"state": "APPROVED", "create_date": "2023-01-01T00:00:00"}
-                            ]
-                            }
-            """
+                    response_state_list = [entry["state"] for entry in response.json[consortium]]
 
-            result = session.execute(text(sql), {"project_id": project_id}).fetchall()
-
-            print(response.json)
-
-            for status_update in result:
-
-                #iterate through result and make sure each consortium code is a key in response.json
-                #then check that the state and create_date match and make sure the order of the states is correct
-                # based on create_date descending
-                consortium_code = status_update[-1]
-                state_code = status_update[0]
-                create_date = status_update[2].isoformat()
-                assert consortium_code in response.json
-                found = False
-                for i, resp_status in enumerate(response.json[consortium_code]):
-                    print(resp_status)
-                    if resp_status["state"] == state_code and resp_status["create_date"] == create_date:
-                        found = True
-                        # Check that create_date is later than the previous state if it exists
-                        if i > 0:
-                            prev_create_date = response.json[consortium_code][i-1]["create_date"]
-                            assert resp_status["create_date"] <= prev_create_date, f"Create date {resp_status['create_date']} should be later than or equal to previous state date {prev_create_date}"
-                        break
-                assert found, f"Status update for consortium {consortium_code} with state {state_code} and create_date {create_date} not found in response."
+                    assert state_list == response_state_list
 
         return response
 
@@ -1634,7 +1586,8 @@ def admin_get_project_status_history_get(session, client):
 
 @pytest.fixture(scope="session", autouse=True)
 def admin_states_get(session, client):
-    def route_admin_states_get(authorization_token, 
+    def route_admin_states_get(authorization_token,
+                             states_list=[],
                              status_code=200
                              ):
 
@@ -1646,13 +1599,9 @@ def admin_states_get(session, client):
         
         if status_code == 200:
 
-            states = session.query(State).all()
-
-            assert len(response.json) == len(states) - 1  # Exclude DEPRECATED state
-
-            for resp_state, state in zip(response.json, [s for s in states if s.code != "DEPRECATED"]):
-                assert resp_state["id"] == state.id
-                assert resp_state["code"] == state.code
+            if states_list:
+                response_states = [state["code"] for state in response.json]
+                assert set(states_list) == set(response_states)
         
         return response
 

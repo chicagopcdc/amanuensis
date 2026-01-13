@@ -1683,16 +1683,22 @@ def test_post_admin_update_associated_user_role(register_user, login, filter_set
 
 
 def test_get_states_as_admin_success(admin_user, admin_states_get):
+    codes = [ "IN_REVIEW", "REJECTED", "APPROVED", "DRAFT", "SUBMITTED", "REVISION", "APPROVED_WITH_FEEDBACK",
+              "REQUEST_CRITERIA_FINALIZED", "WITHDRAWAL", "AGREEMENTS_NEGOTIATION", "AGREEMENTS_EXECUTED", "DATA_DOWNLOADED", "PUBLISHED", "DATA_AVAILABLE"]
     assert admin_states_get(
         authorization_token=admin_user[0],
+        states_list=codes,
         status_code=200
     )
 
 def test_get_states_as_non_admin_success(register_user, login, admin_states_get):
+    codes = [ "IN_REVIEW", "REJECTED", "APPROVED", "DRAFT", "SUBMITTED", "REVISION", "APPROVED_WITH_FEEDBACK",
+              "REQUEST_CRITERIA_FINALIZED", "WITHDRAWAL", "AGREEMENTS_NEGOTIATION", "AGREEMENTS_EXECUTED", "DATA_DOWNLOADED", "PUBLISHED", "DATA_AVAILABLE"]
     user_id, user_email = register_user(email=f"user1@test_get_states_as_non_admin_success.com", name="user1")
     login(user_id, user_email)
     assert admin_states_get(
         authorization_token=user_id,
+        states_list=codes,
         status_code=200
     )
 
@@ -1785,6 +1791,7 @@ def test_get_project_state_history(register_user, login, filter_set_post, projec
     assert admin_get_project_status_history_get(
         authorization_token=admin_user[0],
         project_id=project_id,
+        history_dict={"INRG": ["IN_REVIEW"] , "INSTRUCT": ["IN_REVIEW"]},
         status_code=200
     )
 
@@ -1824,5 +1831,6 @@ def test_get_project_state_history_after_project_state_change(register_user, log
     assert admin_get_project_status_history_get(
         authorization_token=admin_user[0],
         project_id=project_id,
+        history_dict={"INRG": ["IN_REVIEW"] , "INSTRUCT": ["APPROVED", "IN_REVIEW"]},
         status_code=200
     )
