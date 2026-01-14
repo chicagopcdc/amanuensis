@@ -19,7 +19,7 @@ from amanuensis.resources.userdatamodel.project import update_project
 from amanuensis.resources.userdatamodel.state import create_state, get_states
 from amanuensis.resources.userdatamodel.consortium_data_contributor import create_consortium
 from amanuensis.resources.userdatamodel.search import create_filter_set, get_filter_sets
-from amanuensis.resources.request import change_request_state, project_requests_from_filter_sets
+from amanuensis.resources.request import calculate_overall_project_state, change_request_state, project_requests_from_filter_sets
 from amanuensis.resources.userdatamodel.associated_user_roles import get_associated_user_roles
 from amanuensis.resources.userdatamodel.project_has_associated_user import get_project_associated_users, update_project_associated_user
 from amanuensis.resources.userdatamodel.associated_users import get_associated_users
@@ -418,7 +418,37 @@ def update_project_state():
 
     with current_app.db.session as session:
 
-        request_state = change_request_state(session, project_id=project_id, state_id=state_id, consortium_list=consortiums)
+        is_deprecated_state = get_states(session, id=state_id, many=False, throw_not_found=True).code == "DEPRECATED"
+
+        if is_deprecated_state:
+
+            raise UserError("Cannot set project to DEPRECATED state via this endpoint.")
+        
+        #check project exists
+        project_obj = get_projects(session, id=project_id, many=False, throw_not_found=True)
+
+        is_data_davailable_state = get_states(session, id=state_id, many=False, throw_not_found=True).code == "DATA_AVAILABLE"
+
+        if is_data_davailable_state:
+            #check that all requests are being moved to data_available state no consortium list
+            if consortiums:
+                raise UserError("Consortiums cannot be specified when moving a project to DATA_AVAILABLE state.")
+
+            #check that project has approved_url
+            if not project_obj.approved_url:
+                raise UserError("Cannot set project to DATA_AVAILABLE state without an approved_url.")
+            
+            #check if project is already in DATA_AVAILABLE state to not send duplicate emails
+            if calculate_overall_project_state(session, project_id)["status"] == "DATA_AVAILABLE":
+                raise UserError("cannot set project to DATA_AVAILABLE state if it is already in DATA_AVAILABLE state.")
+            
+            request_state = change_request_state(session, project_id=project_id, state_id=state_id, consortium_list=consortiums)
+
+            project.send_project_email(session, project=project_obj)
+        
+        else:
+
+            request_state = change_request_state(session, project_id=project_id, state_id=state_id, consortium_list=consortiums)
 
         session.commit()
 
