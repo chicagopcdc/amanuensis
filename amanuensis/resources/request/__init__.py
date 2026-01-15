@@ -156,7 +156,24 @@ def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=N
         
         else:
             change_request_state(session, project_id=project.id, state_code="IN_REVIEW", filter_out_depricated=False, consortium_list=list(update_consortiums))
- 
+    
+    #check if any filter_sets were from tokens
+    filter_set_ids = [fs.id for fs in filter_sets]
+    are_filter_sets_shared = get_filter_sets(session, id=filter_set_ids, filter_by_source_type=False, filter_for_filterset_is_shared=True)
+    if are_filter_sets_shared:
+        for filter_set in are_filter_sets_shared:
+            new_filter_set = create_filter_set(
+                session,
+                project.user_id,
+                False,
+                filter_set.filter_source_internal_id,
+                filter_set.name + "_copied_from_project_" + str(project.id),
+                filter_set.description,
+                filter_set.filter_object,
+                filter_set.ids_list,
+                filter_set.graphql_object,
+                user_source="fence"
+            )
 
 
     project.searches = project_filter_sets

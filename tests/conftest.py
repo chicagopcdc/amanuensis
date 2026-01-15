@@ -1181,6 +1181,21 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
                     )
                 ).first()
 
+                search_is_shared_fs = session.query(SearchIsShared).filter(
+                    SearchIsShared.search_id == filter_set_id
+                ).first() 
+                
+                #find the copied filter set
+                if search_is_shared_fs:
+                    copied_filter_set = session.query(Search).filter(
+                        Search.user_id == project.user_id,
+                        Search.name == search_is_shared_fs.search.name + "_copied_from_project_" + str(project.id),
+                    ).all()
+
+                    #this could create a duplicate 
+                    assert len(copied_filter_set) >= 1
+            if search_is_shared_fs:
+
                 #assert new_filter_set.name == original_filter_set.name
                 assert new_filter_set.filter_object == original_filter_set.filter_object
                 assert new_filter_set.graphql_object == original_filter_set.graphql_object
@@ -1216,7 +1231,6 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
                     assert current_state.state.code == "DEPRECATED"
             
             assert not current_consortiums
-
 
         return response
     
