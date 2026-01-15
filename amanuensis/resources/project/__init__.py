@@ -45,10 +45,11 @@ def create(current_session, logged_user_id, is_amanuensis_admin, name, descripti
 
 def send_project_email(session, project=None, project_id=None):
     #send email to all active project users with role DATA_ACCESS and have signed into portal before
-    project_users_with_data_access = [project_user.associated_user.email for project_user in get_project_associated_users(session, project_id=project_id, role_code="DATA_ACCESS", many=True)]
     
     if not project:
         project = get_projects(session, id=project_id, many=False, throw_not_found=True)
+
+    project_users_with_data_access = [project_user.associated_user.email for project_user in get_project_associated_users(session, project_id=(project_id if project_id else project.id), role_code="DATA_ACCESS", many=True)]
     
     try:
         project_users_logged_into_fence = fence_get_users(usernames=project_users_with_data_access)["users"]
