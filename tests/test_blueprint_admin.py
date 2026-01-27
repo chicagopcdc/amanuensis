@@ -482,7 +482,6 @@ def test_copy_search_to_project_none_added_but_request_removed(register_user, lo
         filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT", "INRG"],"isExclusion":False}},
         graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
     ).json["id"]
-
     project_id = project_post(
         authorization_token=user_id,
         consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
@@ -492,7 +491,6 @@ def test_copy_search_to_project_none_added_but_request_removed(register_user, lo
         name="test_copy_search_to_project_none_added_but_request_removed", 
         filter_set_ids=[filter_set_id]
     ).json["id"]
-
     filter_set_id_2 = filter_set_post(
         user_id, 
         name="test_copy_search_to_project_none_added_but_request_removed_2", 
@@ -675,9 +673,58 @@ def test_copy_search_to_project_fail_user_not_admin( register_user, login, filte
         status_code=403
     )
 
-def test_change_filter_set_project_in_data_downloaded_or_data_available(register_user, login, filter_set_post, project_post,  admin_copy_search_to_project, admin_user):
-    pass
-    #this needs the change state endpoint to make this work
+def test_change_filter_set_project_in_data_downloaded_or_data_available(register_user, login, filter_set_post, project_post, admin_update_project_state_post, admin_states_get, admin_copy_search_to_project, admin_user):
+    user_id, user_email =  register_user(email=f"user_1@test_change_filter_set_project_in_data_downloaded_or_data_available.com", name=__name__)
+    login(user_id, user_email)
+    filter_set_id = filter_set_post(
+        user_id,
+        name="test_change_filter_set_project_in_data_downloaded_or_data_available",
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT", "INRG"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
+    ).json["id"]
+    project_id = project_post(
+        authorization_token=user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
+        description="test_change_filter_set_project_in_data_downloaded_or_data_available",
+        institution="test_change_filter_set_project_in_data_downloaded_or_data_available",
+        associated_users_emails=[],
+        name="test_change_filter_set_project_in_data_downloaded_or_data_available",
+        filter_set_ids=[filter_set_id]
+    ).json["id"]
+
+    login(admin_user[0], admin_user[1])
+    states = admin_states_get(
+        authorization_token=admin_user[0],
+        status_code=200
+    )
+    for state in states.json:
+        if state["code"] == "DATA_DOWNLOADED":
+            state_id = state["id"]
+    assert admin_update_project_state_post(
+        authorization_token=admin_user[0],
+        project_id=project_id,
+        state_id=state_id,
+        status_code=200
+    )
+    login(user_id, user_email)
+    filter_set_id_2 = filter_set_post(
+        user_id, 
+        name="test_copy_search_to_project_none_added_but_request_removed_2", 
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
+    ).json["id"]
+
+    login(admin_user[0], admin_user[1])
+    assert admin_copy_search_to_project(
+        authorization_token=admin_user[0], 
+        filter_set_id=filter_set_id_2,
+        project_id=project_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
+        state_code="APPROVED",
+    )
+
+
+
 
 
 
@@ -1600,7 +1647,7 @@ def test_get_approved_url_fail_missing_parameters(register_user, login, filter_s
         status_code=404
     )
 
-def test_admin_update_associated_user_role(register_user, login, filter_set_post, project_post, admin_user, admin_update_associated_user_role):
+def test_post_admin_update_associated_user_role(register_user, login, filter_set_post, project_post, admin_user, admin_update_associated_user_role):
     user_id, user_email = register_user(email=f"user1@test_admin_update_associated_user_role.com", name="user1")
     login(user_id, user_email)
     filter_set_id = filter_set_post(
@@ -1633,3 +1680,157 @@ def test_admin_update_associated_user_role(register_user, login, filter_set_post
         role="DATA_ACCESS",
         status_code=400
     ) 
+
+
+def test_get_states_as_admin_success(admin_user, admin_states_get):
+    codes = [ "IN_REVIEW", "REJECTED", "APPROVED", "DRAFT", "SUBMITTED", "REVISION", "APPROVED_WITH_FEEDBACK",
+              "REQUEST_CRITERIA_FINALIZED", "WITHDRAWAL", "AGREEMENTS_NEGOTIATION", "AGREEMENTS_EXECUTED", "DATA_DOWNLOADED", "PUBLISHED", "DATA_AVAILABLE"]
+    assert admin_states_get(
+        authorization_token=admin_user[0],
+        states_list=codes,
+        status_code=200
+    )
+
+def test_get_states_as_non_admin_success(register_user, login, admin_states_get):
+    codes = [ "IN_REVIEW", "REJECTED", "APPROVED", "DRAFT", "SUBMITTED", "REVISION", "APPROVED_WITH_FEEDBACK",
+              "REQUEST_CRITERIA_FINALIZED", "WITHDRAWAL", "AGREEMENTS_NEGOTIATION", "AGREEMENTS_EXECUTED", "DATA_DOWNLOADED", "PUBLISHED", "DATA_AVAILABLE"]
+    user_id, user_email = register_user(email=f"user1@test_get_states_as_non_admin_success.com", name="user1")
+    login(user_id, user_email)
+    assert admin_states_get(
+        authorization_token=user_id,
+        states_list=codes,
+        status_code=200
+    )
+
+
+def test_post_project_state(register_user, login, filter_set_post, project_post, admin_user, admin_update_project_state_post, admin_states_get):
+    user_id, user_email = register_user(email=f"user1@test_post_project_state.com", name="user1")
+    login(user_id, user_email)
+    filter_set_id = filter_set_post(
+        user_id,
+        name="test_post_project_state",
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT", "INRG"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
+    ).json["id"]
+    project_id = project_post(
+        authorization_token=user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
+        description="test_post_project_state",
+        institution="test_post_project_state",
+        associated_users_emails=[],
+        name="test_post_project_state",
+        filter_set_ids=[filter_set_id]
+    ).json["id"]
+    states = admin_states_get(
+        authorization_token=user_id,
+        status_code=200
+    )
+    for state in states.json:
+        if state["code"] == "APPROVED":
+            state_id = state["id"]
+    assert admin_update_project_state_post(
+        authorization_token=admin_user[0],
+        project_id=project_id,
+        state_id=state_id,
+        status_code=200
+    )
+
+def test_post_project_state_success_with_consortium_list(register_user, login, filter_set_post, project_post, admin_user, admin_update_project_state_post, admin_states_get):
+    user_id, user_email = register_user(email=f"user1@test_post_project_state_success_with_consortium_list.com", name="user1")
+    login(user_id, user_email)
+    filter_set_id = filter_set_post(
+        user_id,
+        name="test_post_project_state_success_with_consortium_list",
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT", "INRG"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
+    ).json["id"]
+    project_id = project_post(
+        authorization_token=user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
+        description="test_post_project_state_success_with_consortium_list",
+        institution="test_post_project_state_success_with_consortium_list",
+        associated_users_emails=[],
+        name="test_post_project_state_success_with_consortium_list",
+        filter_set_ids=[filter_set_id]
+    ).json["id"]
+    states = admin_states_get(
+        authorization_token=user_id,
+        status_code=200
+    )
+    for state in states.json:
+        if state["code"] == "APPROVED":
+            state_id = state["id"]
+    assert admin_update_project_state_post(
+        authorization_token=admin_user[0],
+        project_id=project_id,
+        state_id=state_id,
+        consortium_codes=["INSTRUCT"],
+        status_code=200
+    )
+
+
+def test_get_project_state_history(register_user, login, filter_set_post, project_post, admin_user, admin_get_project_status_history_get):
+    user_id, user_email = register_user(email=f"user1@test_get_project_state_history.com", name="user1")
+    login(user_id, user_email)
+    filter_set_id = filter_set_post(
+        user_id,
+        name="test_get_project_state_history",
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT", "INRG"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
+    ).json["id"]
+    project_id = project_post(
+        authorization_token=user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
+        description="test_get_project_state_history",
+        institution="test_get_project_state_history",
+        associated_users_emails=[],
+        name="test_get_project_state_history",
+        filter_set_ids=[filter_set_id]
+    ).json["id"]
+
+    assert admin_get_project_status_history_get(
+        authorization_token=admin_user[0],
+        project_id=project_id,
+        history_dict={"INRG": ["IN_REVIEW"] , "INSTRUCT": ["IN_REVIEW"]},
+        status_code=200
+    )
+
+def test_get_project_state_history_after_project_state_change(register_user, login, filter_set_post, project_post, admin_user, admin_update_project_state_post, admin_states_get, admin_get_project_status_history_get):
+    user_id, user_email = register_user(email=f"user1@test_get_project_state_history_after_project_state_change.com", name="user1")
+    login(user_id, user_email)
+    filter_set_id = filter_set_post(
+        user_id,
+        name="test_get_project_state_history_after_project_state_change",
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT", "INRG"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
+    ).json["id"]
+    project_id = project_post(
+        authorization_token=user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
+        description="test_get_project_state_history_after_project_state_change",
+        institution="test_get_project_state_history_after_project_state_change",
+        associated_users_emails=[],
+        name="test_get_project_state_history_after_project_state_change",
+        filter_set_ids=[filter_set_id]
+    ).json["id"]
+    states = admin_states_get(
+        authorization_token=user_id,
+        status_code=200
+    )
+    for state in states.json:
+        if state["code"] == "APPROVED":
+            state_id = state["id"]
+    assert admin_update_project_state_post(
+        authorization_token=admin_user[0],
+        project_id=project_id,
+        state_id=state_id,
+        consortium_codes=["INSTRUCT"],
+        status_code=200
+    )
+
+    assert admin_get_project_status_history_get(
+        authorization_token=admin_user[0],
+        project_id=project_id,
+        history_dict={"INRG": ["IN_REVIEW"] , "INSTRUCT": ["APPROVED", "IN_REVIEW"]},
+        status_code=200
+    )
