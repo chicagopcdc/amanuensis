@@ -1,7 +1,7 @@
 from collections import defaultdict
 from amanuensis.errors import  UserError, NotFound
 from amanuensis.resources.fence import fence_get_users
-from amanuensis.resources.userdatamodel.associated_users import update_associated_user, create_associated_user, get_associated_users
+from amanuensis.resources.userdatamodel.associated_users import update_associated_user, create_associated_user
 from amanuensis.resources.userdatamodel.associated_user_roles import get_associated_user_roles
 from amanuensis.resources.userdatamodel.project_has_associated_user import create_project_associated_user, update_project_associated_user, get_project_associated_users
 from amanuensis.resources.userdatamodel.project import get_projects

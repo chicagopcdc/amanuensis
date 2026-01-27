@@ -477,7 +477,7 @@ def update_associated_user_role():
     with current_app.db.session as session:
         project_associated_user_schema = ProjectAssociatedUserSchema()
         ROLE = get_associated_user_roles(session, code=role, many=False, throw_not_found=True)
-        user = get_associated_users(session, email=associated_user_email, user_id=associated_user_id,  many=False, throw_not_found=True)
+        user = get_associated_users(session, email=associated_user_email, user_id=associated_user_id,  many=False, include_not_signed_up=True, throw_user_not_signed_up_error=True, throw_not_found=True)
 
         project_user = update_project_associated_user(session, associated_user_id=user.id, project_id=project_id,  role_id=ROLE.id)
 

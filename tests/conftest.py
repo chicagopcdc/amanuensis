@@ -150,13 +150,13 @@ def register_user(fence_users):
             "institution": f"{name}_university",
             "last_auth": "Fri, 19 Jan 2024 20:33:37 GMT",
             "last_name": f"{name}_last_{user_id}",
-            "name": email,
+            "username": email,
             "role": role
         }
 
         fence_users.append(user)
 
-        return user["id"], user["name"]
+        return user["id"], user["username"]
     
     yield add
 
@@ -172,7 +172,7 @@ def find_fence_user(fence_users):
                 if user['id'] in queryBody['ids']:
                     return_users['users'].append(user)
             else:
-                if user['name'] in queryBody['usernames']:
+                if user['username'] in queryBody['usernames']:
                     return_users['users'].append(user)
         return return_users
     yield get_fence_user
@@ -318,7 +318,7 @@ def login(request, find_fence_user):
             raise AuthError("The user id {} does not exist in the commons".format(id))
         else:
             id = fence_user[0]["id"]
-            username = fence_user[0]["name"]
+            username = fence_user[0]["username"]
         # Patch `current_user` in both modules: filterset and admin
         patcher_filterset = patch('amanuensis.blueprints.filterset.current_user')
         patcher_admin = patch('amanuensis.blueprints.admin.current_user')
@@ -558,7 +558,7 @@ def project_post(session, client, mock_requests_post, find_fence_user):
 
 
             #check associated users and project associated users
-            associated_users_in_fence = [find_fence_user({"ids":[authorization_token]})["users"][0]["name"]]
+            associated_users_in_fence = [find_fence_user({"ids":[authorization_token]})["users"][0]["username"]]
             associated_users_not_in_fence = []
 
             for associated_user in associated_users_emails:
@@ -571,7 +571,7 @@ def project_post(session, client, mock_requests_post, find_fence_user):
                     continue
 
                 else:
-                    associated_users_in_fence.append(fence_user[0]["name"])
+                    associated_users_in_fence.append(fence_user[0]["username"])
 
             assert len(updated_associated_users) == len(associated_users_in_fence + associated_users_not_in_fence)
 
@@ -580,13 +580,17 @@ def project_post(session, client, mock_requests_post, find_fence_user):
                 if not updated_associated_user.user_id:
 
                     assert updated_associated_user.email in associated_users_not_in_fence
+                    assert updated_associated_user.user_source == None
+                    assert updated_associated_user.active == False
 
                 else:
 
                     assert updated_associated_user.email in associated_users_in_fence
+                    assert updated_associated_user.user_source == "fence"
+                    assert updated_associated_user.active == True
 
-                assert updated_associated_user.user_source == "fence"
-                assert updated_associated_user.active == True
+                
+                
 
 
             assert len(project_associated_users) == len(associated_users_in_fence + associated_users_not_in_fence)
@@ -1253,10 +1257,14 @@ def admin_associated_user_post(session, client, mock_requests_post, find_fence_u
                 
                 if fence_user:
                     assert associated_user.user_id == fence_user[0]["id"]
-                    assert associated_user.email == fence_user[0]["name"]
-
-                assert associated_user.user_source == "fence"
-                assert associated_user.active == True
+                    assert associated_user.email == fence_user[0]["username"]
+                    assert associated_user.user_source == "fence"
+                    assert associated_user.active == True
+                else:
+                    assert associated_user.user_id == None
+                    assert associated_user.email == user["email"]
+                    assert associated_user.user_source == None
+                    assert associated_user.active == False
 
                 assert project_user.project_id == user["project_id"]
                 assert project_user.associated_user_id == associated_user.id
