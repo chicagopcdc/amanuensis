@@ -8,11 +8,12 @@ from amanuensis.config import config
 from cdislogging import get_logger
 from pcdcutils.signature import SignatureManager
 import json
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, text
 from amanuensis.errors import AuthError
 from amanuensis.resources.request import calculate_overall_project_state
 from amanuensis.models import ConsortiumDataContributor
 from flask import request
+from sqlalchemy import func
 
 logger = get_logger(logger_name=__name__)
 
@@ -150,13 +151,13 @@ def register_user(fence_users):
             "institution": f"{name}_university",
             "last_auth": "Fri, 19 Jan 2024 20:33:37 GMT",
             "last_name": f"{name}_last_{user_id}",
-            "name": email,
+            "username": email,
             "role": role
         }
 
         fence_users.append(user)
 
-        return user["id"], user["name"]
+        return user["id"], user["username"]
     
     yield add
 
@@ -172,7 +173,7 @@ def find_fence_user(fence_users):
                 if user['id'] in queryBody['ids']:
                     return_users['users'].append(user)
             else:
-                if user['name'] in queryBody['usernames']:
+                if user['username'] in queryBody['usernames']:
                     return_users['users'].append(user)
         return return_users
     yield get_fence_user
@@ -318,7 +319,7 @@ def login(request, find_fence_user):
             raise AuthError("The user id {} does not exist in the commons".format(id))
         else:
             id = fence_user[0]["id"]
-            username = fence_user[0]["name"]
+            username = fence_user[0]["username"]
         # Patch `current_user` in both modules: filterset and admin
         patcher_filterset = patch('amanuensis.blueprints.filterset.current_user')
         patcher_admin = patch('amanuensis.blueprints.admin.current_user')
@@ -558,7 +559,7 @@ def project_post(session, client, mock_requests_post, find_fence_user):
 
 
             #check associated users and project associated users
-            associated_users_in_fence = [find_fence_user({"ids":[authorization_token]})["users"][0]["name"]]
+            associated_users_in_fence = [find_fence_user({"ids":[authorization_token]})["users"][0]["username"]]
             associated_users_not_in_fence = []
 
             for associated_user in associated_users_emails:
@@ -571,7 +572,7 @@ def project_post(session, client, mock_requests_post, find_fence_user):
                     continue
 
                 else:
-                    associated_users_in_fence.append(fence_user[0]["name"])
+                    associated_users_in_fence.append(fence_user[0]["username"])
 
             assert len(updated_associated_users) == len(associated_users_in_fence + associated_users_not_in_fence)
 
@@ -580,13 +581,17 @@ def project_post(session, client, mock_requests_post, find_fence_user):
                 if not updated_associated_user.user_id:
 
                     assert updated_associated_user.email in associated_users_not_in_fence
+                    assert updated_associated_user.user_source == None
+                    assert updated_associated_user.active == False
 
                 else:
 
                     assert updated_associated_user.email in associated_users_in_fence
+                    assert updated_associated_user.user_source == "fence"
+                    assert updated_associated_user.active == True
 
-                assert updated_associated_user.user_source == "fence"
-                assert updated_associated_user.active == True
+                
+                
 
 
             assert len(project_associated_users) == len(associated_users_in_fence + associated_users_not_in_fence)
@@ -1253,10 +1258,14 @@ def admin_associated_user_post(session, client, mock_requests_post, find_fence_u
                 
                 if fence_user:
                     assert associated_user.user_id == fence_user[0]["id"]
-                    assert associated_user.email == fence_user[0]["name"]
-
-                assert associated_user.user_source == "fence"
-                assert associated_user.active == True
+                    assert associated_user.email == fence_user[0]["username"]
+                    assert associated_user.user_source == "fence"
+                    assert associated_user.active == True
+                else:
+                    assert associated_user.user_id == None
+                    assert associated_user.email == user["email"]
+                    assert associated_user.user_source == None
+                    assert associated_user.active == False
 
                 assert project_user.project_id == user["project_id"]
                 assert project_user.associated_user_id == associated_user.id
@@ -1546,6 +1555,130 @@ def admin_get_approved_url_get(session, client):
     yield route_admin_get_approved_url_get
 
 
+@pytest.fixture(scope="session", autouse=True)
+def admin_get_project_status_history_get(session, client):
+    def route_admin_get_project_status_history_get(authorization_token, 
+                             project_id=None,
+                             history_dict={},
+                             status_code=200
+                             ):
+
+        url = "/admin/project/status-history/" + (str(project_id) if project_id is not None else "")
+
+        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            if history_dict:
+
+                for consortium, state_list in history_dict.items():
+                    assert consortium in response.json
+
+                    response_state_list = [entry["state"] for entry in response.json[consortium]]
+
+                    assert state_list == response_state_list
+
+        return response
+
+    yield route_admin_get_project_status_history_get
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_states_get(session, client):
+    def route_admin_states_get(authorization_token,
+                             states_list=[],
+                             status_code=200
+                             ):
+
+        url = "/admin/states"
+
+        response = client.get(url, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+        
+        if status_code == 200:
+
+            if states_list:
+                response_states = [state["code"] for state in response.json]
+                assert set(states_list) == set(response_states)
+        
+        return response
+
+    yield route_admin_states_get
+
+@pytest.fixture(scope="session", autouse=True)
+def admin_update_project_state_post(session, client):
+    def route_admin_update_project_state_post(authorization_token, 
+                             project_id=None,
+                             state_id=None,
+                             consortium_codes=None,
+                             status_code=200
+                             ):
+        
+        json = {}
+        if state_id is not None:
+            json["state_id"] = state_id
+        if project_id is not None:
+            json["project_id"] = project_id
+        if consortium_codes is not None:
+            json["consortiums"] = consortium_codes
+
+        # Get the latest request state per consortium for the project
+        
+        # First, get the latest update_date for each consortium
+        sql = """
+        SELECT DISTINCT ON (request.id)
+            state.code,
+            state.id,
+            request_has_state.create_date,
+            request.id,
+            consortium_data_contributor.code
+        FROM request_has_state
+        JOIN request ON request_has_state.request_id = request.id
+        JOIN state ON state.id = request_has_state.state_id
+        JOIN consortium_data_contributor ON consortium_data_contributor.id = request.consortium_data_contributor_id
+        WHERE request.project_id = :project_id
+        ORDER BY request.id, request_has_state.create_date DESC;
+        """
+        result = session.execute(text(sql), {"project_id": project_id}).fetchall()
+
+        url = "/admin/projects/state"
+
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+
+        assert response.status_code == status_code
+
+        new_result = session.execute(text(sql), {"project_id": project_id}).fetchall()
+        
+        if status_code == 200:
+
+            for new_state in new_result:
+                if consortium_codes:
+                    if new_state[-1] in consortium_codes:
+                            assert new_state[1] == state_id
+                    else:
+                        #look through results list for request.id matching new_state request.id and check state ids match
+                        for old_state in result:
+                            if new_state[-2] == old_state[-2]:
+                                assert new_state[1] == old_state[1]
+                                break
+
+                else:
+                    #every state id should match state_id
+                    assert new_state[1] == state_id
+        
+        else:
+            #all state ids should match previous state ids
+            for new_state in new_result:
+                for old_state in result:
+                    if new_state[-2] == old_state[-2]:
+                        assert new_state[1] == old_state[1]
+                        break
+        
+        return response
+    
+    yield route_admin_update_project_state_post
 # Add a finalizer to ensure proper teardown
 @pytest.fixture(scope="session", autouse=True)
 def teardown(request, app_instance, session):
