@@ -24,6 +24,7 @@ def get_filter_sets(
         filter_by_ids_list=False,
         filter_for_no_user_id=False,
         filter_for_not_shared_filtersets=False,
+        filter_for_filterset_is_shared=False,
         filter_for_not_project_filtersets=False,
         throw_not_found=False,
         throw_not_equal=False,
@@ -76,7 +77,8 @@ def get_filter_sets(
         filter_sets = filter_sets.filter(~exists().where(SearchIsShared.search_id == Search.id))
     if filter_for_not_project_filtersets:
         filter_sets = filter_sets.filter(~exists().where(ProjectSearch.search_id == Search.id))
-        
+    if filter_for_filterset_is_shared:
+        filter_sets = filter_sets.filter(exists().where(SearchIsShared.search_id == Search.id))
         
 
     filter_sets = filter_sets.all()
