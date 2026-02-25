@@ -14,6 +14,7 @@ from amanuensis.resources.request import calculate_overall_project_state
 from amanuensis.models import ConsortiumDataContributor
 from flask import request
 from sqlalchemy import func
+import ast
 
 logger = get_logger(logger_name=__name__)
 
@@ -160,6 +161,17 @@ def register_user(fence_users):
         return user["id"], user["username"]
     
     yield add
+
+@pytest.fixture(scope="session", autouse=True)
+def register_user_who_will_recieve_emails(register_user, pytestconfig):
+    users = []
+    if pytestconfig.getoption("--test-emails-to-send-notifications"):
+        email_list = ast.literal_eval(pytestconfig.getoption("--test-emails-to-send-notifications"))
+
+        for email in email_list:
+            users.append(register_user(email=email, name=email.split("@")[0]))
+    yield users
+        
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -1612,7 +1624,7 @@ def admin_update_project_state_post(session, client):
     def route_admin_update_project_state_post(authorization_token, 
                              project_id=None,
                              state_id=None,
-                             consortium_codes=None,
+                             input_consortium_codes=None,
                              status_code=200
                              ):
         
@@ -1621,60 +1633,86 @@ def admin_update_project_state_post(session, client):
             json["state_id"] = state_id
         if project_id is not None:
             json["project_id"] = project_id
-        if consortium_codes is not None:
-            json["consortiums"] = consortium_codes
+        if input_consortium_codes is not None:
+            json["consortiums"] = input_consortium_codes
 
         # Get the latest request state per consortium for the project
         
         # First, get the latest update_date for each consortium
-        sql = """
-        SELECT DISTINCT ON (request.id)
-            state.code,
-            state.id,
-            request_has_state.create_date,
-            request.id,
-            consortium_data_contributor.code
-        FROM request_has_state
-        JOIN request ON request_has_state.request_id = request.id
-        JOIN state ON state.id = request_has_state.state_id
-        JOIN consortium_data_contributor ON consortium_data_contributor.id = request.consortium_data_contributor_id
-        WHERE request.project_id = :project_id
-        ORDER BY request.id, request_has_state.create_date DESC;
-        """
-        result = session.execute(text(sql), {"project_id": project_id}).fetchall()
 
         url = "/admin/projects/state"
+
+        
+
+        requests = session.query(Request).filter(Request.project_id == project_id).all()
+
+        prev_states = {}
+
+        for request in requests:
+
+            current_state = session.query(RequestState).filter(
+                and_(
+                    RequestState.request_id == request.id
+                )
+            ).order_by(RequestState.update_date.desc()).first()
+
+            prev_states[request.consortium_data_contributor.code] = current_state.state.code
 
         response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
 
         assert response.status_code == status_code
 
-        new_result = session.execute(text(sql), {"project_id": project_id}).fetchall()
-        
-        if status_code == 200:
+        requests = session.query(Request).filter(Request.project_id == project_id).all()
 
-            for new_state in new_result:
-                if consortium_codes:
-                    if new_state[-1] in consortium_codes:
-                            assert new_state[1] == state_id
+        new_states = {}
+
+        for request in requests:
+
+            current_state = session.query(RequestState).filter(
+                and_(
+                    RequestState.request_id == request.id
+                )
+            ).order_by(RequestState.update_date.desc()).first()
+
+            new_states[request.consortium_data_contributor.code] = current_state.state.code
+
+        if status_code == 200:
+            new_state_code = session.query(State).filter(State.id == state_id).first().code
+
+        for new_state in new_states.items():
+
+            consortium_code = new_state[0]
+            state_code = new_state[1]
+
+            if response.status_code == 200:
+
+                if prev_states[consortium_code] == "DEPRECATED":
+
+                    assert state_code == "DEPRECATED"
+
+
+                elif input_consortium_codes:
+
+                    if consortium_code in input_consortium_codes:
+                        assert state_code == new_state_code
                     else:
-                        #look through results list for request.id matching new_state request.id and check state ids match
-                        for old_state in result:
-                            if new_state[-2] == old_state[-2]:
-                                assert new_state[1] == old_state[1]
-                                break
+                        assert state_code == prev_states[consortium_code]
 
                 else:
-                    #every state id should match state_id
-                    assert new_state[1] == state_id
-        
-        else:
-            #all state ids should match previous state ids
-            for new_state in new_result:
-                for old_state in result:
-                    if new_state[-2] == old_state[-2]:
-                        assert new_state[1] == old_state[1]
-                        break
+                    
+                    assert state_code == new_state_code
+
+            else:
+
+                assert state_code == prev_states[consortium_code]
+
+
+
+                   
+
+    
+
+
         
         return response
     
