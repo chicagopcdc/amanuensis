@@ -162,12 +162,13 @@ AWS_CREDENTIALS:
 DATA_AVAILABLE_NOTIFICATION:
   EMAIL_SUBJECT: "Pediatric Cancer Data Common - Your data is ready!"
   EMAIL_BODY: |
-   <p>Dear {users}</p>
-   <p>The data for the project request <strong>{project_name}</strong> (<strong>{project_id}</strong>) is ready to be downloaded. To download
-      your data you will need to login to <a href="https://portal.pedscommons.org/">https://portal.pedscommons.org/</a>.</p>
-   <p>Follow the instructions on this page - <a href="https://docs.pedscommons.org/DataPortalUserGuide/#user-menu">https://docs.pedscommons.org/DataPortalUserGuide/#user-menu</a> to access the request and download your data.</p>
-   <p>Please respond to this email if you have any issues or questions.</p>
-   <p>Best,<br>Luca</p>
+    <p>Dear {users}</p>
+    <p>The data for the project request <strong>{project_name}</strong> (<strong>{project_id}</strong>) is ready to be downloaded.<br>
+      To download your data you will need to login to <a href="https://portal.pedscommons.org/">https://portal.pedscommons.org/</a> with the email/s associated to your request ( <strong>{emails}</strong> ).
+    </p>
+    <p>Follow the instructions on this page - <a href="https://docs.pedscommons.org/DataPortalUserGuide/#user-menu">https://docs.pedscommons.org/DataPortalUserGuide/#user-menu</a> to access the request and download your data.</p>
+    <p>Please respond to this email if you have any issues or questions.</p>
+    <p>Best,<br>Luca</p>
 
 # NOTE: Remove the {} and supply creds if needed. Example in comments below
 #   'CRED1':
