@@ -69,7 +69,7 @@ def send_project_email(session, project=None, project_id=None):
             
             recipients.append(project_users_logged_into_fence[i]["username"])
             
-        email_body = config["DATA_AVAILABLE_NOTIFICATION"]["EMAIL_BODY"].format(users=first_names, project_name=project.name, project_description=project.description)
+        email_body = config["DATA_AVAILABLE_NOTIFICATION"]["EMAIL_BODY"].format(users=first_names, project_name=project.name, project_id=project.description)
         send_email(config["DATA_AVAILABLE_NOTIFICATION"]["EMAIL_SUBJECT"], email_body, recipients=recipients)
     except Exception as e:
         logger.error(f"Failed to send email to {project_users_with_data_access}: {e}")
