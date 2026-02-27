@@ -284,12 +284,12 @@ def screen_institution():
     fuzzy_name = request.args.get('fuzzy_name', default = None)
     if(name == None):
         raise UserError("Name of an Aircraft, Entity, Individual, or Vessel is needed in the name argument in the url")
-    res = get_background(name, fuzzy_name)
     try:
+        res = get_background(name, fuzzy_name)
         total = int(res["total"])
     except:
         raise APIError("Possible change to or error with CSL api, see https://developer.trade.gov/api-details#api=consolidated-screening-list")
-    if(total == 50):
+    if(total >= 50):
         logger.warning("The API only returns 50 results at a time, but more results match the search. If searching for one particular institution you may need to be more specific about the name")
 
     return jsonify(res)
