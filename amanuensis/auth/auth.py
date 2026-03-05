@@ -5,7 +5,7 @@ from cdislogging import get_logger
 
 from cdiserrors import AuthNError
 from amanuensis.auth.errors import ArboristError
-from amanuensis.errors import Forbidden, Unauthorized
+from amanuensis.errors import Forbidden
 
 logger = get_logger(__name__)
 

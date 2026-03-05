@@ -1,12 +1,10 @@
 """
 Blueprints for accessing the datapoints table.
 """
-from psycopg2.errors import ForeignKeyViolation
-from sqlalchemy.exc import IntegrityError
 from flask import request, Blueprint, current_app, jsonify
 from cdislogging import get_logger
 
-from amanuensis.errors import UserError, AuthError
+from amanuensis.errors import UserError
 from amanuensis.resources.userdatamodel.project_datapoints import get_project_datapoints, update_project_datapoints, create_project_datapoints
 from amanuensis.auth.auth import check_arborist_auth
 
@@ -32,7 +30,7 @@ def delete_datapoints():
     id = request.get_json().get("id",None)
     
     if not id:
-        raise UserError("A, id is required for this endpoint")
+        raise UserError("An id for a project data point is required for this endpoint")
     
     with current_app.db.session as session:
 
@@ -62,7 +60,7 @@ def modify_datapoints():
 
     with current_app.db.session as session:
         if not id:
-            raise UserError("must provide project_datapoints id")
+            raise UserError("An id for a project data point is required for this endpoint")
 
         project_datapoints = update_project_datapoints(session,id,term,value_list,project_id,type,delete=False)
 

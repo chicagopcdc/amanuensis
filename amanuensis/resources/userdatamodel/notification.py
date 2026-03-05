@@ -40,7 +40,7 @@ def get_notifications(session,
 
     if not many:
         if len(notifications) > 1:
-            raise UserError(f"More than one notification found check inputs")
+            raise UserError("More than one notification found check inputs")
         else:
             notifications = notifications[0] if notifications else None
 

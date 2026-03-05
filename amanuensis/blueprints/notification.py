@@ -1,7 +1,7 @@
 import flask
 
 from amanuensis.auth.auth import current_user
-from amanuensis.errors import AuthError
+from amanuensis.errors import AuthNError, UserError
 from amanuensis.schema import NotificationLogSchema
 from amanuensis.resources.notification import update_users_notifications
 from amanuensis.resources.userdatamodel.notification import get_notifications
@@ -18,10 +18,8 @@ blueprint = flask.Blueprint("notifications", __name__)
 def retrieve_notifications():
     try:
         logged_user_id = current_user.id
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
     with flask.current_app.db.session as session:
         notificationlog_schema = NotificationLogSchema(many=True)
         
@@ -36,10 +34,8 @@ def retrieve_notifications():
 def retrive_all_notification_log_by_user():
     try:
         logged_user_id = current_user.id
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
     with flask.current_app.db.session as session:
         notificationlog_schema = NotificationLogSchema(many=True)
         all_notifications = get_notifications(session, user_id = logged_user_id)

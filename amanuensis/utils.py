@@ -125,11 +125,9 @@ def getGQLFilter(src_filter):
                 # This filter only has a combine setting so far. We can ignore it.
                 return None;
             else:
-                raise UserError(
-                    "Invalid filter object '{}'. ".format(filterValues)
-                )
+                raise UserError(f"Invalid filter object '{filterValues}'.")
 
-        # @type {{ AND?: any[]; IN?: { [x: string]: string[] }}} 
+        # @type {{ AND?: any[]; IN?: { [x: string]: string[] }}}
         facetsPiece = {}
         if isRangeFilter:
             facetsPiece["AND"] = [
