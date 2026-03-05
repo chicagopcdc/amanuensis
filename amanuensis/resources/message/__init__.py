@@ -14,6 +14,7 @@ from amanuensis.models import (
 )
 from amanuensis.resources.userdatamodel.project import get_projects
 from hubspot.crm.contacts import PublicObjectSearchRequest, ApiException
+from amanuensis.errors import UserError
 
 logger = get_logger(__name__)
 
@@ -114,16 +115,24 @@ def send_message(session, logged_user_id, request_id, subject, body):
 
 def send_email(subject, body_text, recipients=None):
     if not flask.current_app.ses_boto:
-        logger.warning("SES not configured not sending email")
+        raise InternalError("SES not configured not sending email")
     
-    elif "SENDER" not in config["AWS_CREDENTIALS"]["AWS_SES"]:
-        logger.warning("no sender email was provided not provided not sending email")
+    if "SENDER" not in config["AWS_CREDENTIALS"]["AWS_SES"]:
+        raise InternalError("No sender email configured for AWS SES. not sending email")
     
-    else:
-        flask.current_app.ses_boto.send_email(
+    if not recipients or len(recipients) == 0:
+        raise UserError("No recipients provided for email.")
+    
+    try:
+        # Return SES MessageId (or patched return) so callers/tests can assert
+        return flask.current_app.ses_boto.send_email(
             SENDER=config["AWS_CREDENTIALS"]["AWS_SES"]["SENDER"],
-            CC_RECIPIENTS=config["AWS_CREDENTIALS"]["AWS_SES"]["CC_RECIPIENTS"],
+            CC_RECIPIENTS=config["AWS_CREDENTIALS"]["AWS_SES"].get("CC_RECIPIENTS", []),
             RECIPIENT=recipients,
             SUBJECT=subject,
             BODY_HTML=body_text,
         )
+    except Exception as e:
+        # Normalize to amanuensis InternalError for tests
+        logger.error(f"send_email failed: {e}")
+        raise InternalError(f"send_email failed: {e}")

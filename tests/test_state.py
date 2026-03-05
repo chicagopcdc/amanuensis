@@ -14,6 +14,8 @@ def test_create_state(session):
 
     assert state.name == get_states(session, name=f"{__name__}", many=False).name
 
+    session.query(State).filter(State.code == f"{__name__}").delete()
+
 
     
 

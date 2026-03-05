@@ -1,7 +1,7 @@
 from collections import defaultdict
 from amanuensis.errors import  UserError, NotFound
 from amanuensis.resources.fence import fence_get_users
-from amanuensis.resources.userdatamodel.associated_users import update_associated_user, create_associated_user, get_associated_users
+from amanuensis.resources.userdatamodel.associated_users import update_associated_user, create_associated_user
 from amanuensis.resources.userdatamodel.associated_user_roles import get_associated_user_roles
 from amanuensis.resources.userdatamodel.project_has_associated_user import create_project_associated_user, update_project_associated_user, get_project_associated_users
 from amanuensis.resources.userdatamodel.project import get_projects
@@ -52,7 +52,7 @@ def add_associated_users(session, users, role=None):
             fence_user = fence_get_users(ids=[id])["users"]
 
             if fence_user:
-                email = fence_user[0]["name"]
+                email = fence_user[0]["username"]
 
             else:
                 raise UserError(f"The user id {id} does not exist in the commons")
@@ -87,7 +87,7 @@ def remove_associated_user(session, project_id, user_id=None, email=None):
         #this covers a situation if a user signs up but never goes to data request page
         if not project_user:
             try:
-                fence_user_email = fence_get_users(ids=[user_id])["users"][0]["name"]
+                fence_user_email = fence_get_users(ids=[user_id])["users"][0]["username"]
             except Exception as e:
                 raise NotFound(f"User {user_id} not found in commons")
             

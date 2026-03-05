@@ -5,7 +5,7 @@ will maintain coherence between both systems.
 """
 
 import functools
-from datetime import datetime
+from datetime import datetime, timezone
 from cdiserrors import APIError
 from flask import request, jsonify, Blueprint, current_app
 from cdislogging import get_logger
@@ -14,7 +14,7 @@ from amanuensis.auth.auth import check_arborist_auth, current_user
 from amanuensis.errors import UserError, InternalError, AuthNError
 from amanuensis.resources.institution import get_background
 from amanuensis.resources import project
-from amanuensis.resources.userdatamodel.request_has_state import create_request_state
+from amanuensis.resources.userdatamodel.request_has_state import create_request_state, get_request_states
 from amanuensis.resources.userdatamodel.request import get_requests
 from amanuensis.resources.userdatamodel.project import update_project
 from amanuensis.resources.userdatamodel.state import create_state, get_states
@@ -22,7 +22,8 @@ from amanuensis.resources.userdatamodel.consortium_data_contributor import (
     create_consortium,
 )
 from amanuensis.resources.userdatamodel.search import create_filter_set, get_filter_sets
-from amanuensis.resources.request import (
+from amanuensis.resources.request import  (
+    calculate_overall_project_state,
     change_request_state,
     project_requests_from_filter_sets,
 )
@@ -447,12 +448,42 @@ def update_project_state():
 
     with current_app.db.session as session:
 
-        request_state = change_request_state(
-            session,
-            project_id=project_id,
-            state_id=state_id,
-            consortium_list=consortiums,
-        )
+        is_deprecated_state = get_states(session, id=state_id, many=False, throw_not_found=True).code == "DEPRECATED"
+
+        if is_deprecated_state:
+
+            raise UserError("Cannot set project to DEPRECATED state via this endpoint.")
+        
+        #check project exists
+        project_obj = get_projects(session, id=project_id, many=False, throw_not_found=True)
+
+        is_data_davailable_state = get_states(session, id=state_id, many=False, throw_not_found=True).code == "DATA_AVAILABLE"
+
+        if is_data_davailable_state:
+            #check that all requests are being moved to data_available state no consortium list
+            if consortiums:
+                raise UserError("Consortiums cannot be specified when moving a project to DATA_AVAILABLE state.")
+
+            #check that project has approved_url
+            if not project_obj.approved_url:
+                raise UserError("Cannot set project to DATA_AVAILABLE state without an approved_url.")
+            
+            #check if project is already in DATA_AVAILABLE state to not send duplicate emails
+            if calculate_overall_project_state(session, project_id)["status"] == "DATA_AVAILABLE":
+                raise UserError("cannot set project to DATA_AVAILABLE state if it is already in DATA_AVAILABLE state.")
+            
+            request_state = change_request_state(session, project_id=project_id, state_id=state_id, consortium_list=consortiums)
+
+            project.send_project_email(session, project=project_obj)
+        
+        else:
+
+            request_state = change_request_state(
+                session,
+                project_id=project_id,
+                state_id=state_id,
+                consortium_list=consortiums,
+            )
 
         session.commit()
 
@@ -527,6 +558,8 @@ def update_associated_user_role():
             email=associated_user_email,
             user_id=associated_user_id,
             many=False,
+            include_not_signed_up=True, 
+            throw_user_not_signed_up_error=True, 
             throw_not_found=True,
         )
 
@@ -851,3 +884,27 @@ def admin_get_approved_url_get(project_id):
         project = get_projects(session, id=project_id, many=False, throw_not_found=True)
 
         return jsonify({"approved_url": project.approved_url})
+
+@blueprint.route("/project/status-history/<project_id>", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def admin_get_project_status_history(project_id):
+    """
+    Get the status history for a project
+    """
+    with current_app.db.session as session:
+        get_projects(session, id=project_id, many=False, throw_not_found=True)
+
+        status_history = get_request_states(session, project_id=project_id, order_by=True, order_by_create_date_desc=True)
+
+        result = {}
+
+        for request_state in status_history:
+            consortium_code = request_state.request.consortium_data_contributor.code
+            if consortium_code not in result:
+                result[consortium_code] = []
+            result[consortium_code].append({
+                "state": request_state.state.code,
+                "create_date": request_state.create_date.replace(tzinfo=timezone.utc).isoformat() if request_state.create_date else None    
+            })
+
+        return jsonify(result)

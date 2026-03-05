@@ -15,6 +15,8 @@ def get_request_states(
         consortiums=None,
         state_id=None,
         latest=False,
+        order_by=False,
+        order_by_create_date_desc=False,
         filter_out_depricated=False,
         throw_not_found=False,
         many=True):
@@ -27,6 +29,11 @@ def get_request_states(
         request_id (int): the id of the request
         state_id (int): the id of the state
         latest (bool): if True, only return the latest request state
+        order_by (bool): if True, add ordering to the results
+        order_by_create_date_desc (bool): if True, order by create date descending
+        filter_out_depricated (bool): if True, filter out deprecated states
+        project_id (int): the id of the project
+        consortiums (list): list of consortium codes to filter by
         throw_not_found (bool): if True, raise a NotFound error if no request state is found
         many (bool): if True, return all request states
 
@@ -66,6 +73,10 @@ def get_request_states(
     
     if filter_out_depricated:
         request_state = request_state.filter(RequestState.state.has(State.code != "DEPRECATED"))
+
+    if order_by:
+        if order_by_create_date_desc:
+            request_state = request_state.order_by(RequestState.create_date.desc())
 
     request_state = request_state.all()
 
