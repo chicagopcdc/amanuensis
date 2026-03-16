@@ -160,6 +160,7 @@ def _setup_data_endpoint_and_boto(app):
         app.s3_boto = BotoManager(aws_creds, logger=logger)
     except Exception as e:
         logger.error(f"Could not initialize data delivery BotoManager.")
+        logger.error(e)
         app.s3_boto = None
 
     try:
