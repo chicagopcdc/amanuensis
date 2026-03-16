@@ -156,6 +156,7 @@ AWS_CREDENTIALS:
     aws_secret_access_key: ""
   DATA_DELIVERY_S3_BUCKET:
     bucket_name: ""
+    region_name: "us-east-1"
     aws_access_key_id: ""
     aws_secret_access_key: ""
   
