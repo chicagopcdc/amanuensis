@@ -115,12 +115,15 @@ def send_message(session, logged_user_id, request_id, subject, body):
 
 def send_email(subject, body_text, recipients=None):
     if not flask.current_app.ses_boto:
+        logger.error("SES not configured not sending email")
         raise InternalError("SES not configured not sending email")
     
     if "SENDER" not in config["AWS_CREDENTIALS"]["AWS_SES"]:
+        logger.error("No sender email configured for AWS SES. not sending email")
         raise InternalError("No sender email configured for AWS SES. not sending email")
     
     if not recipients or len(recipients) == 0:
+        logger.error("No recipients provided for email.")
         raise UserError("No recipients provided for email.")
     
     try:

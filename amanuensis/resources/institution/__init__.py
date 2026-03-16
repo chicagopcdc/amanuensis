@@ -15,9 +15,8 @@ def get_background(name, fuzzy_name):
     try:
         url = api_url + name + (f"&fuzzy_name={fuzzy_name}" if fuzzy_name else "")
         hdr ={
-        # Request headers
-        'Cache-Control': 'no-cache',
-        'subscription-key': config["CSL_KEY"],
+            'Cache-Control': 'no-cache',
+            'subscription-key': config["CSL_KEY"],
         }
 
         response = requests.get(url, headers=hdr)
