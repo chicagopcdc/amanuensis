@@ -1,6 +1,6 @@
 import flask
 from amanuensis.auth.auth import current_user
-from amanuensis.errors import AuthError, UserError
+from amanuensis.errors import UserError, AuthNError
 from amanuensis.schema import MessageSchema
 from amanuensis.resources.message import send_message
 from amanuensis.resources.userdatamodel.message import get_messages
@@ -17,10 +17,8 @@ logger = get_logger(__name__)
 def get_message():
     try:
         logged_user_id = current_user.id
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
 
     request_id = flask.request.args.get("request_id", None, type=int)
 
@@ -42,20 +40,17 @@ def create_message():
     """
     try:
         logged_user_id = current_user.id
-    except AuthError:
-        logger.warning(
-            "Unable to load or find the user, check your token"
-        )
-
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
     request_id = flask.request.get_json().get("request_id", None)
     body = flask.request.get_json().get("body", None)
     subject = flask.request.get_json().get("subject", "[PCDC GEN3] Project Activity")
 
     if not request_id:
-        raise UserError("Missing request_id")
+        raise UserError("Your request must provide the id of a request to send a message about.")
     
     if not body:
-        raise UserError("Missing body")
+        raise UserError("Your request must provide a body for the message.")
 
     with flask.current_app.db.session as session:
         message_schema = MessageSchema()

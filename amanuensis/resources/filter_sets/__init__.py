@@ -22,7 +22,7 @@ def _load_data_files(file_name):
     if len(possible_configs) == 1:
         file = possible_configs[0]
     else:
-        raise NotFound(
+        raise InternalError(
             "Could not find {}. Searched in the following locations: "
             "{}".format(file_name, str(CONFIG_SEARCH_FOLDERS))
         )

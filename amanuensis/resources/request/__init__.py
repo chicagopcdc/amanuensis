@@ -30,10 +30,10 @@ def change_request_state(session, project_id, state_id=None, state_code=None, co
     for request_state in current_request_states: 
         if request_state.state.code in final_states:
             raise UserError(
-                "Cannot change state of request {} from {} because it's a final state".format(
-                    request_state.request.id, request_state.state.code
-                )
+                f"Cannot change state of request '{request_state.request.id}' "
+                f"from '{request_state.state.code}' because it's a final state"
             )
+
         updated_requests.append(create_request_state(session, request_state.request.id, NEW_STATE.id).request)
 
     return updated_requests

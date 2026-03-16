@@ -48,11 +48,12 @@ def get_requests(
     requests = requests.all()
 
     if throw_not_found and not requests:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound(f"No requests found")
 
     if not many:
         if len(requests) > 1:
-            raise UserError(f"More than one request found check inputs")
+            raise UserError("More than one request found check inputs")
         else:
             requests = requests[0] if requests else None
     

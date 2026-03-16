@@ -55,6 +55,7 @@ def get_project_associated_users(
     project_associated_user = project_associated_user.all()
 
     if throw_not_found and not project_associated_user:
+        # TODO: Potential userError to show in fe to user?
         raise NotFound(f"The user is not in the list of associated_users that signed the DUA. Please reach out to pcdc_help@lists.uchicago.edu")
 
     if not many:
