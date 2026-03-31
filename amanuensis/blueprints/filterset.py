@@ -2,7 +2,7 @@ import flask
 from amanuensis.resources.userdatamodel.search import get_filter_sets, create_filter_set, update_filter_set
 from amanuensis.resources.userdatamodel.search_is_shared import get_shared_filter_sets, create_filter_set_snapshot
 from amanuensis.auth.auth import current_user
-from amanuensis.errors import AuthError, UserError
+from amanuensis.errors import UserError, AuthNError
 from cdislogging import get_logger
 from amanuensis.schema import SearchSchema, SearchIsSharedSchema
 
@@ -18,8 +18,8 @@ blueprint = flask.Blueprint("filter-sets", __name__)
 def get_filter_set(filter_set_id=None):
     try:
         logged_user_id = current_user.id
-    except AuthError:
-        logger.warning("Unable to load or find the user, check your token")
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
 
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
@@ -47,8 +47,8 @@ def create_search():
     """
     try:
         logged_user_id = current_user.id
-    except AuthError:
-        logger.warning("Unable to load or find the user, check your token")
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
 
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
@@ -89,8 +89,8 @@ def update_search(filter_set_id):
     """
     try:
         logged_user_id = current_user.id
-    except AuthError:
-        logger.warning("Unable to load or find the user, check your token")
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
 
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
@@ -139,13 +139,13 @@ def create_snapshot_from_filter_set():
     """
     try:
         logged_user_id = current_user.id
-    except AuthError:
-        logger.warning("Unable to load or find the user, check your token")
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
 
     filter_set_id = flask.request.get_json().get("filterSetId", None) #"filter_set_id", default=None, type=int
     users_list = flask.request.get_json().get("users_list", None)
     if not filter_set_id:
-        raise UserError("Missing parameters.")
+        raise UserError("Your request must provide the id of a filter-set to create a snapshot.")
     
     
     with flask.current_app.db.session as session:
@@ -163,9 +163,9 @@ def get_filter_set_snapshot(token):
     """
     try:
         current_user.id
-    except AuthError:
-        logger.warning("Unable to load or find the user, check your token")
-    
+    except AuthNError:
+        raise UserError("Your session has expired. Please log in again to continue.")
+
     with flask.current_app.db.session as session:
         snapshot = get_shared_filter_sets(session, token)
 

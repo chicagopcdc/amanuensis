@@ -9,7 +9,7 @@ from cdislogging import get_logger
 from pcdcutils.signature import SignatureManager
 import json
 from sqlalchemy import or_, and_, text
-from amanuensis.errors import AuthError
+from amanuensis.errors import UserError
 from amanuensis.resources.request import calculate_overall_project_state
 from amanuensis.models import ConsortiumDataContributor
 from flask import request
@@ -17,6 +17,7 @@ from sqlalchemy import func
 import ast
 
 logger = get_logger(logger_name=__name__)
+
 
 def pytest_addoption(parser):
     parser.addoption(
@@ -36,15 +37,18 @@ def pytest_addoption(parser):
 def initiate_app(pytestconfig):
     app_init(app, config_file_name=pytestconfig.getoption("--configuration-file"))
 
+
 @pytest.fixture(scope="session")
 def app_instance(initiate_app):
     with app.app_context():
         yield app
 
+
 @pytest.fixture(scope="session")
 def client(app_instance):
     with app_instance.test_client() as client:
         yield client
+
 
 @pytest.fixture(scope="session", autouse=True)
 def session(app_instance):
@@ -93,13 +97,13 @@ def session(app_instance):
         session.query(Search).delete()
         session.query(Notification).delete()
         session.query(NotificationLog).delete()
-        
+
         session.commit()
 
         yield session
 
         session.commit()
-    
+
 
 @pytest.fixture(scope='function')
 def patch_s3_client(request, app_instance):
@@ -114,6 +118,7 @@ def patch_s3_client(request, app_instance):
     
     return do_patch
 
+
 @pytest.fixture(scope='function')
 def patch_ses_client(request, app_instance):
     def do_patch(return_value="this_is_an_email_response"):
@@ -127,6 +132,7 @@ def patch_ses_client(request, app_instance):
     
     return do_patch
 
+
 @pytest.fixture(scope="session", autouse=True)
 def mock_signature_manager():
     config["RSA_PRIVATE_KEY"] = "mock_private_key"
@@ -134,9 +140,11 @@ def mock_signature_manager():
         mock_sm.return_value.make_gen3_signature.return_value = "mock_signature"
         yield
 
+
 @pytest.fixture(scope="session", autouse=True)
 def fence_users():
     yield []
+
 
 @pytest.fixture(scope="session", autouse=True)
 def register_user(fence_users):
@@ -328,7 +336,9 @@ def login(request, find_fence_user):
     def patch_user(id, username):
         fence_user = find_fence_user({"ids": [id]})["users"]
         if not fence_user:
-            raise AuthError("The user id {} does not exist in the commons".format(id))
+            # TODO: Check modal on fe and ensure this message makes sense.
+            # If model does not show, add one.
+            raise UserError(f"The user id {id} does not exist in the commons")
         else:
             id = fence_user[0]["id"]
             username = fence_user[0]["username"]
@@ -370,6 +380,7 @@ def login(request, find_fence_user):
 
     
     return patch_user
+
 
 @pytest.fixture(scope="module", autouse=True)
 def s3(app_instance):
@@ -436,6 +447,7 @@ def project_get(client):
         return response
 
     yield route_project_get
+
 
 @pytest.fixture(scope="function")
 def project_post(session, client, mock_requests_post, find_fence_user):
@@ -626,6 +638,7 @@ def project_post(session, client, mock_requests_post, find_fence_user):
         return response
     
     yield route_project_post
+
 
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_post(session, client):
@@ -893,6 +906,7 @@ def admin_copy_search_to_user_post(session, client):
     
     yield route_admin_copy_search_to_user_post
 
+
 @pytest.fixture(scope="function", autouse=True)
 def admin_upload_file(session, client, mock_requests_post):
     def route_admin_upload_file(authorization_token, 
@@ -949,6 +963,7 @@ def admin_upload_file(session, client, mock_requests_post):
         return response
 
     yield route_admin_upload_file
+
 
 @pytest.fixture(scope="session", autouse=True)
 def admin_update_associated_user_role(session, client):
@@ -1023,6 +1038,7 @@ def admin_update_associated_user_role(session, client):
     
     yield route_admin_update_associated_user_role
 
+
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_snapshot_post(session, client):
     def route_filter_set_snapshot_post(authorization_token, 
@@ -1083,6 +1099,7 @@ def filter_set_snapshot_post(session, client):
     
     yield route_filter_set_snapshot_post
 
+
 @pytest.fixture(scope="session", autouse=True)
 def filter_set_snapshot_get(session, client):
     def route_filter_set_snapshot_get(authorization_token, 
@@ -1110,6 +1127,7 @@ def filter_set_snapshot_get(session, client):
 
     yield route_filter_set_snapshot_get
 
+
 @pytest.fixture(scope="session", autouse=True)
 def admin_filter_set_by_project_id_get(session, client):
     def route_admin_filter_set_get_by_project_id(authorization_token, 
@@ -1133,6 +1151,7 @@ def admin_filter_set_by_project_id_get(session, client):
         return response
 
     yield route_admin_filter_set_get_by_project_id
+
 
 @pytest.fixture(scope="function", autouse=True)
 def admin_copy_search_to_project(session, client, mock_requests_post): 

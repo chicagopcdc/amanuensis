@@ -28,7 +28,7 @@ def add_associated_users(session, users, role=None):
         id = input_user["id"] if "id" in input_user else None
         
         if "project_id" not in input_user:
-            raise UserError("The project_id is required to add user to project")
+            raise UserError("project_id is required to add user to project")
         
         get_projects(session, id=input_user["project_id"], throw_not_found=True, many=False)
 
