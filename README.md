@@ -1,131 +1,144 @@
+## Overview
+
+Amanuensis is a backend service used in the GEN3 ecosystem to handle project
+requests and access workflows. It integrates with Fence, Arborist, and other
+GEN3 services.
+
 ## DEPRECATED ##
 To speed up the local development workflow for amanuensis, alongside the gen3 stack, follow these steps.
+## Amanuensis — Quick start for new contributors (GSoC friendly)
 
-1) Build the image using Dockerfile.dev:
+Welcome! This README is written for contributors new to the project and to students joining through programs like Google Summer of Code (GSoC).
+
+If you're experienced, the repository already contains more detailed docs. This file gives a small, friendly path to get you productive quickly.
+
+## What is Amanuensis?
+
+Amanuensis is a backend service in the GEN3 ecosystem that helps manage project requests and access workflows. It integrates with other GEN3 services such as Fence and Arborist and exposes HTTP endpoints used by the platform.
+
+Why you might care (for GSoC):
+
+- Work touches authentication, authorization, backend APIs, and testing.
+- Plenty of small-to-medium features and improvements are available as mentoring-friendly tasks.
+- Well-tested codebase: tests and fixtures make it easier to iterate safely.
+
+## Beginner-friendly roadmap
+
+1. Read this README and open the project in your editor.
+2. Run the test suite and make a small change that keeps tests green (fix a typo or add a tiny test) to learn the workflow.
+3. Pick a "good first issue" or ask the project maintainers for a small starter task.
+4. Send a pull request and iterate on feedback.
+
+Maintainers: See the repository's issue tracker for mentoring tags and contact info.
+
+## Quick setup (local development)
+
+These commands assume macOS (zsh) and that Python 3.8+ is installed.
+
+1) Create and activate a virtual environment
+
+```bash
+python -m venv env
+source env/bin/activate
 ```
+
+2) Install project dependencies with Poetry (this project uses Poetry)
+
+```bash
+poetry install
+```
+
+3) Generate a default config (creates a file under ~/.gen3/amanuensis/)
+
+```bash
+python cfg_help.py create
+```
+
+4) Run the app in development mode
+
+There are two common development workflows:
+
+- Lightweight (run tests and small scripts): use the Python environment and run the test server or scripts directly.
+- Containerized (recommended for running the full GEN3 stack): use the provided Docker development image.
+
+To run using the Docker development image (optional):
+
+```bash
 docker build -f Dockerfile.dev -t amanuensis:test .
 ```
 
-2) In the docker-compose.yml file inside the compose-services repo:
+If you use the GEN3 compose/helm workflow, map your local source into the container so edits are visible during development. The repo already includes a `watch-files.sh` script used in development containers to restart the server automatically on changes.
 
-    1) Make sure amanuensis-service is using the amanuensis:test image.
-    2) Under amanuensis-service volumes property, map your local source-code repo to the amanuensis/amanuensis directory. The order is source:target.
+## Running tests
 
-    ```
-    - /location-of-your-repos/amanuensis/amanuensis:/amanuensis/amanuensis
-    ``` 
-    
-3) Inside compose-services run ```docker compose up``` to start all services of the gen3 stack.
+Run the full test suite with pytest. Some tests rely on additional files or configuration described below.
 
-4) Open a shell to the amanuensis:test container. Navigate to /amanuensis/amanuensis and run ```bash watch-files.sh```. This will watch for files changes in this directory and re-run the uwsgi command every time there is a file change, which will ensure that changes are reflected in the container almost immediatelly.
+```bash
+pytest --order-scope=module
+```
 
-## END OF DEPRECATED ##
+Notes:
+- Tests that validate filter set behavior require external JSON files (gitops.json and es_to_dd_map.json) from related GEN3 repos. See the tests folder and test docstrings for details.
+- Use `--configuration-file="<config-file.yaml>"` to pass a custom config file when needed; default is `amanuensis-config.yaml`.
 
-# Development Workflow
+## Database migrations
 
-## building and running the container locally using Helm
+This project uses Alembic for migrations. Typical commands:
 
-1) Follow the steps provided in the confluence page `Using Helm for local development` to set up and run a local kubernetes cluster using Helm 
+```bash
+alembic upgrade head    # apply latest migrations
+alembic downgrade base  # revert all migrations
+alembic revision -m "your message"  # create a new revision file
+```
 
-2) run ` nerdctl --namespace k8s.io build -f Dockerfile.dev -t amanuensis:test . ` This will create a image in your rancher Desktop app
+## Architecture overview (short)
 
-3) in pcdc-default-values.yaml or default-values.yaml (depending on which version of gen3-helm you are using) replace the amanuensis section with this:
+- `amanuensis/` — main Python package and application code.
+- `amanuensis/auth/` — authentication helpers and auth-related routes.
+- `amanuensis/resources/` — service resource implementations (Fence, projects, etc.).
+- `migrations/` — Alembic migration scripts.
+- `tests/` — pytest test suite and fixtures (see `conftest.py`).
 
-    amanuensis:
-        image:
-            repository: "amanuensis"
-            tag: "test"
-            pullPolicy: Never
+This is intentionally short — explore these folders and open issues when you need clarification.
 
-4) run `pcdc roll` or if you already have rolled out the deployment run `pcdc roll amanuensis`
+## Mocking and tests notes (for contributors)
 
+- `conftest.py` contains fixtures that mock external services (Fence, Arborist, S3, etc.). Use these fixtures when adding tests.
+- Helpful fixtures: `client` (test client), `session` (db session), `s3` (S3 test bucket), and `register_user` / `fence_users` to mock users.
 
-## Debugging
+## Common commands summary
 
-Once you run ```bash watch-files.sh``` most of the output will show in that same terminal window. Information about HTTP requests--method, URL, etc.--will continue to show up in the Docker logs.
+- Install deps: `poetry install`
+- Create venv: `python -m venv env && source env/bin/activate`
+- Generate default config: `python cfg_help.py create`
+- Build dev Docker image: `docker build -f Dockerfile.dev -t amanuensis:test .`
+- Run tests: `pytest --order-scope=module`
+- Alembic migrations: `alembic upgrade head` / `alembic revision -m "msg"`
 
-## Development Tools
+## Contributing (short guide)
 
-The Docker.dev file installs inotify-tools to allow the watch-files.sh script to check for file changes. In addtition, it will install vim.
+1. Fork the repository and create a branch named `gsoc/your-topic` or `fix/short-description`.
+2. Write tests for new behavior when possible.
+3. Run tests locally and ensure they pass.
+4. Open a pull request with a clear description of your change and link to any related issue.
 
-To use bash instead of the default, sh, run ```exec /bin/bash``` in the container or if starting from the host terminal run: 
+For GSoC students: describe your proposal clearly, include a timeline, and list any help you need from mentors. Start by picking a small, well-scoped first task to show progress early.
 
-    docker exec -it amanuensis-service /bin/bash
+## Troubleshooting
 
-## Generating config
+- If tests fail because of missing external files, check the failing test's docstring and the repository tests/ for the required artifact.
+- For container-related issues, check logs with `docker logs <container>` and verify volumes map your local code into the container.
 
-run python cfg_help.py create and a default config file will be created in ~/.gen3/amanuensis/ 
+## Where to get help
 
-## Installing Dependencies
+- Open an issue or comment on an existing issue describing your question.
+- Look for CONTRIBUTING.md or project issue tags like `good-first-issue` or `help-wanted`.
 
-python -m venv env
+----
 
-source env/bin/activate
+If you want, I can also:
 
-poetry install
+- Add a short CONTRIBUTING.md with a checklist for new contributors.
+- Create a `good-first-issue` template with steps to reproduce and a starter test.
 
-## Migrating DB
-
-1) Migrate DB
-
-    upgrade: `alembic upgrade head` or revision id instead of head
-
-    downgrade: `alembic downgrade base` or revision id instead of base
-
-2) create new revision
-
-    `alembic revision -m <name of revision>`
-
-## Run tests
-
-1) in order to pass all the tests in "test_2_check_validate_filter_sets.py" you will need the gitops.json file from the configuration-files repo
-   and the es_to_dd_map.json file which can be generated in the elasticsearch folder of the gen3_etl repo.
-
-2) in the config fill in the value DB, AWS_CREDENTIALS with your values and ARBORIST with 'http://arborist-service'. 
-
-3) create and/or activate the virtual env and run poetry install
-
-4) pytest --order-scope=module --disable-warnings --configuration-file="<config-file.yaml>" 
-    --order-scope (required) some tests need to clear DB tables
-    --disable-warnings (optional) mutes warnings
-    --configuration-file (required/optional) required if multiple config files exist in search folders, optional if only 1 exists 
-                                             the default value is amanuensis-config.yaml
-                                              
-
-## Mocking
-
-    all the mocking fixtures for Fence, Arborist and PcdcAnalysisTools are found in conftest
-
-    fixtures:
-
-            1) fence_users(): this holds list which is used to mock the Users table in the fence DB
-
-            2) register_user(email, name, role="user"): this adds a new user to fence_users,
-
-                email: fills in the name column
-                name: used to fill in other personal information columns from the Users table
-                role: (optional) used to allow access to admin endpoints in amanuensis
-
-            3) find_fence_user(): returns a function that can be used to mock the fence_get_users in resources/fence/__init__.py
-                                  the function takes an input in the format {"ids": [list of ids]} or {"usernames": [list of names]}
-                                  the input will return users from the fence_users fixture
-                                  note: usernames looks through the names column of the fence Users which is the email of a register user
-
-            4) login(): returns a function the takes and id and email and patches the current_user object with those values
-
-            5) mock_requests_post() patches the request object that sends post requests to "http://fence-service/admin/users/selected" which returns
-                                    a user or users from fence_users() and 'http://pcdcanalysistools-service/tools/stats/consortiums' which returns
-                                    a list of consortiums provided. example mock_requests_post(consortiums=["INRG"]) will return ["INRG"].
-                                    alternative urls and status codes can also be provided for instance mock_requests_post(urls={'http://pcdcanalysistools-service/tools/stats/consortiums', 403})
-                                    will return a 403 response code
-            
-            6) patch_auth_request() automatically created at the beginning of a test session and applies to all tests. It mocks app.aborist.auth_request object
-                                    which is called in the has_arborist_access() method and the admin decorator on routes. it takes the Authorization header from
-                                    the request in the format "Authorization": 'bearer {fence_id}' and looks for a user in fence_users using the fence_id and 
-                                    return True if the users role is admin else False. This is used to mock arborist
-
-            7) client(): used to send http request to server
-
-            8) session(): used to interact with DB
-
-            9) s3(): creates a bucket using provided AWS_CREDS in config, automatically deletes bucket at end of test file 
+Tell me which of those you'd like next and I will create the files.
