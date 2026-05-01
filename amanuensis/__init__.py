@@ -206,10 +206,13 @@ def handle_json_api_error(error):
     error_id = _get_error_identifier()
     logger.error("{} ID: {}".format(str(error), error_id))
 
+    body = error.json if (hasattr(error, "json") and error.json) else error.message
+    if isinstance(body, str):
+        body = body + f" (Error ID: {error_id})"
+    elif isinstance(body, dict):
+        body = {**body, "error_id": error_id}
     return (
-        flask.jsonify(
-            (error.json if (hasattr(error, "json") and error.json) else error.message) + f" (Error ID: {error_id})"
-        ),
+        flask.jsonify(body),
         error.code,
     )
 

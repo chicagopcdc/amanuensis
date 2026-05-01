@@ -18,7 +18,7 @@ def get_message():
     try:
         logged_user_id = current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
 
     request_id = flask.request.args.get("request_id", None, type=int)
 
@@ -41,7 +41,7 @@ def create_message():
     try:
         logged_user_id = current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
     request_id = flask.request.get_json().get("request_id", None)
     body = flask.request.get_json().get("body", None)
     subject = flask.request.get_json().get("subject", "[PCDC GEN3] Project Activity")
