@@ -392,6 +392,7 @@ def create_project():
         )
 
         session.commit()
+        session.refresh(new_project)
 
         return jsonify(project_schema.dump(new_project))
 
