@@ -30,7 +30,7 @@ def download_data(project_id):
         logged_user_id = current_user.id
         logged_user_email = current_user.username
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
 
     if not flask.current_app.s3_boto:
         raise InternalError(

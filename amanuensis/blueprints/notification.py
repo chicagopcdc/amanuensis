@@ -19,7 +19,7 @@ def retrieve_notifications():
     try:
         logged_user_id = current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
     with flask.current_app.db.session as session:
         notificationlog_schema = NotificationLogSchema(many=True)
         
@@ -35,7 +35,7 @@ def retrive_all_notification_log_by_user():
     try:
         logged_user_id = current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
     with flask.current_app.db.session as session:
         notificationlog_schema = NotificationLogSchema(many=True)
         all_notifications = get_notifications(session, user_id = logged_user_id)

@@ -29,7 +29,7 @@ def get_projetcs():
         logged_user_id = current_user.id
         logged_user_email = current_user.username
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
 
     #add user_id from fence if this is the users first time logging in
     with flask.current_app.db.session as session:
@@ -117,7 +117,7 @@ def create_project():
     try:
         logged_user_id = current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
 
     associated_users_emails = flask.request.get_json().get("associated_users_emails", None)
     # if not associated_users_emails:
@@ -149,18 +149,16 @@ def create_project():
     project_schema = ProjectSchema()
 
     with flask.current_app.db.session as session:
-        return flask.jsonify(
-            project_schema.dump(
-                create(
-                    session,
-                    logged_user_id,
-                    False,
-                    name,
-                    description,
-                    filter_set_ids,
-                    explorer_id,
-                    institution,
-                    associated_users_emails
-                )
-            )
+        new_project = create(
+            session,
+            logged_user_id,
+            False,
+            name,
+            description,
+            filter_set_ids,
+            explorer_id,
+            institution,
+            associated_users_emails
         )
+        session.refresh(new_project)
+        return flask.jsonify(project_schema.dump(new_project))

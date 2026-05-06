@@ -19,7 +19,7 @@ def get_filter_set(filter_set_id=None):
     try:
         logged_user_id = current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
 
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
@@ -48,7 +48,7 @@ def create_search():
     try:
         logged_user_id = current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
 
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
@@ -90,7 +90,7 @@ def update_search(filter_set_id):
     try:
         logged_user_id = current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
 
     # get the explorer_id from the querystring
     explorer_id = flask.request.args.get("explorerId", default=1, type=int)
@@ -140,7 +140,7 @@ def create_snapshot_from_filter_set():
     try:
         logged_user_id = current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
 
     filter_set_id = flask.request.get_json().get("filterSetId", None) #"filter_set_id", default=None, type=int
     users_list = flask.request.get_json().get("users_list", None)
@@ -164,7 +164,7 @@ def get_filter_set_snapshot(token):
     try:
         current_user.id
     except AuthNError:
-        raise UserError("Your session has expired. Please log in again to continue.")
+        raise AuthNError("Your session has expired. Please log in again to continue.")
 
     with flask.current_app.db.session as session:
         snapshot = get_shared_filter_sets(session, token)
