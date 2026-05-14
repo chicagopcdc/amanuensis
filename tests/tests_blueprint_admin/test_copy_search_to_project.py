@@ -480,3 +480,49 @@ def test_change_filter_set_project_in_data_available(register_user, login, filte
         consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
         state_code="APPROVED",
     )
+
+def test_change_filter_set_with_shared_filter_set(register_user, login, filter_set_post, filter_set_snapshot_post, filter_set_snapshot_get, admin_user, project_post, admin_copy_search_to_project):
+    user_id, user_email =  register_user(email=f"user_1@test_change_filter_set_with_shared_filter_set.com", name=__name__)
+    login(user_id, user_email)
+    
+    filter_set_id = filter_set_post(
+        user_id, 
+        name="test_change_filter_set_with_shared_filter_set", 
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INSTRUCT", "INRG"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INSTRUCT", "INRG"]}}]}
+    ).json["id"]
+
+    project_id = project_post(
+        authorization_token=user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INSTRUCT", "INRG"],
+        description="test_change_filter_set_with_shared_filter_set",
+        institution="test_change_filter_set_with_shared_filter_set",
+        associated_users_emails=[],
+        name="test_change_filter_set_with_shared_filter_set", 
+        filter_set_ids=[filter_set_id]
+    ).json["id"]
+
+    filter_set_id_2 = filter_set_post(
+        user_id, 
+        name="test_change_filter_set_with_shared_filter_set_2", 
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INRG"]}}]}
+    ).json["id"]
+
+    shareable_token = filter_set_snapshot_post(
+        user_id, 
+        filter_set_id=filter_set_id_2
+    ).json
+
+    filter_set_from_token = filter_set_snapshot_get(
+        user_id, 
+        token=shareable_token
+    ).json["id"]
+
+    login(admin_user[0], admin_user[1])
+    assert admin_copy_search_to_project(
+        authorization_token=admin_user[0], 
+        filter_set_id=filter_set_from_token,
+        project_id=project_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INRG"],
+    )
