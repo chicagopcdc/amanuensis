@@ -101,8 +101,8 @@ def get_projects(
 
 def get_projects_page(
         current_session,
-        offset,
-        limit,
+        offset=None,
+        limit=None,
         active=True,
         filter_by_active=True,
         consortiums=None,
@@ -129,7 +129,12 @@ def get_projects_page(
     if order_by is not None:
         projects = projects.order_by(order_by.desc() if order_desc else order_by.asc())
 
-    return projects.offset(offset).limit(limit).all()
+    if offset is not None:
+        projects = projects.offset(offset)
+    if limit is not None:
+        projects = projects.limit(limit)
+
+    return projects.all()
 
 
 def count_projects(

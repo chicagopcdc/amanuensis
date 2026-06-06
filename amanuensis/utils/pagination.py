@@ -7,6 +7,15 @@ from amanuensis.errors import UserError
 
 
 def parse_page_and_per_page(default_per_page, max_per_page):
+    """
+    Parse pagination query params when present.
+
+    Returns None if neither ``page`` nor ``per_page`` is in the query string
+    (caller should return all results). Otherwise returns (page, per_page).
+    """
+    if "page" not in flask.request.args and "per_page" not in flask.request.args:
+        return None
+
     try:
         page = int(flask.request.args.get("page", 1))
         per_page = int(flask.request.args.get("per_page", default_per_page))

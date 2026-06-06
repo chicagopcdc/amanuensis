@@ -37,16 +37,28 @@ def pagination_setup(session, register_user):
     }
 
 
-def _projects_url(page, per_page, special_user_admin=True):
-    query = f"page={page}&per_page={per_page}"
+def _projects_url(page=None, per_page=None, special_user_admin=True):
+    params = []
+    if page is not None:
+        params.append(f"page={page}")
+    if per_page is not None:
+        params.append(f"per_page={per_page}")
+    query = "&".join(params)
     if special_user_admin:
-        query += "&special_user=admin"
-    return f"/projects?{query}"
+        query = f"{query}&special_user=admin" if query else "special_user=admin"
+    return f"/projects?{query}" if query else "/projects"
 
 
 def _get_projects(client, token, page=1, per_page=PER_PAGE):
     return client.get(
         _projects_url(page, per_page),
+        headers={"Authorization": f"bearer {token}"},
+    )
+
+
+def _get_projects_unpaginated(client, token):
+    return client.get(
+        _projects_url(),
         headers={"Authorization": f"bearer {token}"},
     )
 
@@ -73,6 +85,24 @@ def _page_from_link(link_url):
 
 def _project_ids(response):
     return {project["id"] for project in response.get_json()}
+
+
+@pytest.mark.order(0)
+def test_no_pagination_params_returns_all_projects(
+    client, login, mock_requests_post, pagination_setup
+):
+    mock_requests_post()
+    login(pagination_setup["admin_id"], pagination_setup["admin_email"])
+
+    unpaginated = _get_projects_unpaginated(client, pagination_setup["admin_id"])
+    paginated = _get_projects(client, pagination_setup["admin_id"], page=1, per_page=PER_PAGE)
+
+    assert unpaginated.status_code == 200
+    assert paginated.status_code == 200
+    assert len(unpaginated.get_json()) > len(paginated.get_json())
+    assert len(paginated.get_json()) == PER_PAGE
+    assert unpaginated.headers.get("Link") is None
+    assert _project_ids(paginated).issubset(_project_ids(unpaginated))
 
 
 @pytest.mark.order(1)
@@ -125,7 +155,7 @@ def test_pagination_next_page(client, login, mock_requests_post, pagination_setu
     assert _project_ids(via_prev) == first_ids
     assert _parse_link_rel(first_page.headers.get("Link"), "prev") is None
 
-    # GitHub-style Link header on a middle page: first, prev, next, last
+    # Link header on a middle page: first, prev, next, last
     middle_link = second_page.headers.get("Link")
     for rel in ("first", "prev", "next", "last"):
         assert _parse_link_rel(middle_link, rel) is not None
