@@ -22,6 +22,7 @@ from amanuensis.resources.userdatamodel.consortium_data_contributor import (
     create_consortium,
 )
 from amanuensis.resources.userdatamodel.search import create_filter_set, get_filter_sets
+from amanuensis.resources.sower import run_export_job
 from amanuensis.resources.request import  (
     calculate_overall_project_state,
     change_request_state,
@@ -886,6 +887,46 @@ def admin_get_approved_url_get(project_id):
         project = get_projects(session, id=project_id, many=False, throw_not_found=True)
 
         return jsonify({"approved_url": project.approved_url})
+
+
+@blueprint.route("/project/export/<project_id>", methods=["POST"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def admin_export_project(project_id):
+    """
+    Trigger an export job for a project's filterset via sower.
+    """
+    with current_app.db.session as session:
+        project_obj = get_projects(session, id=project_id, many=False, throw_not_found=True)
+
+        project_searches = get_project_searches(session, project_id=project_id)
+
+        if not project_searches:
+            raise UserError("Project {} has no associated filter sets.".format(project_id))
+
+        if len(project_searches) > 1:
+            logger.warning(
+                "Project {} has {} associated filter sets; only the first one "
+                "(filter set id={}) will be used for export.".format(
+                    project_id, len(project_searches), project_searches[0].search.id
+                )
+            )
+
+        # NOTE: assuming a single filterset per project for now
+        search = project_searches[0].search
+
+        job_uid = run_export_job(
+            headers={"Authorization": request.headers.get("Authorization")},
+            project_id=project_id,
+            ids_list=search.ids_list,
+            graphql_object=search.graphql_object,
+        )
+
+        return jsonify({
+            "project_id": project_id,
+            "search_id": search.id,
+            "job_uid": job_uid,
+        })
+
 
 @blueprint.route("/project/status-history/<project_id>", methods=["GET"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")

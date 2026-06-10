@@ -230,6 +230,7 @@ INDEXD_PASSWORD: ''
 # url where authz microservice is running
 ARBORIST: null
 FENCE: 'http://fence-service'
+SOWER: 'http://sower-service'
 
 # //////////////////////////////////////////////////////////////////////////////////////
 # EMAIL
