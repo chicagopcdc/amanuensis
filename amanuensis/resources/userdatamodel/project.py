@@ -71,7 +71,9 @@ def get_projects(
         id=None,
         name=None,
         many=True,
-        throw_not_found=False
+        throw_not_found=False,
+        order_by=Project.id,
+        order_desc=True,
     ):
     projects = _build_projects_query(
         current_session,
@@ -83,7 +85,12 @@ def get_projects(
         associated_user_email=associated_user_email,
         id=id,
         name=name,
-    ).all()
+    )
+
+    if order_by is not None:
+        projects = projects.order_by(order_by.desc() if order_desc else order_by.asc())
+
+    projects = projects.all()
 
 
     if throw_not_found and not projects:
@@ -113,6 +120,7 @@ def get_projects_page(
         name=None,
         order_by=Project.id,
         order_desc=True,
+        throw_not_found=False,
     ):
     projects = _build_projects_query(
         current_session,
@@ -134,7 +142,12 @@ def get_projects_page(
     if limit is not None:
         projects = projects.limit(limit)
 
-    return projects.all()
+    projects = projects.all()
+
+    if throw_not_found and not projects:
+        raise NotFound(f"No projects found")
+
+    return projects
 
 
 def count_projects(
