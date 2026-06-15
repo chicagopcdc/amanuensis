@@ -911,7 +911,6 @@ def admin_export_project(project_id):
                 )
             )
 
-        # NOTE: assuming a single filterset per project for now
         search = project_searches[0].search
 
         job_uid = run_export_job(
