@@ -8,16 +8,18 @@ from amanuensis.auth.auth import current_user, has_arborist_access
 from amanuensis.errors import Forbidden, UserError, AuthNError
 from amanuensis.schema import ProjectSchema
 from amanuensis.resources.userdatamodel.associated_users import create_associated_user, update_associated_user
-from amanuensis.resources.userdatamodel.project import get_projects
+from amanuensis.resources.userdatamodel.project import get_projects,get_projects_page, count_projects
 from amanuensis.resources.userdatamodel.request_has_state import get_request_states
 from amanuensis.resources.request import calculate_overall_project_state
 from amanuensis.resources.userdatamodel.state import get_states
+from amanuensis.utils.pagination import parse_page_and_per_page, build_link_header
 
 blueprint = flask.Blueprint("projects", __name__)
 
 logger = get_logger(__name__)
 
-
+DEFAULT_PER_PAGE = 30
+MAX_PER_PAGE = 100
 
 # cache = SimpleCache()
 
@@ -31,30 +33,43 @@ def get_projetcs():
     except AuthNError:
         raise AuthNError("Your session has expired. Please log in again to continue.")
 
+    pagination = parse_page_and_per_page(DEFAULT_PER_PAGE, MAX_PER_PAGE)
+
     #add user_id from fence if this is the users first time logging in
     with flask.current_app.db.session as session:
         associated_user = create_associated_user(session, logged_user_email, user_id=logged_user_id)
         if not associated_user.user_id:
             update_associated_user(session, associated_user, new_user_id=logged_user_id)
-        
-        project_schema = ProjectSchema(many=True)
-        # special_user = [approver, admin]
+
         special_user = flask.request.args.get("special_user", None)
         is_admin = has_arborist_access(resource="/services/amanuensis", method="*")
-        # special_user = flask.request.get_json().get("special_user", None)
+        if pagination is not None:
+            page, per_page = pagination
+            offset = (page - 1) * per_page
+            limit = per_page
+        else:
+            page = per_page = offset = limit = None
+
         if special_user and special_user == "admin":
             if is_admin:
-                projects = get_projects(session)
+                projects = get_projects_page(session, offset=offset, limit=limit)
+                total = count_projects(session) if pagination is not None else None
             else:
                 # TODO: Check modal on fe and ensure this message makes sense.
                 # If model does not show, add one.
                 raise Forbidden("You do not have the correct permissions to access all projects.")
         else:
-            projects = get_projects(session, associated_user_email=logged_user_email)
-
-
-        
-        
+            projects = get_projects_page(
+                session,
+                offset=offset,
+                limit=limit,
+                associated_user_email=logged_user_email,
+            )
+            total = (
+                count_projects(session, associated_user_email=logged_user_email)
+                if pagination is not None
+                else None
+            )
 
         return_projects = []
 
@@ -104,7 +119,17 @@ def get_projetcs():
 
         session.commit()
 
-    return flask.jsonify(return_projects)
+    response = flask.jsonify(return_projects)
+    if pagination is not None:
+        page, per_page = pagination
+        link = build_link_header(
+            page,
+            per_page,
+            total,
+            extra_query_params={"special_user": special_user},
+        )
+        response.headers["Link"] = link
+    return response
 
 
 @blueprint.route("/", methods=["POST"])
