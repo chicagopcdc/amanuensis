@@ -121,6 +121,7 @@ def get_projects_page(
         order_by=Project.id,
         order_desc=True,
         throw_not_found=False,
+        many=True,
     ):
     projects = _build_projects_query(
         current_session,
@@ -146,6 +147,12 @@ def get_projects_page(
 
     if throw_not_found and not projects:
         raise NotFound(f"No projects found")
+
+    if not many:
+        if len(projects) > 1:
+            raise UserError("More than one project found check inputs")
+        else:
+            projects = projects[0] if projects else None
 
     return projects
 

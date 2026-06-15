@@ -6,6 +6,7 @@ import flask
 from amanuensis.errors import UserError
 
 
+#TODO pass the request as an argument and don't extract it here from the flask object. 
 def parse_page_and_per_page(default_per_page, max_per_page):
     """
     Parse pagination query params when present.
