@@ -39,7 +39,7 @@ def build_export_input(ids_list=None, graphql_object=None):
     return graphql_object
 
 
-def run_export_job(headers, project_id, ids_list=None, graphql_object=None):
+def run_export_job(headers, data_request_id, ids_list=None, graphql_object=None):
     """
     Trigger a sower export job and return its job UID.
     """
@@ -51,7 +51,7 @@ def run_export_job(headers, project_id, ids_list=None, graphql_object=None):
             "filter": build_export_input(
                 ids_list=ids_list, graphql_object=graphql_object
             ),
-            "project_id": project_id,
+            "data_request_id": data_request_id,
         },
     }
 

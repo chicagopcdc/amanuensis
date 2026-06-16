@@ -147,17 +147,17 @@ def upload_file():
     """
 
     key = request.get_json().get("key", None)
-    project_id = request.get_json().get("project_id", None)
+    data_request_id = request.get_json().get("data_request_id", None)
 
     # optional
     expires = request.get_json().get("expires", None)
 
-    if any(param is None for param in [key, project_id]):
+    if any(param is None for param in [key, data_request_id]):
         raise UserError("Your request is missing required inputs.")
 
     with current_app.db.session as session:
 
-        url = project.upload_file(session, key, project_id, expires)
+        url = project.upload_file(session, key, data_request_id, expires)
 
         session.commit()
 
@@ -915,7 +915,7 @@ def admin_export_project(project_id):
 
         job_uid = run_export_job(
             headers={"Authorization": request.headers.get("Authorization")},
-            project_id=project_id,
+            data_request_id=project_id,
             ids_list=search.ids_list,
             graphql_object=search.graphql_object,
         )
