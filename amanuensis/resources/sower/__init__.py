@@ -43,7 +43,7 @@ def run_export_job(headers, data_request_id, ids_list=None, graphql_object=None)
     """
     Trigger a sower export job and return its job UID.
     """
-    url = f"{config['SOWER']}/job/dispatch"
+    url = f"{config['HOSTNAME']}/job/dispatch"
 
     payload = {
         "action": "export",
