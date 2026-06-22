@@ -5,6 +5,7 @@ Adapted from run_sower_job.py in the project_request_scripts repo.
 """
 import requests
 from cdislogging import get_logger
+from urllib.parse import urlparse
 
 from amanuensis.config import config
 from amanuensis.errors import InternalError, UserError
@@ -43,7 +44,11 @@ def run_export_job(headers, data_request_id, ids_list=None, graphql_object=None)
     """
     Trigger a sower export job and return its job UID.
     """
-    url = f"{config['HOSTNAME']}/job/dispatch"
+    hostname = config["HOSTNAME"]
+
+    if not urlparse(hostname).scheme:
+        hostname = f"https://{hostname}"
+    url = f"{hostname}/job/dispatch"
 
     payload = {
         "action": "export",
