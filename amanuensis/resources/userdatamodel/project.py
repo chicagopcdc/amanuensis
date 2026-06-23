@@ -7,12 +7,14 @@ logger = get_logger(__name__)
 
 __all__ = [
     "get_projects",
+    "get_projects_page",
+    "count_projects",
     "create_project",
     "update_project"
 ]
 
 
-def get_projects(
+def _build_projects_query(
         current_session,
         active=True,
         filter_by_active=True,
@@ -22,10 +24,7 @@ def get_projects(
         associated_user_email=None,
         id=None,
         name=None,
-        many=True,
-        throw_not_found=False
     ):
-    
     projects = current_session.query(Project)
 
     #filter out deleted projects by default
@@ -58,7 +57,38 @@ def get_projects(
     if associated_user_email:
         associated_user_email = [associated_user_email] if not isinstance(associated_user_email, list) else associated_user_email
         projects = projects.filter(Project.associated_users_roles.any(and_(ProjectAssociatedUser.associated_user.has(AssociatedUser.email.in_(associated_user_email)), ProjectAssociatedUser.active == True)))
+    return projects
 
+
+def get_projects(
+        current_session,
+        active=True,
+        filter_by_active=True,
+        consortiums=None,
+        user_id=None,
+        associted_user_user_id=None,
+        associated_user_email=None,
+        id=None,
+        name=None,
+        many=True,
+        throw_not_found=False,
+        order_by=Project.id,
+        order_desc=True,
+    ):
+    projects = _build_projects_query(
+        current_session,
+        active=active,
+        filter_by_active=filter_by_active,
+        consortiums=consortiums,
+        user_id=user_id,
+        associted_user_user_id=associted_user_user_id,
+        associated_user_email=associated_user_email,
+        id=id,
+        name=name,
+    )
+
+    if order_by is not None:
+        projects = projects.order_by(order_by.desc() if order_desc else order_by.asc())
 
     projects = projects.all()
 
@@ -74,6 +104,81 @@ def get_projects(
             projects = projects[0] if projects else None
     
     return projects
+
+
+def get_projects_page(
+        current_session,
+        offset=None,
+        limit=None,
+        active=True,
+        filter_by_active=True,
+        consortiums=None,
+        user_id=None,
+        associted_user_user_id=None,
+        associated_user_email=None,
+        id=None,
+        name=None,
+        order_by=Project.id,
+        order_desc=True,
+        throw_not_found=False,
+        many=True,
+    ):
+    projects = _build_projects_query(
+        current_session,
+        active=active,
+        filter_by_active=filter_by_active,
+        consortiums=consortiums,
+        user_id=user_id,
+        associted_user_user_id=associted_user_user_id,
+        associated_user_email=associated_user_email,
+        id=id,
+        name=name,
+    )
+
+    if order_by is not None:
+        projects = projects.order_by(order_by.desc() if order_desc else order_by.asc())
+
+    if offset is not None:
+        projects = projects.offset(offset)
+    if limit is not None:
+        projects = projects.limit(limit)
+
+    projects = projects.all()
+
+    if throw_not_found and not projects:
+        raise NotFound(f"No projects found")
+
+    if not many:
+        if len(projects) > 1:
+            raise UserError("More than one project found check inputs")
+        else:
+            projects = projects[0] if projects else None
+
+    return projects
+
+
+def count_projects(
+        current_session,
+        active=True,
+        filter_by_active=True,
+        consortiums=None,
+        user_id=None,
+        associted_user_user_id=None,
+        associated_user_email=None,
+        id=None,
+        name=None,
+    ):
+    return _build_projects_query(
+        current_session,
+        active=active,
+        filter_by_active=filter_by_active,
+        consortiums=consortiums,
+        user_id=user_id,
+        associted_user_user_id=associted_user_user_id,
+        associated_user_email=associated_user_email,
+        id=id,
+        name=name,
+    ).count()
 
 
 def create_project(current_session, user_id, description, name, institution):
