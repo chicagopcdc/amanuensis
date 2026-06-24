@@ -44,7 +44,7 @@ def build_link_header(page, per_page, total, extra_query_params=None):
     def page_url(requested_page):
         query = dict(base_query)
         query["page"] = requested_page
-        return f"{flask.request.path}?{urlencode(query)}"
+        return f"{flask.request.path}?{urlencode(query, doseq=True)}"
 
     links = [(page_url(1), "first")]
     if page > 1:

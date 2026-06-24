@@ -24,6 +24,9 @@ def _build_projects_query(
         associated_user_email=None,
         id=None,
         name=None,
+        name_contains=None,
+        description_contains=None,
+        researcher_ids=None,
     ):
     projects = current_session.query(Project)
 
@@ -39,6 +42,24 @@ def _build_projects_query(
     if name is not None:
         name = [name] if not isinstance(name, list) else name
         projects = projects.filter(Project.name.in_(name))
+
+    if name_contains:
+        projects = projects.filter(
+            Project.name.ilike(f"%{name_contains}%")
+        )
+
+    if description_contains:
+        projects = projects.filter(
+            Project.description.ilike(f"%{description_contains}%")
+        )
+
+    if researcher_ids:
+        researcher_ids = (
+            [researcher_ids]
+            if not isinstance(researcher_ids, list)
+            else researcher_ids
+        )
+        projects = projects.filter(Project.user_id.in_(researcher_ids))
     
     #get projects by consortium
     if consortiums:
@@ -70,6 +91,9 @@ def get_projects(
         associated_user_email=None,
         id=None,
         name=None,
+        name_contains=None,
+        description_contains=None,
+        researcher_ids=None,
         many=True,
         throw_not_found=False,
         order_by=Project.id,
@@ -85,6 +109,9 @@ def get_projects(
         associated_user_email=associated_user_email,
         id=id,
         name=name,
+        name_contains=name_contains,
+        description_contains=description_contains,
+        researcher_ids=researcher_ids,
     )
 
     if order_by is not None:
@@ -118,6 +145,9 @@ def get_projects_page(
         associated_user_email=None,
         id=None,
         name=None,
+        name_contains=None,
+        description_contains=None,
+        researcher_ids=None,
         order_by=Project.id,
         order_desc=True,
         throw_not_found=False,
@@ -133,6 +163,9 @@ def get_projects_page(
         associated_user_email=associated_user_email,
         id=id,
         name=name,
+        name_contains=name_contains,
+        description_contains=description_contains,
+        researcher_ids=researcher_ids,
     )
 
     if order_by is not None:
@@ -167,6 +200,9 @@ def count_projects(
         associated_user_email=None,
         id=None,
         name=None,
+        name_contains=None,
+        description_contains=None,
+        researcher_ids=None,
     ):
     return _build_projects_query(
         current_session,
@@ -178,6 +214,9 @@ def count_projects(
         associated_user_email=associated_user_email,
         id=id,
         name=name,
+        name_contains=name_contains,
+        description_contains=description_contains,
+        researcher_ids=researcher_ids,
     ).count()
 
 

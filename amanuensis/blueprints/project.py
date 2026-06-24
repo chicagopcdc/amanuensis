@@ -34,6 +34,12 @@ def get_projetcs():
         raise AuthNError("Your session has expired. Please log in again to continue.")
 
     pagination = parse_page_and_per_page(DEFAULT_PER_PAGE, MAX_PER_PAGE)
+    special_user = flask.request.args.get("special_user", None)
+    project_id = flask.request.args.get("id", type=int)
+    name = flask.request.args.get("name")
+    description = flask.request.args.get("description")
+    selected_researcher_ids = flask.request.args.getlist("researcher_id")
+    selected_consortiums = flask.request.args.getlist("consortiums")
 
     #add user_id from fence if this is the users first time logging in
     with flask.current_app.db.session as session:
@@ -41,7 +47,6 @@ def get_projetcs():
         if not associated_user.user_id:
             update_associated_user(session, associated_user, new_user_id=logged_user_id)
 
-        special_user = flask.request.args.get("special_user", None)
         is_admin = has_arborist_access(resource="/services/amanuensis", method="*")
         if pagination is not None:
             page, per_page = pagination
@@ -52,8 +57,28 @@ def get_projetcs():
 
         if special_user and special_user == "admin":
             if is_admin:
-                projects = get_projects_page(session, offset=offset, limit=limit)
-                total = count_projects(session) if pagination is not None else None
+                projects = get_projects_page(
+                    session,
+                    offset=offset,
+                    limit=limit,
+                    id=project_id,
+                    name_contains=name,
+                    description_contains=description,
+                    researcher_ids=selected_researcher_ids or None,
+                    consortiums=selected_consortiums or None,
+                )
+                total = (
+                    count_projects(
+                      session,
+                      id=project_id,
+                      name_contains=name,
+                      description_contains=description,
+                      researcher_ids=selected_researcher_ids or None,
+                      consortiums=selected_consortiums or None,
+                    )
+                    if pagination is not None
+                    else None
+                )
             else:
                 # TODO: Check modal on fe and ensure this message makes sense.
                 # If model does not show, add one.
@@ -64,9 +89,22 @@ def get_projetcs():
                 offset=offset,
                 limit=limit,
                 associated_user_email=logged_user_email,
+                id=project_id,
+                name_contains=name,
+                description_contains=description,
+                researcher_ids=selected_researcher_ids or None,
+                consortiums=selected_consortiums or None,
             )
             total = (
-                count_projects(session, associated_user_email=logged_user_email)
+                count_projects(
+                  session,
+                  associated_user_email=logged_user_email,
+                  id=project_id,
+                  name_contains=name,
+                  description_contains=description,
+                  researcher_ids=selected_researcher_ids or None,
+                  consortiums=selected_consortiums or None,
+                )
                 if pagination is not None
                 else None
             )
@@ -82,7 +120,7 @@ def get_projetcs():
             request_states = get_request_states(session, project_id=project.id, filter_out_depricated=True, latest=True)
             statuses_by_consortium = {request_state.state.code for request_state in request_states}
             consortiums = [request_state.request.consortium_data_contributor.code for request_state in request_states]
-            
+
             submitted_at = request_states[0].create_date if request_states else None
 
             project_status = calculate_overall_project_state(
@@ -126,7 +164,14 @@ def get_projetcs():
             page,
             per_page,
             total,
-            extra_query_params={"special_user": special_user},
+            extra_query_params={
+                "special_user": special_user,
+                "id": project_id,
+                "name": name,
+                "description": description,
+                "researcher_id": selected_researcher_ids,
+                "consortiums": selected_consortiums,
+            },
         )
         response.headers["Link"] = link
     return response
@@ -152,12 +197,12 @@ def create_project():
 
     if not name:
         raise UserError("name is a required field")
-    
+
     description = flask.request.get_json().get("description", None)
 
     if not description:
         raise UserError("description is a required field")
-    
+
     institution = flask.request.get_json().get("institution", None)
 
     if not institution:
@@ -167,7 +212,7 @@ def create_project():
 
     if not filter_set_ids:
         raise UserError("an id of a filter-set is required field")
-    
+
     # get the explorer_id from the querystring ex: https://portal-dev.pedscommons.org/explorer?id=1
     explorer_id = flask.request.args.get('explorer', default=1, type=int)
 
