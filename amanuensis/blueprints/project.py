@@ -120,6 +120,8 @@ def _apply_post_filters(enriched, selected_statuses, submitted_at_start, submitt
     return enriched
     
 
+
+#TODO when / if the project table gets a ton of record and this doesn't perform well we will need to add  status/last_submitted_at column on Project that gets updated whenever create_request_state runs, so filtering/sorting/pagination can all happen in one SQL query again.
 @blueprint.route("/", methods=["GET"])
 def get_projetcs():
     try:
