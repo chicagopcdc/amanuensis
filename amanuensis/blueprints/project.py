@@ -8,12 +8,18 @@ from amanuensis.resources.project import create
 from amanuensis.resources.fence import fence_get_users
 from amanuensis.auth.auth import current_user, has_arborist_access
 from amanuensis.errors import Forbidden, UserError, AuthNError
-from amanuensis.schema import ProjectSchema
+from amanuensis.schema import (
+    ProjectSchema,
+    ConsortiumDataContributorSchema,
+)
 from amanuensis.resources.userdatamodel.associated_users import create_associated_user, update_associated_user
 from amanuensis.resources.userdatamodel.project import get_projects,get_projects_page, count_projects
 from amanuensis.resources.userdatamodel.request_has_state import get_request_states
 from amanuensis.resources.request import calculate_overall_project_state
 from amanuensis.resources.userdatamodel.state import get_states
+from amanuensis.resources.userdatamodel.consortium_data_contributor import (
+    get_consortiums,
+)
 from amanuensis.utils.pagination import parse_page_and_per_page, build_link_header
 
 blueprint = flask.Blueprint("projects", __name__)
@@ -119,7 +125,23 @@ def _apply_post_filters(enriched, selected_statuses, submitted_at_start, submitt
         enriched = [(p, code) for (p, code) in enriched if p["submitted_at"] and p["submitted_at"] <= submitted_at_end]
     return enriched
     
+@blueprint.route("/consortiums", methods=["GET"])
+def get_project_consortiums():
+    try:
+        current_user.id
+    except AuthNError:
+        raise AuthNError(
+            "Your session has expired. Please log in again to continue."
+        )
 
+    consortium_schema = ConsortiumDataContributorSchema(many=True)
+
+    with flask.current_app.db.session as session:
+        consortiums = get_consortiums(session)
+        response = consortium_schema.dump(consortiums)
+        session.commit()
+
+    return flask.jsonify(response)
 
 #TODO when / if the project table gets a ton of record and this doesn't perform well we will need to add  status/last_submitted_at column on Project that gets updated whenever create_request_state runs, so filtering/sorting/pagination can all happen in one SQL query again.
 @blueprint.route("/", methods=["GET"])
