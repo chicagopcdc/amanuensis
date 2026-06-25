@@ -1,6 +1,6 @@
 from cdislogging import get_logger
 from amanuensis.errors import NotFound, UserError
-from amanuensis.models import Project, ProjectAssociatedUser, AssociatedUser
+from amanuensis.models import Project, ProjectAssociatedUser, AssociatedUser, Request, ConsortiumDataContributor
 from sqlalchemy import and_
 
 logger = get_logger(__name__)
@@ -61,10 +61,15 @@ def _build_projects_query(
         )
         projects = projects.filter(Project.user_id.in_(researcher_ids))
     
-    #get projects by consortium
     if consortiums:
         consortiums = [consortiums] if not isinstance(consortiums, list) else consortiums
-        projects = projects.filter(Project.requests.consortium_data_contributor.code.in_(consortiums))
+        projects = projects.filter(
+            Project.requests.any(
+                Request.consortium_data_contributor.has(
+                    ConsortiumDataContributor.code.in_(consortiums)
+                )
+            )
+        )
 
     if user_id:
         user_id = [user_id] if not isinstance(user_id, list) else user_id
@@ -170,7 +175,6 @@ def get_projects_page(
 
     if order_by is not None:
         projects = projects.order_by(order_by.desc() if order_desc else order_by.asc())
-
     if offset is not None:
         projects = projects.offset(offset)
     if limit is not None:
