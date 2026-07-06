@@ -100,6 +100,52 @@ def test_get_datapoints(gen_project,
         status_code = 404
     ).get_json()
 
+def test_get_project_datapoints_by_project_id(
+    gen_project,
+    admin_add_project_datapoints_post,
+    admin_get_project_datapoints_by_project_id_get,
+    admin_user,
+    login,
+):
+    project_id = gen_project(name="test_project_datapoints_by_project_id")
+    other_project_id = gen_project(name="test_other_project_datapoints")
+
+    login(admin_user[0], admin_user[1])
+
+    admin_add_project_datapoints_post(
+        authorization_token=admin_user[0],
+        term="subject",
+        value_list=["submitter_id", "sex"],
+        type="w",
+        project_id=project_id,
+    )
+    admin_add_project_datapoints_post(
+        authorization_token=admin_user[0],
+        term="person",
+        value_list=["race"],
+        type="w",
+        project_id=project_id,
+    )
+    admin_add_project_datapoints_post(
+        authorization_token=admin_user[0],
+        term="lab",
+        value_list=["lab_test"],
+        type="w",
+        project_id=other_project_id,
+    )
+
+    response = admin_get_project_datapoints_by_project_id_get(
+        authorization_token=admin_user[0],
+        project_id=project_id,
+    ).get_json()
+
+    assert len(response) == 2
+    assert {datapoint["term"] for datapoint in response} == {
+        "subject",
+        "person",
+    }
+    assert all(datapoint["project_id"] == project_id for datapoint in response)
+
 def test_create_datapoints_success(gen_project,
                            admin_add_project_datapoints_post,
                            admin_get_project_datapoints_get,
