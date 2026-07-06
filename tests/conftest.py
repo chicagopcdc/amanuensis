@@ -1459,6 +1459,25 @@ def admin_get_project_datapoints_get(session, client):
     yield route_admin_get_project_datapoints_get
 
 @pytest.fixture(scope="function", autouse=True)
+def admin_get_project_datapoints_by_project_id_get(session, client):
+    def route_admin_get_project_datapoints_by_project_id_get(
+        authorization_token,
+        project_id,
+        status_code=200,
+    ):
+        url = f"/project-datapoints/project/{project_id}"
+
+        response = client.get(
+            url,
+            headers={"Authorization": f"bearer {authorization_token}"},
+        )
+
+        assert response.status_code == status_code
+        return response
+
+    yield route_admin_get_project_datapoints_by_project_id_get
+
+@pytest.fixture(scope="function", autouse=True)
 def admin_remove_associated_user_from_project_delete(session, client, mock_requests_post):
 
     def route_admin_remove_associated_user_from_project_delete(authorization_token, 

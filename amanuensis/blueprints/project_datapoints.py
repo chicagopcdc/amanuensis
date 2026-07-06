@@ -99,6 +99,24 @@ def add_datapoints():
         session.commit()
         return jsonify(project_datapoints_schema.dump(project_datapoints))
 
+@blueprint.route("/project/<int:project_id>", methods=["GET"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def get_project_datapoints_by_project_id(project_id):
+    """
+    Returns all active datapoints for one project.
+    """
+    project_datapoints_schema = ProjectDataPointsSchema(many=True)
+
+    with current_app.db.session as session:
+        project_datapoints = get_project_datapoints(
+            session,
+            project_id=project_id,
+            many=True,
+            throw_not_found=False,
+        )
+
+        return jsonify(project_datapoints_schema.dump(project_datapoints))
+
 @blueprint.route("/get-datapoints",methods = ["GET"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def get_datapoints():
