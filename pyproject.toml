@@ -11,34 +11,37 @@ include = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.9.2,<4.0.0"
+python = ">=3.13,<4.0.0"
 alembic = "^1.13.3"
-authutils = "7.1.1"
+authutils = "^7.2.8"
 boto3 = "1.35.50"
 cdiserrors = "1.0.0"
 cdislogging = "^1.1.1"
 flask = ">=2.3.3"
 flask-cors = "5.0.0"
-gen3authz = "2.2.0"
+gen3authz = "3.1.1"
 gen3config = ">=1.1.0"
 
 # this markupsafe pin is due to an error somewhere between Python 3.9.6 and 3.9.16
 markupsafe = "^2.0.1"
 
 requests = ">=2.32.3"
-sqlalchemy = ">=2.0.36"
-werkzeug = "3.0.6"
+sqlalchemy = ">=1.4,<2.0"
+werkzeug = "3.1.5"
 
 html2text = "^2020.1.16"
 
 # Testing a fix to pcdcutils
-pcdcutils = {git = "https://github.com/chicagopcdc/pcdcutils.git", rev = "0.5.1"}
+pcdcutils = {git = "https://github.com/chicagopcdc/pcdcutils.git", rev = "0.5.3"}
 pcdc-aws-client = {git = "https://github.com/chicagopcdc/pcdc-aws-client.git", rev = "1.5.1"}
-userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "1.11.2" }
+userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "sqlalchemydowngrade" }
 psycopg2-binary = "<3"
 
 hubspot-api-client = "^10.0.0"
 gunicorn = ">=22.0.0"
+pyjwt = "2.13.0"
+pandas = ">=2.0"
+cryptography = "48.0.1"
 
 [tool.poetry.group.dev.dependencies]
 addict = "^2.2.1"
