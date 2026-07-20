@@ -26,7 +26,7 @@ gen3config = ">=1.1.0"
 markupsafe = "^2.0.1"
 
 requests = ">=2.32.3"
-sqlalchemy = ">=1.4,<2.0"
+sqlalchemy = ">=2.0.36"
 werkzeug = "3.1.5"
 
 html2text = "^2020.1.16"
@@ -34,7 +34,7 @@ html2text = "^2020.1.16"
 # Testing a fix to pcdcutils
 pcdcutils = {git = "https://github.com/chicagopcdc/pcdcutils.git", rev = "0.5.3"}
 pcdc-aws-client = {git = "https://github.com/chicagopcdc/pcdc-aws-client.git", rev = "1.5.1"}
-userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "sqlalchemydowngrade" }
+userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "1.11.2" }
 psycopg2-binary = "<3"
 
 hubspot-api-client = "^10.0.0"
