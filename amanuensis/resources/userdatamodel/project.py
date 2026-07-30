@@ -1,6 +1,6 @@
 from cdislogging import get_logger
 from amanuensis.errors import NotFound, UserError
-from amanuensis.models import Project, ProjectAssociatedUser, AssociatedUser
+from amanuensis.models import Project, ProjectAssociatedUser, AssociatedUser, Request, ConsortiumDataContributor
 from sqlalchemy import and_
 
 logger = get_logger(__name__)
@@ -24,6 +24,9 @@ def _build_projects_query(
         associated_user_email=None,
         id=None,
         name=None,
+        name_contains=None,
+        description_contains=None,
+        researcher_ids=None,
     ):
     projects = current_session.query(Project)
 
@@ -39,11 +42,34 @@ def _build_projects_query(
     if name is not None:
         name = [name] if not isinstance(name, list) else name
         projects = projects.filter(Project.name.in_(name))
+
+    if name_contains:
+        projects = projects.filter(
+            Project.name.ilike(f"%{name_contains}%")
+        )
+
+    if description_contains:
+        projects = projects.filter(
+            Project.description.ilike(f"%{description_contains}%")
+        )
+
+    if researcher_ids:
+        researcher_ids = (
+            [researcher_ids]
+            if not isinstance(researcher_ids, list)
+            else researcher_ids
+        )
+        projects = projects.filter(Project.user_id.in_(researcher_ids))
     
-    #get projects by consortium
     if consortiums:
         consortiums = [consortiums] if not isinstance(consortiums, list) else consortiums
-        projects = projects.filter(Project.requests.consortium_data_contributor.code.in_(consortiums))
+        projects = projects.filter(
+            Project.requests.any(
+                Request.consortium_data_contributor.has(
+                    ConsortiumDataContributor.code.in_(consortiums)
+                )
+            )
+        )
 
     if user_id:
         user_id = [user_id] if not isinstance(user_id, list) else user_id
@@ -70,6 +96,9 @@ def get_projects(
         associated_user_email=None,
         id=None,
         name=None,
+        name_contains=None,
+        description_contains=None,
+        researcher_ids=None,
         many=True,
         throw_not_found=False,
         order_by=Project.id,
@@ -85,6 +114,9 @@ def get_projects(
         associated_user_email=associated_user_email,
         id=id,
         name=name,
+        name_contains=name_contains,
+        description_contains=description_contains,
+        researcher_ids=researcher_ids,
     )
 
     if order_by is not None:
@@ -118,6 +150,9 @@ def get_projects_page(
         associated_user_email=None,
         id=None,
         name=None,
+        name_contains=None,
+        description_contains=None,
+        researcher_ids=None,
         order_by=Project.id,
         order_desc=True,
         throw_not_found=False,
@@ -133,11 +168,13 @@ def get_projects_page(
         associated_user_email=associated_user_email,
         id=id,
         name=name,
+        name_contains=name_contains,
+        description_contains=description_contains,
+        researcher_ids=researcher_ids,
     )
 
     if order_by is not None:
         projects = projects.order_by(order_by.desc() if order_desc else order_by.asc())
-
     if offset is not None:
         projects = projects.offset(offset)
     if limit is not None:
@@ -167,6 +204,9 @@ def count_projects(
         associated_user_email=None,
         id=None,
         name=None,
+        name_contains=None,
+        description_contains=None,
+        researcher_ids=None,
     ):
     return _build_projects_query(
         current_session,
@@ -178,6 +218,9 @@ def count_projects(
         associated_user_email=associated_user_email,
         id=id,
         name=name,
+        name_contains=name_contains,
+        description_contains=description_contains,
+        researcher_ids=researcher_ids,
     ).count()
 
 
