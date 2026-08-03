@@ -3,11 +3,11 @@
 #   docker run -v ~/.gen3/amanuensis/amanuensis-config.yaml:/var/www/amanuensis/amanuensis-config.yaml  amanuensis:latest
 # To check running container do: docker exec -it CONTAINER bash
 
-ARG AZLINUX_BASE_VERSION=master
+ARG AZLINUX_BASE_VERSION=3.13-pythonnginx
 
 
 # ------ Base stage ------
-FROM quay.io/cdis/python-nginx-al:${AZLINUX_BASE_VERSION} AS base
+FROM quay.io/cdis/amazonlinux-base:${AZLINUX_BASE_VERSION} AS base
 # Comment this in, and comment out the line above, if quay is down
 # FROM 707767160287.dkr.ecr.us-east-1.amazonaws.com/gen3/python-nginx-al:${AZLINUX_BASE_VERSION} as base
 
@@ -15,6 +15,8 @@ ENV appname=amanuensis
 
 WORKDIR /${appname}
 RUN chown -R gen3:gen3 /${appname}
+USER root
+RUN chown -R gen3:gen3 /venv
 
 # ------ Builder stage ------
 FROM base AS builder
@@ -42,6 +44,7 @@ FROM base
 
 ENV PATH="/${appname}/.venv/bin:$PATH"
 
+USER root
 # Install ccrypt to decrypt dbgap telmetry files
 RUN echo "Upgrading dnf"; \
     dnf upgrade -y; \
@@ -50,6 +53,7 @@ RUN echo "Upgrading dnf"; \
         libxcrypt-compat-4.4.33 \
         libpq-15.0 \
         gcc \
+        diffutils \
         tar xz; \
     echo "Installing RPM"; \
     rpm -i https://ccrypt.sourceforge.net/download/1.11/ccrypt-1.11-1.src.rpm && \
@@ -57,5 +61,7 @@ RUN echo "Upgrading dnf"; \
     tar -zxf ccrypt-1.11.tar.gz && cd ccrypt-1.11 && ./configure --disable-libcrypt && make install && make check;
 
 COPY --chown=gen3:gen3 --from=builder /$appname /$appname
+
+USER gen3
 
 CMD ["/bin/bash", "-c", "/amanuensis/dockerrun.bash"]
