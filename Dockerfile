@@ -14,18 +14,18 @@ FROM quay.io/cdis/amazonlinux-base:${AZLINUX_BASE_VERSION} AS base
 ENV appname=amanuensis
 
 WORKDIR /${appname}
-RUN chown -R gen3:gen3 /${appname}
 USER root
+RUN chown -R gen3:gen3 /${appname}
 RUN chown -R gen3:gen3 /venv
+USER gen3
 
 # ------ Builder stage ------
 FROM base AS builder
 
-USER gen3
-
 # copy ONLY poetry artifact, install the dependencies but not the app;
 # this will make sure that the dependencies are cached
 COPY poetry.lock pyproject.toml /${appname}/
+WORKDIR /${appname}
 RUN poetry install -vv --no-root --only main --no-interaction
 
 # Move app files into working directory
