@@ -913,11 +913,39 @@ def admin_export_project(project_id):
 
         search = project_searches[0].search
 
+        project_requests = project_obj.requests
+
+        consortium_name = None
+        if not project_requests:
+            logger.warning(
+                "Project {} has no associated requests; unable to determine "
+                "consortium for export filename, using default naming.".format(
+                    project_id
+                )
+            )
+        else:
+            distinct_consortium_ids = {
+                r.consortium_data_contributor_id for r in project_requests
+            }
+            if len(distinct_consortium_ids) > 1:
+                logger.warning(
+                    "Project {} has requests from {} different consortiums; only "
+                    "the first one (consortium id={}) will be used for the export "
+                    "filename.".format(
+                        project_id,
+                        len(distinct_consortium_ids),
+                        project_requests[0].consortium_data_contributor_id,
+                    )
+                )
+            consortium_name = project_requests[0].consortium_data_contributor.name
+
         job_uid = run_export_job(
             headers={"Authorization": request.headers.get("Authorization")},
             data_request_id=project_id,
             ids_list=search.ids_list,
             graphql_object=search.graphql_object,
+            consortium_name=consortium_name,
+            project_code=project_obj.description,
         )
 
         return jsonify({
