@@ -22,6 +22,8 @@ USER gen3
 # ------ Builder stage ------
 FROM base AS builder
 
+ENV POETRY_VIRTUALENVS_CREATE=false
+
 # copy ONLY poetry artifact, install the dependencies but not the app;
 # this will make sure that the dependencies are cached
 COPY poetry.lock pyproject.toml /${appname}/
@@ -42,7 +44,8 @@ RUN poetry install --without dev --no-interaction
 # ------ Final stage ------
 FROM base
 
-ENV PATH="/${appname}/.venv/bin:$PATH"
+COPY --chown=gen3:gen3 --from=builder /venv /venv
+ENV PATH="/venv/bin:$PATH"
 
 USER root
 # Install ccrypt to decrypt dbgap telmetry files
