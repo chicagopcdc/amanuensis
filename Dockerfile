@@ -61,6 +61,8 @@ RUN echo "Upgrading dnf"; \
     tar -zxf ccrypt-1.11.tar.gz && cd ccrypt-1.11 && ./configure --disable-libcrypt && make install && make check;
 
 COPY --chown=gen3:gen3 --from=builder /$appname /$appname
+RUN mkdir -p /var/www/amanuensis && \
+    chown -R gen3:gen3 /var/www/amanuensis
 
 USER gen3
 
