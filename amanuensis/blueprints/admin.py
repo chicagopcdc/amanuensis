@@ -890,7 +890,7 @@ def admin_get_approved_url_get(project_id):
         return jsonify({"approved_url": project.approved_url})
 
 
-def _sanitize_for_filename(value, max_length=64):
+def _sanitize_for_filename(value, max_length=256):
     """Make a string safe to use as a component of an S3 key / filename."""
     if not value:
         return None
