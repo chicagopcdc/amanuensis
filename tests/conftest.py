@@ -1445,7 +1445,7 @@ def admin_get_project_datapoints_get(session, client):
             json["many"] = many
         url = "/project-datapoints/get-datapoints"
 
-        response = client.get(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
+        response = client.post(url, json=json, headers={"Authorization": f'bearer {authorization_token}'})
         assert response.status_code == status_code
         if response.status_code == 200:
             values = response.get_json()[0] if many else response.get_json()
