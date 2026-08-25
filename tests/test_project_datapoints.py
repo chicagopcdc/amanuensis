@@ -103,10 +103,15 @@ def test_get_datapoints(gen_project,
 def test_get_project_datapoints_by_project_id(
     gen_project,
     admin_add_project_datapoints_post,
-    admin_get_project_datapoints_by_project_id_get,
+    admin_get_project_datapoints_get,
     admin_user,
     login,
 ):
+    # NOTE: the dedicated GET /project-datapoints/project/<id> endpoint this
+    # test originally covered was removed; project-scoped lookups now go
+    # through POST /project-datapoints/get-datapoints with project_id+many=True
+    # (see getProjectDatapoints in data-portal), so this test now exercises
+    # that path instead.
     project_id = gen_project(name="test_project_datapoints_by_project_id")
     other_project_id = gen_project(name="test_other_project_datapoints")
 
@@ -134,9 +139,10 @@ def test_get_project_datapoints_by_project_id(
         project_id=other_project_id,
     )
 
-    response = admin_get_project_datapoints_by_project_id_get(
+    response = admin_get_project_datapoints_get(
         authorization_token=admin_user[0],
         project_id=project_id,
+        many=True,
     ).get_json()
 
     assert len(response) == 2
@@ -145,6 +151,29 @@ def test_get_project_datapoints_by_project_id(
         "person",
     }
     assert all(datapoint["project_id"] == project_id for datapoint in response)
+
+def test_get_project_datapoints_by_project_id_empty(
+    gen_project,
+    admin_get_project_datapoints_get,
+    admin_user,
+    login,
+):
+    # Regression test: a project with zero active datapoints should return
+    # 200 + [] for a many=True project-scoped lookup, not a 404. The old
+    # dedicated GET /project-datapoints/project/<id> endpoint achieved this
+    # via throw_not_found=False; /get-datapoints must preserve the same
+    # behavior for many=True now that it's the only project-scoped route.
+    project_id = gen_project(name="test_project_datapoints_by_project_id_empty")
+
+    login(admin_user[0], admin_user[1])
+
+    response = admin_get_project_datapoints_get(
+        authorization_token=admin_user[0],
+        project_id=project_id,
+        many=True,
+    ).get_json()
+
+    assert response == []
 
 def test_create_datapoints_success(gen_project,
                            admin_add_project_datapoints_post,

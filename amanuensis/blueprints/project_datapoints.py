@@ -99,25 +99,7 @@ def add_datapoints():
         session.commit()
         return jsonify(project_datapoints_schema.dump(project_datapoints))
 
-@blueprint.route("/project/<int:project_id>", methods=["GET"])
-@check_arborist_auth(resource="/services/amanuensis", method="*")
-def get_project_datapoints_by_project_id(project_id):
-    """
-    Returns all active datapoints for one project.
-    """
-    project_datapoints_schema = ProjectDataPointsSchema(many=True)
-
-    with current_app.db.session as session:
-        project_datapoints = get_project_datapoints(
-            session,
-            project_id=project_id,
-            many=True,
-            throw_not_found=False,
-        )
-
-        return jsonify(project_datapoints_schema.dump(project_datapoints))
-
-@blueprint.route("/get-datapoints",methods = ["GET"])
+@blueprint.route("/get-datapoints",methods = ["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def get_datapoints():
     id = request.get_json().get("id",None)
@@ -130,7 +112,22 @@ def get_datapoints():
 
         project_datapoints_schema = None
 
-        project_datapoints = get_project_datapoints(session,term,id,project_id,type,many = many)
+        # When fetching a list (many=True), a project with zero active
+        # datapoints is a valid, empty result -- not a 404. This preserves
+        # the behavior of the removed GET /project/<project_id> endpoint,
+        # which explicitly passed throw_not_found=False for the same reason.
+        # Single-item lookups (many=False/None) keep the default
+        # throw_not_found=True, since a missing id/term lookup is still
+        # treated as "not found".
+        project_datapoints = get_project_datapoints(
+            session,
+            term,
+            id,
+            project_id,
+            type,
+            many=many,
+            throw_not_found=not bool(many),
+        )
 
         if isinstance(project_datapoints, list):
             project_datapoints_schema = ProjectDataPointsSchema(many=True)
@@ -141,5 +138,3 @@ def get_datapoints():
 
 
         return jsonify(project_datapoints_schema.dump(project_datapoints))
-
-

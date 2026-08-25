@@ -37,9 +37,16 @@ try:
 except ImportError:
     # If it doesn't, look in ``/var/www/amanuensis``.
     try:
-        import imp
+        import importlib.util
 
-        imp.load_source("local_settings", "/var/www/amanuensis/local_settings.py")
-        use_deprecated_settings()
+        spec = importlib.util.spec_from_file_location(
+            "local_settings",
+            "/var/www/amanuensis/local_settings.py",
+        )
+        if spec and spec.loader:
+            local_settings = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(local_settings)
+            globals().update(vars(local_settings))
+            use_deprecated_settings()
     except IOError:
         pass

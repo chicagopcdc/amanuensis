@@ -5,6 +5,7 @@ will maintain coherence between both systems.
 """
 
 import functools
+import re
 from datetime import datetime, timezone
 from cdiserrors import APIError
 from flask import request, jsonify, Blueprint, current_app
@@ -889,6 +890,16 @@ def admin_get_approved_url_get(project_id):
         return jsonify({"approved_url": project.approved_url})
 
 
+def _sanitize_for_filename(value, max_length=256):
+    """Make a string safe to use as a component of an S3 key / filename."""
+    if not value:
+        return None
+    # keep alphanumerics, dashes, underscores; collapse everything else to '_'
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", value.strip())
+    cleaned = cleaned.strip("_")
+    return cleaned[:max_length] or None
+
+
 @blueprint.route("/project/export/<project_id>", methods=["POST"])
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def admin_export_project(project_id):
@@ -913,11 +924,38 @@ def admin_export_project(project_id):
 
         search = project_searches[0].search
 
+        project_requests = project_obj.requests
+
+        consortium_name = None
+        if not project_requests:
+            logger.warning(
+                "Project {} has no associated requests; unable to determine "
+                "consortium for export filename, using default naming.".format(
+                    project_id
+                )
+            )
+        else:
+            # a project can have requests from multiple consortiums; concatenate
+            # all distinct consortium names (sorted for a stable, deterministic
+            # filename regardless of request insertion order)
+            distinct_consortium_names = sorted(
+                {
+                    r.consortium_data_contributor.name
+                    for r in project_requests
+                    if r.consortium_data_contributor is not None
+                }
+            )
+            consortium_name = _sanitize_for_filename(
+                "_".join(distinct_consortium_names)
+            )
+
         job_uid = run_export_job(
             headers={"Authorization": request.headers.get("Authorization")},
             data_request_id=project_id,
             ids_list=search.ids_list,
             graphql_object=search.graphql_object,
+            consortium_name=consortium_name,
+            project_code=_sanitize_for_filename(project_obj.description),
         )
 
         return jsonify({
