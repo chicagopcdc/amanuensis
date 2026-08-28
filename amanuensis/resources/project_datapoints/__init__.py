@@ -16,10 +16,19 @@ def _get_data_dictionary_nodes(data_dictionary):
     same rule the data portal uses to build the tables in the select attributes
     section, so a term the portal is currently offering can never be reported as
     missing here.
+
+    Nodes are keyed by their id rather than by the key they arrived under, so
+    the lookup does not depend on how the source keyed them.
+
+    Note the job has to be pointed at the dictionary sheepdog serves, not at the
+    raw schema.json artifact in global.dictionaryUrl. The artifact leaves links
+    as unresolved {"$ref": "_definitions.yaml#/to_one"}, so every link-addressed
+    value ("subjects.submitter_id") would fail to validate against it. Sheepdog
+    resolves those refs before serving /_dictionary/_all.
     """
     nodes = {
-        node: schema
-        for node, schema in data_dictionary.items()
+        schema["id"]: schema
+        for schema in data_dictionary.values()
         if isinstance(schema, dict) and schema.get("id") and schema.get("properties")
     }
 
