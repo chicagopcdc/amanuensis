@@ -1,4 +1,5 @@
 import pytest
+from unittest.mock import MagicMock, patch
 import flask
 import json
 import os
@@ -80,6 +81,22 @@ def data_dictionary_file():
     yield path
 
     os.remove(path)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def s3(app_instance):
+    """
+    Nothing here touches s3, so override the conftest fixture that reaches out to
+    a real bucket.
+    """
+    mock_s3_client = MagicMock()
+    mock_s3_client.create_bucket.return_value = None
+    mock_s3_client.list_buckets.return_value = {'Buckets': []}
+    mock_s3_client.delete_object.return_value = None
+    mock_s3_client.list_objects_v2.return_value = {'Contents': []}
+
+    with patch.object(app_instance.s3_boto, 's3_client', mock_s3_client):
+        yield mock_s3_client
 
 
 @pytest.fixture(scope="module", autouse=True)
