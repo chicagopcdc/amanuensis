@@ -321,6 +321,46 @@ def test_manual_change_to_project_datapoint_auto_updates_is_valid(session,
 
 
 @pytest.mark.order(8)
+def test_manual_change_to_project_datapoint_does_not_update_is_valid(session,
+                                                                      pytestconfig,
+                                                                      gen_project,
+                                                                      admin_add_project_datapoints_post,
+                                                                      admin_modify_project_datapoints_put,
+                                                                      admin_user,
+                                                                      login):
+    """
+    A PUT that passes the same term/value_list that is already stored must not
+    reset is_valid to True.  Without this guard an admin retry or a duplicate
+    API call would silently clear a flag the validate job had just set, leaving
+    a known-bad row appearing valid until the next nightly run.
+    """
+    project_id = gen_project(name="test_manual_change_to_project_datapoint_does_not_update_is_valid")
+
+    login(admin_user[0], admin_user[1])
+
+    datapoint_id = admin_add_project_datapoints_post(
+        authorization_token=admin_user[0],
+        term="subject",
+        value_list=["type", "was_renamed_in_the_data_dictionary"],
+        type="w",
+        project_id=project_id,
+    ).get_json()["id"]
+
+    main(["--file_name", pytestconfig.getoption("--configuration-file")])
+
+    assert session.query(ProjectDataPoints).filter(ProjectDataPoints.id == datapoint_id).first().is_valid == False
+
+    # PUT with the same invalid value_list — a no-op edit must NOT clear the flag
+    admin_modify_project_datapoints_put(
+        authorization_token=admin_user[0],
+        id=datapoint_id,
+        value_list=["type", "was_renamed_in_the_data_dictionary"],
+    )
+
+    assert session.query(ProjectDataPoints).filter(ProjectDataPoints.id == datapoint_id).first().is_valid == False
+
+
+@pytest.mark.order(9)
 def test_check_project_datapoints_missing_data_dictionary(session):
     with pytest.raises(InternalError):
         check_project_datapoints(session, data_dictionary_file_name="not_real.json")
