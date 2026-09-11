@@ -123,7 +123,7 @@ def gen_project(login, admin_user):
     yield _make_project
 
 
-pytest.mark.order(1)
+@pytest.mark.order(1)
 def test__get_data_dictionary_nodes():
     nodes = _get_data_dictionary_nodes(DATA_DICTIONARY)
 
@@ -135,7 +135,7 @@ def test__get_data_dictionary_nodes():
         _get_data_dictionary_nodes({"_definitions": {}, "_terms": {}})
 
 
-pytest.mark.order(2)
+@pytest.mark.order(2)
 def test__get_data_dictionary_nodes_is_key_agnostic():
     """
     Nodes resolve by id, not by the key the source happened to use.
@@ -147,7 +147,7 @@ def test__get_data_dictionary_nodes_is_key_agnostic():
     assert _get_data_dictionary_nodes(by_file_name) == _get_data_dictionary_nodes(DATA_DICTIONARY)
 
 
-pytest.mark.order(3)
+@pytest.mark.order(3)
 def test__get_link_properties():
     assert _get_link_properties(_link_property("id", "submitter_id")) == {"id", "submitter_id"}
 
@@ -158,7 +158,7 @@ def test__get_link_properties():
     assert _get_link_properties("not a dict") is None
 
 
-pytest.mark.order(4)
+@pytest.mark.order(4)
 def test__check_data_dictionary():
     nodes = _get_data_dictionary_nodes(DATA_DICTIONARY)
 
@@ -194,7 +194,7 @@ def test__check_data_dictionary():
     assert _check_data_dictionary("person", [42], "not_a_string", nodes) == False
 
 
-pytest.mark.order(5)
+@pytest.mark.order(5)
 def test_check_project_datapoints(session,
                                   pytestconfig,
                                   gen_project,
@@ -246,7 +246,7 @@ def test_check_project_datapoints(session,
     assert session.query(ProjectDataPoints).filter(ProjectDataPoints.id == invalid_blacklist).first().is_valid == False
 
 
-pytest.mark.order(6)
+@pytest.mark.order(6)
 def test_check_project_datapoints_covers_inactive_rows(session,
                                                        pytestconfig,
                                                        gen_project,
@@ -279,7 +279,7 @@ def test_check_project_datapoints_covers_inactive_rows(session,
     assert datapoint.is_valid == False
 
 
-pytest.mark.order(7)
+@pytest.mark.order(7)
 def test_manual_change_to_project_datapoint_auto_updates_is_valid(session,
                                                                   pytestconfig,
                                                                   gen_project,
@@ -320,7 +320,7 @@ def test_manual_change_to_project_datapoint_auto_updates_is_valid(session,
     assert session.query(ProjectDataPoints).filter(ProjectDataPoints.id == datapoint_id).first().is_valid
 
 
-pytest.mark.order(8)
+@pytest.mark.order(8)
 def test_check_project_datapoints_missing_data_dictionary(session):
     with pytest.raises(InternalError):
         check_project_datapoints(session, data_dictionary_file_name="not_real.json")

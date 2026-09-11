@@ -53,6 +53,8 @@ def _get_link_properties(property_schema):
     if not isinstance(any_of, list):
         return None
 
+    result = None
+
     for option in any_of:
         if not isinstance(option, dict):
             continue
@@ -60,12 +62,18 @@ def _get_link_properties(property_schema):
         items = option.get("items")
 
         if isinstance(items, dict) and isinstance(items.get("properties"), dict):
-            return set(items["properties"].keys())
+            fields = set(items["properties"].keys())
+        elif isinstance(option.get("properties"), dict):
+            fields = set(option["properties"].keys())
+        else:
+            continue
 
-        if isinstance(option.get("properties"), dict):
-            return set(option["properties"].keys())
+        # Union across all matching options so fields declared in any variant are
+        # recognised — early-exit on the first hit would miss fields that only
+        # appear in later anyOf options.
+        result = fields if result is None else result | fields
 
-    return None
+    return result
 
 
 def _check_data_dictionary(term, value_list, datapoint_name, data_dictionary_nodes):

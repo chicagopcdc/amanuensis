@@ -144,9 +144,13 @@ def update_project_datapoints(current_session,
         prev_datapoints.is_valid = is_valid
 
     elif term is not None or value_list is not None:
-        # the row was edited, so give it the benefit of the doubt until the
-        # validate-project-datapoints job checks it against the data dictionary
-        prev_datapoints.is_valid = True
+        # Only give benefit-of-the-doubt if something actually changed; a no-op
+        # PUT (retry, duplicate call) must not clear a flag that the validate job
+        # already set correctly.
+        new_term = term if term is not None else prev_datapoints.term
+        new_value_list = value_list if value_list is not None else prev_datapoints.value_list
+        if new_term != prev_datapoints.term or new_value_list != prev_datapoints.value_list:
+            prev_datapoints.is_valid = True
 
     if delete:
         # changes the activation value to false
