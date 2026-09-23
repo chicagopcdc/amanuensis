@@ -18,10 +18,13 @@ def get_project_searches(current_session, project_id=None, filter_set_id=None, t
         project_searches = project_searches.filter(ProjectSearch.project_id.in_(project_id))
 
     if filter_set_id:
+        # a filter set is a Search; the join table column is `search_id`
         filter_set_id = [filter_set_id] if not isinstance(filter_set_id, list) else filter_set_id
-        project_searches = project_searches.filter(ProjectSearch.filter_set_id.in_(filter_set_id))
+        project_searches = project_searches.filter(ProjectSearch.search_id.in_(filter_set_id))
 
-    project_searches = project_searches.all()
+    # a project can have several associated searches, and the order of that list
+    # decides the order of the exported cohort, so keep it deterministic
+    project_searches = project_searches.order_by(ProjectSearch.search_id).all()
 
     if throw_not_found and not project_searches:
         # TODO: Potential userError to show in fe to user?
@@ -37,12 +40,16 @@ def get_project_searches(current_session, project_id=None, filter_set_id=None, t
 
 
 def create_project_search(current_session, project_id, filter_set_id):
-    
-    if get_project_searches(current_session, project_id=project_id, filter_set_id=filter_set_id, many=False):
+
+    project_search = get_project_searches(
+        current_session, project_id=project_id, filter_set_id=filter_set_id, many=False
+    )
+
+    if project_search:
         logger.info(f"ProjectSearch already exists: {project_id} {filter_set_id}")
     else:
-        project_search = ProjectSearch(project_id=project_id, filter_set_id=filter_set_id)
+        project_search = ProjectSearch(project_id=project_id, search_id=filter_set_id)
         current_session.add(project_search)
         current_session.flush()
-        
+
     return project_search

@@ -669,21 +669,38 @@ def copy_search_to_user():
 @check_arborist_auth(resource="/services/amanuensis", method="*")
 def copy_search_to_project():
     """
-    Given a search id from the searches saved by the admin and a project_id
-    assign this search to the related project
+    Given one or more search ids from the searches saved by the admin and a
+    project_id, assign those searches to the related project.
+
+    Accepts `filtersetIds` (a list) or the single-valued `filtersetId`. `mode`
+    selects whether the searches replace the ones already on the project
+    ("replace", the default) or are added to them ("add").
 
     Returns a json object
     """
-    filterset_id = request.get_json().get("filtersetId", None)
+    filterset_ids = request.get_json().get("filtersetIds", None)
+    if filterset_ids is None:
+        filterset_ids = request.get_json().get("filtersetId", None)
     project_id = request.get_json().get("projectId", None)
 
-    if not filterset_id:
+    if not filterset_ids:
         raise UserError("Your request must provide the id of the filter-set to copy.")
+
+    if not isinstance(filterset_ids, list):
+        filterset_ids = [filterset_ids]
+
+    mode = request.get_json().get("mode", "replace")
+    if mode not in ("add", "replace"):
+        raise UserError("mode must be either 'add' or 'replace'.")
+
     project_schema = ProjectSchema()
     with current_app.db.session as session:
 
         copy_search_to_project = project_requests_from_filter_sets(
-            session, filter_set_ids=filterset_id, project_id=project_id
+            session,
+            filter_set_ids=filterset_ids,
+            project_id=project_id,
+            append=(mode == "add"),
         )
 
         session.commit()
@@ -914,15 +931,15 @@ def admin_export_project(project_id):
         if not project_searches:
             raise UserError("Project {} has no associated filter sets.".format(project_id))
 
-        if len(project_searches) > 1:
-            logger.warning(
-                "Project {} has {} associated filter sets; only the first one "
-                "(filter set id={}) will be used for export.".format(
-                    project_id, len(project_searches), project_searches[0].search.id
-                )
-            )
+        # a project can have several associated filter sets; every one of them
+        # contributes to the export, which the job unions into a single cohort
+        searches = [project_search.search for project_search in project_searches]
 
-        search = project_searches[0].search
+        logger.info(
+            "Exporting project {} from {} associated filter set(s): {}".format(
+                project_id, len(searches), [search.id for search in searches]
+            )
+        )
 
         project_requests = project_obj.requests
 
@@ -952,15 +969,14 @@ def admin_export_project(project_id):
         job_uid = run_export_job(
             headers={"Authorization": request.headers.get("Authorization")},
             data_request_id=project_id,
-            ids_list=search.ids_list,
-            graphql_object=search.graphql_object,
+            searches=searches,
             consortium_name=consortium_name,
             project_code=_sanitize_for_filename(project_obj.description),
         )
 
         return jsonify({
             "project_id": project_id,
-            "search_id": search.id,
+            "search_ids": [search.id for search in searches],
             "job_uid": job_uid,
         })
 

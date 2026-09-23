@@ -93,13 +93,25 @@ def calculate_overall_project_state(session, project_id=None, this_project_reque
         raise InternalError("Unable to load or find the consortium status")
 
 
-def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=None, project=None, filter_sets=None):
+def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=None, project=None, filter_sets=None, append=False):
+    """
+    Associate filter sets with a project and reconcile its consortium requests.
+
+    A project can carry several associated searches. By default the submitted
+    filter sets replace whatever the project had; with `append=True` they are
+    added to the searches already on the project, which is what "add a filter
+    set to an existing request" needs.
+    """
     project_schema = ProjectSchema()
     
     # Retrieve the project
     project = get_projects(session, id=project_id, many=False, throw_not_found=True) if not project else project
 
     filter_sets = get_filter_sets(session, id=filter_set_ids, filter_by_source_type=False, throw_not_equal=True, throw_not_found=True) if not filter_sets else filter_sets
+
+    # read the current associations before touching them - when appending, the
+    # searches already on the project stay part of the project's cohort
+    existing_project_filter_sets = list(project.searches) if append else []
 
     project_filter_sets = []
     for filter_set in filter_sets:
@@ -121,8 +133,13 @@ def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=N
     
     #TODO block requests where filter-sets are part of project
 
+    # every search the project will hold after this change - the consortium
+    # reconciliation below has to run against all of them, otherwise appending a
+    # filter set would deprecate the requests belonging to the existing ones
+    effective_filter_sets = existing_project_filter_sets + project_filter_sets
+
     # list of requests to be included in the project
-    new_consortiums = {consortium.code: consortium for consortium in get_consortiums_from_fitersets(project_filter_sets, session)}
+    new_consortiums = {consortium.code: consortium for consortium in get_consortiums_from_fitersets(effective_filter_sets, session)}
     
     # list of requests that already exist in the project. requests in state Deprecated will not appear
     old_consortiums = {request_state.request.consortium_data_contributor.code for request_state in get_request_states(session, project_id=project.id, filter_out_depricated=True, latest=True)}
@@ -176,7 +193,7 @@ def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=N
             )
 
 
-    project.searches = project_filter_sets
+    project.searches = effective_filter_sets
 
     session.flush()
     project_schema.dump(project)
