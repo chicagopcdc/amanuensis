@@ -34,7 +34,8 @@ html2text = "^2020.1.16"
 # Testing a fix to pcdcutils
 pcdcutils = {git = "https://github.com/chicagopcdc/pcdcutils.git", rev = "0.5.3"}
 pcdc-aws-client = {git = "https://github.com/chicagopcdc/pcdc-aws-client.git", rev = "1.5.1"}
-userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "1.11.2" }
+# points at the branch while it is in review; move to the release tag on merge
+userportaldatamodel = {git = "https://github.com/chicagopcdc/userPortalDataModel.git", rev = "1.11.3" }
 psycopg2-binary = "<3"
 
 hubspot-api-client = "^10.0.0"
@@ -58,6 +59,7 @@ pytest-order = "^1.0"
 fence-create = 'amanuensis.scripting.fence_create:main'
 clear-old-filter-sets = 'amanuensis.scripting.clear_old_filter_sets:main'
 validate-filter-sets = 'amanuensis.scripting.validate_filter_sets:main'
+validate-project-datapoints = 'amanuensis.scripting.validate_project_datapoints:main'
 
 
 [build-system]

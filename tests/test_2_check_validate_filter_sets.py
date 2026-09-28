@@ -17,18 +17,18 @@ def portal_config():
     portal_config = _load_data_files("gitops.json")
     yield portal_config
 
-pytest.mark.order(1)
+@pytest.mark.order(1)
 def test__load_data_files():
     assert _load_data_files("es_to_dd_map.json")
     assert _load_data_files("gitops.json")
     with pytest.raises(InternalError):
         _load_data_files("not_real.json")
 
-pytest.mark.order(3)
+@pytest.mark.order(3)
 def test__get_selectable_filters_from_data_portal(portal_config):
     assert _get_selectable_filters_from_data_portal(portal_config)
 
-pytest.mark.order(4)
+@pytest.mark.order(4)
 def test__extract_selected_values_from_filter_set():
     #check basic
     graphql_object_1_valid = {"AND":[{"IN":{"consortium":["INRG"]}}]}
@@ -163,7 +163,7 @@ def test__extract_selected_values_from_filter_set():
     result_3 = _extract_selected_values_from_filter_set(graphql_object_3_invalid)
     assert result_3 == False
 
-pytest.mark.order(5)
+@pytest.mark.order(5)
 def test_check_portal_config(portal_config):
     selectable_filters = _get_selectable_filters_from_data_portal(portal_config)
 
@@ -181,7 +181,7 @@ def test_check_portal_config(portal_config):
 
     assert not _check_portal_config({"sex", "consortium", "subject_responses.tx_prior_response"}, "test_invalid_filter_set_for_2", selectable_filters[2])
 
-pytest.mark.order(6)
+@pytest.mark.order(6)
 def test_check_es_to_dd_map(es_to_dd_map):
 
     #test valid enums
@@ -221,7 +221,7 @@ def test_check_es_to_dd_map(es_to_dd_map):
     #test type number container a float
     assert _check_es_to_dd_map({"tumor_assessments.longest_diam_dim1": [76, 91.0]}, "test_invalid_filter_set", es_to_dd_map)
 
-pytest.mark.order(7)
+@pytest.mark.order(7)
 def test_check_filter_sets(session,  
                            pytestconfig,
                            filter_set_post, 
@@ -394,7 +394,7 @@ def test_check_filter_sets(session,
     assert session.query(Project).filter(Project.id==project_post_real.json["id"]).first().searches[0].is_valid
     assert session.query(Project).filter(Project.id==project_post_invalid.json["id"]).first().searches[0].is_valid == False
 
-pytest.mark.order(9)
+@pytest.mark.order(9)
 def test_manual_change_to_filter_set_auto_updates_is_valid(session, register_user, login, filter_set_post, filter_set_put, pytestconfig):
     user_id, user_email = register_user(email=f"user_1@test_manual_change_to_filter_set_auto_updates_is_valid.com", name="test_manual_change_to_filter_set_auto_updates_is_valid")
     
@@ -439,7 +439,7 @@ def test_manual_change_to_filter_set_auto_updates_is_valid(session, register_use
     assert session.query(Search).filter(Search.id==filter_set_post_invalid_2.json["id"]).first().is_valid
 
 
-pytest.mark.order(10)
+@pytest.mark.order(10)
 def test_manual_change_to_filter_set_does_not_update_is_valid(session, register_user, login, filter_set_post, filter_set_put, pytestconfig):
     user_id, user_email = register_user(email=f"user_1@test_manual_change_to_filter_set_does_not_update_is_valid.com", name="test_manual_change_to_filter_set_does_not_update_is_valid")
     
@@ -469,7 +469,7 @@ def test_manual_change_to_filter_set_does_not_update_is_valid(session, register_
     assert session.query(Search).filter(Search.id==filter_set_post_invalid_1.json["id"]).first().is_valid == False
 
 
-pytest.mark.order(11)
+@pytest.mark.order(11)
 def test_filter_set_invalid_list_manual_mark_as_invalid(session,  
                            pytestconfig,
                            filter_set_post, 

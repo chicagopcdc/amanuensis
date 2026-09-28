@@ -1,6 +1,6 @@
 from cdislogging import get_logger
 from amanuensis.models import ProjectDataPoints, Project
-from amanuensis.errors import NotFound, UserError
+from amanuensis.errors import NotFound, UserError, InternalError
 from .project import get_projects
 
 logger = get_logger(__name__)
@@ -19,7 +19,8 @@ def get_project_datapoints(
         type=None, #user wants a specific datapoints type: 'w' or 'b'
         throw_not_found=True, #throws error if query returns no rows
         many=False, #true if you want the option of multiple rows
-        filter_by_active=True
+        filter_by_active=True,
+        is_valid=None, #only return rows whose is_valid flag matches this value
     ):
     """
     accesses project_datapoints from the project_datapoints table based on the 
@@ -47,6 +48,10 @@ def get_project_datapoints(
     #only gets the projectDataPoints with the given project_datapoints.type
     if type is not None:
         projectDataPoints = projectDataPoints.filter(ProjectDataPoints.type == type)
+
+    #only gets the projectDataPoints which are still valid against the data dictionary
+    if is_valid is not None:
+        projectDataPoints = projectDataPoints.filter(ProjectDataPoints.is_valid == is_valid)
 
     projectDataPoints = projectDataPoints.all()
 
@@ -92,6 +97,7 @@ def create_project_datapoints(
         # reactivate the deactivated datapoint and give it the value list of new creation
         datapoint.active = True
         datapoint.value_list = value_list
+        datapoint.is_valid = True
         datapoint = datapoint
 
     else:
@@ -101,6 +107,7 @@ def create_project_datapoints(
             type = type,
             project_id = project_id,
             active = True,
+            is_valid = True,
         )
         current_session.add(datapoint)
 
@@ -108,19 +115,43 @@ def create_project_datapoints(
     return datapoint
 
 def update_project_datapoints(current_session,
-                   id,
+                   id=None,
                    term=None,
                    value_list=None,
                    project_id=None,
                    type=None, #change the datapoints type of the row 'w' or 'b'
+                   is_valid=None, #set by the validate-project-datapoints job
+                   project_datapoint=None, #an already loaded row, so the caller can update inactive rows too
                    delete=False, #signal for the deletion of a row in the database
     ):
     """
     updates a row in the table with information given an id for the project_datapoints
     """
 
-    prev_datapoints = get_project_datapoints(current_session,id=id,many=False,throw_not_found= True)
+    if project_datapoint is not None:
+        if not isinstance(project_datapoint, ProjectDataPoints):
+            raise InternalError("project_datapoint must be a ProjectDataPoints object")
+
+        prev_datapoints = project_datapoint
+
+    else:
+        if id is None:
+            raise UserError("You must pass an id or a project_datapoint")
+
+        prev_datapoints = get_project_datapoints(current_session,id=id,many=False,throw_not_found= True)
     
+    if is_valid is not None:
+        prev_datapoints.is_valid = is_valid
+
+    elif term is not None or value_list is not None:
+        # Only give benefit-of-the-doubt if something actually changed; a no-op
+        # PUT (retry, duplicate call) must not clear a flag that the validate job
+        # already set correctly.
+        new_term = term if term is not None else prev_datapoints.term
+        new_value_list = value_list if value_list is not None else prev_datapoints.value_list
+        if new_term != prev_datapoints.term or new_value_list != prev_datapoints.value_list:
+            prev_datapoints.is_valid = True
+
     if delete:
         # changes the activation value to false
         prev_datapoints.active = False

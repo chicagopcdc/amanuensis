@@ -107,6 +107,7 @@ def get_datapoints():
     type = request.get_json().get("type",None)
     project_id = request.get_json().get("project_id",None)
     many = request.get_json().get("many",None)
+    is_valid = request.get_json().get("is_valid",None)
 
     with current_app.db.session as session:
 
@@ -127,6 +128,7 @@ def get_datapoints():
             type,
             many=many,
             throw_not_found=not bool(many),
+            is_valid=is_valid,
         )
 
         if isinstance(project_datapoints, list):
