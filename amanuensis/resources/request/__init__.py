@@ -113,6 +113,8 @@ def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=N
     # searches already on the project stay part of the project's cohort
     existing_project_filter_sets = list(project.searches) if append else []
 
+    check_search_limit(len(existing_project_filter_sets) + len(filter_sets))
+
     project_filter_sets = []
     for filter_set in filter_sets:
         new_filter_set = create_filter_set(
@@ -138,6 +140,91 @@ def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=N
     # filter set would deprecate the requests belonging to the existing ones
     effective_filter_sets = existing_project_filter_sets + project_filter_sets
 
+    reconcile_project_requests(session, project, effective_filter_sets)
+
+    #check if any filter_sets were from tokens
+    filter_set_ids = [fs.id for fs in filter_sets]
+    are_filter_sets_shared = get_filter_sets(session, id=filter_set_ids, filter_by_source_type=False, filter_for_filterset_is_shared=True)
+    if are_filter_sets_shared:
+        for filter_set in are_filter_sets_shared:
+            new_filter_set = create_filter_set(
+                session,
+                project.user_id,
+                False,
+                filter_set.filter_source_internal_id,
+                filter_set.name + "_copied_from_project_" + str(project.id),
+                filter_set.description,
+                filter_set.filter_object,
+                filter_set.ids_list,
+                filter_set.graphql_object,
+                user_source="fence"
+            )
+
+
+    project.searches = effective_filter_sets
+
+    session.flush()
+    project_schema.dump(project)
+    return project
+
+
+def remove_searches_from_project(session, project_id, search_ids):
+    """
+    Detach searches from a project and reconcile its consortium requests.
+
+    `search_ids` are the project's own copies, as listed by
+    /admin/project_filter_sets, not the filter sets they were copied from. A
+    detached copy has no owner and no project, so the clear-unused-filter-sets
+    job deletes it.
+    """
+    project = get_projects(session, id=project_id, many=False, throw_not_found=True)
+
+    search_ids = set(search_ids)
+    attached_ids = {search.id for search in project.searches}
+
+    not_attached = search_ids - attached_ids
+    if not_attached:
+        raise UserError(
+            f"Filter set(s) {sorted(not_attached)} are not associated with project {project.id}."
+        )
+
+    remaining = [search for search in project.searches if search.id not in search_ids]
+    if not remaining:
+        raise UserError(
+            "A project must keep at least one filter set. Add the replacement before removing the last one."
+        )
+
+    reconcile_project_requests(session, project, remaining)
+
+    project.searches = remaining
+
+    session.flush()
+    return project
+
+
+def check_search_limit(search_count):
+    """
+    Raise when a project would hold more searches than MAX_SEARCHES_PER_PROJECT.
+
+    The export job runs one guppy query per search, so the limit bounds the cost
+    of a single export. A null limit means unlimited.
+    """
+    limit = config["MAX_SEARCHES_PER_PROJECT"]
+    if limit and search_count > limit:
+        raise UserError(
+            f"A project can have at most {limit} filter sets; this change would leave it with {search_count}."
+        )
+
+
+def reconcile_project_requests(session, project, effective_filter_sets):
+    """
+    Bring a project's consortium requests in line with the searches it will hold.
+
+    A consortium that no search covers any more has its request deprecated, a
+    newly covered one gets a request in IN_REVIEW, and the rest move back to
+    IN_REVIEW, or to APPROVED when the data was already released and nothing was
+    added or removed.
+    """
     # list of requests to be included in the project
     new_consortiums = {consortium.code: consortium for consortium in get_consortiums_from_fitersets(effective_filter_sets, session)}
     
@@ -174,30 +261,6 @@ def project_requests_from_filter_sets(session, filter_set_ids=None, project_id=N
         else:
             change_request_state(session, project_id=project.id, state_code="IN_REVIEW", filter_out_depricated=False, consortium_list=list(update_consortiums))
     
-    #check if any filter_sets were from tokens
-    filter_set_ids = [fs.id for fs in filter_sets]
-    are_filter_sets_shared = get_filter_sets(session, id=filter_set_ids, filter_by_source_type=False, filter_for_filterset_is_shared=True)
-    if are_filter_sets_shared:
-        for filter_set in are_filter_sets_shared:
-            new_filter_set = create_filter_set(
-                session,
-                project.user_id,
-                False,
-                filter_set.filter_source_internal_id,
-                filter_set.name + "_copied_from_project_" + str(project.id),
-                filter_set.description,
-                filter_set.filter_object,
-                filter_set.ids_list,
-                filter_set.graphql_object,
-                user_source="fence"
-            )
-
-
-    project.searches = effective_filter_sets
-
-    session.flush()
-    project_schema.dump(project)
-    return project
     
 
     

@@ -28,6 +28,7 @@ from amanuensis.resources.request import  (
     calculate_overall_project_state,
     change_request_state,
     project_requests_from_filter_sets,
+    remove_searches_from_project,
 )
 from amanuensis.resources.userdatamodel.associated_user_roles import (
     get_associated_user_roles,
@@ -673,8 +674,9 @@ def copy_search_to_project():
     project_id, assign those searches to the related project.
 
     Accepts `filtersetIds` (a list) or the single-valued `filtersetId`. `mode`
-    selects whether the searches replace the ones already on the project
-    ("replace", the default) or are added to them ("add").
+    selects whether the searches are added to the ones already on the project
+    ("add", the default) or replace them ("replace"). Use
+    /remove-search-from-project to take a search off a project.
 
     Returns a json object
     """
@@ -689,7 +691,7 @@ def copy_search_to_project():
     if not isinstance(filterset_ids, list):
         filterset_ids = [filterset_ids]
 
-    mode = request.get_json().get("mode", "replace")
+    mode = request.get_json().get("mode", "add")
     if mode not in ("add", "replace"):
         raise UserError("mode must be either 'add' or 'replace'.")
 
@@ -707,6 +709,47 @@ def copy_search_to_project():
 
         return jsonify(project_schema.dump(copy_search_to_project))
     # return flask.jsonify(project.update_project_searches(logged_user_id, project_id, filterset_id))
+
+
+@blueprint.route("/remove-search-from-project", methods=["DELETE"])
+@check_arborist_auth(resource="/services/amanuensis", method="*")
+def remove_search_from_project():
+    """
+    Take one or more searches off a project.
+
+    `searchIds` are the project's own copies of its searches, as returned by
+    /project_filter_sets/<project_id>. A project must keep at least one search.
+
+    Returns a json object
+    """
+    search_ids = request.get_json().get("searchIds", None)
+    project_id = request.get_json().get("projectId", None)
+
+    if not project_id:
+        raise UserError("Your request must provide the id of the project.")
+
+    if not search_ids:
+        raise UserError("Your request must provide the id of the filter-set to remove.")
+
+    if not isinstance(search_ids, list):
+        search_ids = [search_ids]
+
+    if not all(
+        isinstance(search_id, int) and not isinstance(search_id, bool)
+        for search_id in search_ids
+    ):
+        raise UserError("searchIds must be a list of filter-set ids.")
+
+    project_schema = ProjectSchema()
+    with current_app.db.session as session:
+
+        project = remove_searches_from_project(
+            session, project_id=project_id, search_ids=search_ids
+        )
+
+        session.commit()
+
+        return jsonify(project_schema.dump(project))
 
 
 @blueprint.route("/project_users/<project_id>", methods=["GET"])

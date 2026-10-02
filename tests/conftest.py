@@ -1161,7 +1161,7 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
                              status_code=200,
                              consortiums_to_be_returned_from_pcdc_analysis_tools=[],
                              state_code="IN_REVIEW",
-                             mode=None,
+                             mode="replace",
                              expected_search_count=None
                              ):
         mock_requests_post(consortiums=consortiums_to_be_returned_from_pcdc_analysis_tools)
@@ -1170,8 +1170,11 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
             json["projectId"] = project_id
         if filter_set_id is not None:
             json["filtersetId"] = filter_set_id
-        # "add" keeps the searches already on the project, "replace" (the
-        # default) swaps them out
+        # "add" (the endpoint's default) keeps the searches already on the
+        # project, "replace" swaps them out. Most tests here exercise request
+        # reconciliation, which was written against "replace", so that is what
+        # the fixture sends unless told otherwise; mode=None sends no mode at
+        # all, to exercise the endpoint's default
         if mode is not None:
             json["mode"] = mode
 

@@ -665,3 +665,137 @@ def test_copy_search_to_project_rejects_unknown_mode(register_user, login, filte
         consortiums_to_be_returned_from_pcdc_analysis_tools=["INRG"],
         status_code=400
     )
+
+
+def _project_with_one_search(register_user, login, filter_set_post, project_post, test_name, consortium="INRG"):
+    """Creates a user and a project holding a single search. Returns (user_id, project_id)."""
+    user_id, user_email = register_user(email=f"user_1@{test_name}.com", name=__name__)
+    login(user_id, user_email)
+    filter_set_id = filter_set_post(
+        user_id,
+        name=test_name,
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":[consortium],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":[consortium]}}]}
+    ).json["id"]
+
+    project_id = project_post(
+        authorization_token=user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=[consortium],
+        description=test_name,
+        institution=test_name,
+        associated_users_emails=[],
+        name=test_name,
+        filter_set_ids=[filter_set_id]
+    ).json["id"]
+
+    return user_id, project_id
+
+
+def test_copy_search_to_project_defaults_to_add(register_user, login, filter_set_post, project_post, admin_copy_search_to_project, admin_user, session):
+    """
+    With no mode, attaching a filter set adds it to the project rather than
+    replacing what is there.
+    """
+    from amanuensis.models import ProjectSearch
+
+    test_name = "test_copy_search_to_project_defaults_to_add"
+    user_id, project_id = _project_with_one_search(register_user, login, filter_set_post, project_post, test_name)
+
+    filter_set_id_2 = filter_set_post(
+        user_id,
+        name=f"{test_name}_2",
+        filter_object={"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}},
+        graphql_object={"AND":[{"IN":{"consortium":["INRG"]}}]}
+    ).json["id"]
+
+    login(admin_user[0], admin_user[1])
+    assert admin_copy_search_to_project(
+        authorization_token=admin_user[0],
+        filter_set_id=filter_set_id_2,
+        project_id=project_id,
+        mode=None,
+        expected_search_count=2,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INRG"]
+    )
+
+    assert session.query(ProjectSearch).filter(ProjectSearch.project_id == project_id).count() == 2
+
+
+def test_copy_search_to_project_rejects_exceeding_search_limit(register_user, login, filter_set_post, project_post, admin_copy_search_to_project, admin_user, session, monkeypatch):
+    """
+    Adding filter sets beyond MAX_SEARCHES_PER_PROJECT is refused, and the
+    project is left as it was.
+    """
+    from amanuensis.config import config
+    from amanuensis.models import ProjectSearch
+
+    monkeypatch.setitem(config, "MAX_SEARCHES_PER_PROJECT", 2)
+
+    test_name = "test_copy_search_to_project_rejects_exceeding_search_limit"
+    user_id, project_id = _project_with_one_search(register_user, login, filter_set_post, project_post, test_name)
+
+    extra_filter_set_ids = [
+        filter_set_post(
+            user_id,
+            name=f"{test_name}_{index}",
+            filter_object={"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}},
+            graphql_object={"AND":[{"IN":{"consortium":["INRG"]}}]}
+        ).json["id"]
+        for index in range(2)
+    ]
+
+    login(admin_user[0], admin_user[1])
+    assert admin_copy_search_to_project(
+        authorization_token=admin_user[0],
+        filter_set_id=extra_filter_set_ids,
+        project_id=project_id,
+        mode="add",
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INRG"],
+        status_code=400
+    )
+
+    assert session.query(ProjectSearch).filter(ProjectSearch.project_id == project_id).count() == 1
+
+    # one more is still within the limit
+    assert admin_copy_search_to_project(
+        authorization_token=admin_user[0],
+        filter_set_id=extra_filter_set_ids[0],
+        project_id=project_id,
+        mode="add",
+        expected_search_count=2,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INRG"]
+    )
+
+
+def test_create_project_rejects_exceeding_search_limit(register_user, login, filter_set_post, project_post, monkeypatch):
+    """
+    The limit also applies when a project is created with its searches.
+    """
+    from amanuensis.config import config
+
+    monkeypatch.setitem(config, "MAX_SEARCHES_PER_PROJECT", 2)
+
+    test_name = "test_create_project_rejects_exceeding_search_limit"
+    user_id, user_email = register_user(email=f"user_1@{test_name}.com", name=__name__)
+    login(user_id, user_email)
+
+    filter_set_ids = [
+        filter_set_post(
+            user_id,
+            name=f"{test_name}_{index}",
+            filter_object={"consortium":{"__type":"OPTION","selectedValues":["INRG"],"isExclusion":False}},
+            graphql_object={"AND":[{"IN":{"consortium":["INRG"]}}]}
+        ).json["id"]
+        for index in range(3)
+    ]
+
+    project_post(
+        authorization_token=user_id,
+        consortiums_to_be_returned_from_pcdc_analysis_tools=["INRG"],
+        description=test_name,
+        institution=test_name,
+        associated_users_emails=[],
+        name=test_name,
+        filter_set_ids=filter_set_ids,
+        status_code=400
+    )
