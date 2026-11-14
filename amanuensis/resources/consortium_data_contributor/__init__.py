@@ -28,11 +28,15 @@ def get_consortium_list(src_filter, ids_list, path=None):
         headers['Authorization'] = 'bearer ' + jwt
 
         r = requests.post(
-            url, data=body, headers=headers # , proxies=flask.current_app.config.get("EXTERNAL_PROXIES")
+            url,
+            data=body,
+            headers=headers,
+            # without a timeout an unreachable service blocks the (sync) worker until the TCP timeout
+            timeout=config.get("GET_CONSORTIUMS_TIMEOUT", 30),
         )
     except requests.RequestException as e:
-        print(e.message)
-       
+        logger.error(f"Could not get the consortium list from {path}: {e}")
+        raise InternalError("Sorry could not complete request")
 
     if r.status_code != 200:
         # TODO: Should this be switched to userError instead and the FE reviewed for it.
