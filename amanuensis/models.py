@@ -206,7 +206,7 @@ def set_foreign_key_constraint_on_delete(
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
-            message="Predicate of partial index \S+ ignored during reflection",
+            message=r"Predicate of partial index \S+ ignored during reflection",
             category=sa_exc.SAWarning,
         )
         table = Table(table_name, metadata, autoload=True, autoload_with=driver.engine)
