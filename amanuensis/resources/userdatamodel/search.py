@@ -52,7 +52,9 @@ def get_filter_sets(
         id = [id] if not isinstance(id, list) else id
         filter_sets = filter_sets.filter(Search.id.in_(id))
         if throw_not_equal:
-            must_match = len(id)
+            # a caller can send the same filter set twice; the query returns it
+            # once, so the equality check has to compare against distinct ids
+            must_match = len(set(id))
     elif throw_not_equal:
         raise UserError("You must pass a filter_set_id to enforce equality check")
 

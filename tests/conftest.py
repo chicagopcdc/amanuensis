@@ -1160,7 +1160,9 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
                              filter_set_id=None,
                              status_code=200,
                              consortiums_to_be_returned_from_pcdc_analysis_tools=[],
-                             state_code="IN_REVIEW"
+                             state_code="IN_REVIEW",
+                             mode="replace",
+                             expected_search_count=None
                              ):
         mock_requests_post(consortiums=consortiums_to_be_returned_from_pcdc_analysis_tools)
         json = {}
@@ -1168,6 +1170,13 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
             json["projectId"] = project_id
         if filter_set_id is not None:
             json["filtersetId"] = filter_set_id
+        # "add" (the endpoint's default) keeps the searches already on the
+        # project, "replace" swaps them out. Most tests here exercise request
+        # reconciliation, which was written against "replace", so that is what
+        # the fixture sends unless told otherwise; mode=None sends no mode at
+        # all, to exercise the endpoint's default
+        if mode is not None:
+            json["mode"] = mode
 
         url = "/admin/copy-search-to-project"
 
@@ -1183,7 +1192,12 @@ def admin_copy_search_to_project(session, client, mock_requests_post):
 
             assert project
 
-            assert len(filter_set_id) == session.query(ProjectSearch).filter(ProjectSearch.project_id == project.id).count()
+            # under "replace" the project holds exactly the submitted filter
+            # sets; when appending, the caller says how many to expect
+            if expected_search_count is None:
+                expected_search_count = len(filter_set_id)
+
+            assert expected_search_count == session.query(ProjectSearch).filter(ProjectSearch.project_id == project.id).count()
 
             for filter_set_id in filter_set_id:
             
