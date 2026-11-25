@@ -35,7 +35,7 @@ from copy import deepcopy
 logger = get_logger(__name__)
 
 app = flask.Flask(__name__)
-CORS(app=app, headers=["content-type", "accept"], expose_headers="*")
+CORS(app=app, expose_headers="*")
 
 
 def warn_about_logger():
